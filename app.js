@@ -84,7 +84,7 @@ async function logoutAdmin() {
   state.isAdmin = false;
   
   // Nạp lại danh sách task local hoặc mẫu
-  loadTasksFromStorage();
+  loadTasks();
   renderApp();
 }
 
@@ -753,6 +753,8 @@ function renderDayView() {
             <i data-lucide="trash-2" class="w-4 h-4"></i>
           </button>
         </div>`
+      : '';
+
     const docBadge = (task.document && task.document.contentHtml)
       ? `<span class="px-2 py-0.5 text-xs font-semibold rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700/80 flex items-center gap-1" title="Có tài liệu soạn thảo">
           <i data-lucide="file-text" class="w-3.5 h-3.5"></i> DOCX
