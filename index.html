@@ -4,6 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Study & Plan Tracker</title>
+  
+  <!-- Script phát hiện & áp dụng Dark Mode ngay lập tức (Chống nhấp nháy FOUT) -->
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem('study_planner_theme');
+      if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    })();
+  </script>
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
@@ -13,6 +26,10 @@
       darkMode: 'class',
       theme: {
         extend: {
+          screens: {
+            '3xl': '1920px',
+            '4xl': '2560px',
+          },
           colors: {
             brand: {
               50: '#eff6ff',
@@ -27,51 +44,77 @@
     }
   </script>
   <style>
+    /* Thanh cuộn mượt mà hỗ trợ Dark Mode */
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: #f1f5f9; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
     ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    html.dark ::-webkit-scrollbar-track { background: #0b1120; }
+    html.dark ::-webkit-scrollbar-thumb { background: #334155; }
+    html.dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    /* Hiệu ứng kéo thả Drag & Drop (Elastic & Fluid) */
+    .task-card.dragging {
+      opacity: 0.35;
+      transform: scale(0.97);
+    }
+    .day-dropzone.drag-over {
+      background-color: #eff6ff !important;
+      border-color: #3b82f6 !important;
+      border-style: dashed !important;
+      box-shadow: inset 0 0 0 2px #bfdbfe;
+    }
+    html.dark .day-dropzone.drag-over {
+      background-color: rgba(30, 58, 138, 0.25) !important;
+      border-color: #60a5fa !important;
+      box-shadow: inset 0 0 0 2px #2563eb;
+    }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans antialiased text-sm">
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col font-sans antialiased text-sm transition-colors duration-200">
 
-  <!-- Header -->
-  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-    <div class="max-w-[1650px] mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
+  <!-- Header Elastic: Co giãn cân đối từ 14" (1366px) đến 24" (1920px) và 27" (2560px) -->
+  <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 shadow-xs transition-colors duration-200">
+    <div class="max-w-[2000px] w-full mx-auto px-4 sm:px-6 lg:px-8 2xl:px-12 h-18 flex items-center justify-between">
       
       <!-- Logo & Tiêu đề -->
       <div class="flex items-center gap-3.5">
-        <div class="w-11 h-11 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-200">
+        <div class="w-11 h-11 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
           <i data-lucide="calendar-check-2" class="w-6 h-6"></i>
         </div>
         <div>
-          <h1 class="font-bold text-lg sm:text-xl text-slate-900 leading-tight">Study & Life Planner</h1>
-          <p class="text-xs text-slate-500 hidden sm:block">Kế hoạch cá nhân & Theo dõi mục tiêu</p>
+          <h1 class="font-bold text-lg sm:text-xl text-slate-900 dark:text-white leading-tight">Study & Life Planner</h1>
+          <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Kế hoạch cá nhân & Theo dõi mục tiêu</p>
         </div>
       </div>
 
-      <!-- Action & Auth Controls (Gọn gàng với Icon Chuông thông báo) -->
-      <div class="flex items-center gap-2.5 sm:gap-3">
+      <!-- Action & Auth Controls (Bao gồm Nút Dark Mode & Chuông thông báo) -->
+      <div class="flex items-center gap-2 sm:gap-3">
         
-        <!-- ICON CHUÔNG THÔNG BÁO & DROPDOWN (Gom toàn bộ cảnh báo vào đây) -->
+        <!-- NÚT CHUYỂN ĐỔI GIAO DIỆN SÁNG / TỐI (DARK MODE TOGGLE) -->
+        <button id="btnThemeToggle" title="Chuyển giao diện Sáng / Tối" class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center justify-center">
+          <i id="themeIconSun" data-lucide="sun" class="w-5 h-5 hidden dark:block text-amber-400"></i>
+          <i id="themeIconMoon" data-lucide="moon" class="w-5 h-5 block dark:hidden text-slate-600"></i>
+        </button>
+
+        <!-- ICON CHUÔNG THÔNG BÁO & DROPDOWN -->
         <div class="relative" id="notifBellContainer">
-          <button id="btnNotifBell" title="Thông báo & Cảnh báo" class="relative p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition flex items-center justify-center">
+          <button id="btnNotifBell" title="Thông báo & Cảnh báo" class="relative p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center justify-center">
             <i data-lucide="bell" class="w-5 h-5"></i>
-            <!-- Badge đỏ đếm thông báo/cảnh báo -->
-            <span id="notifBadge" class="hidden absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-rose-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center border-2 border-white shadow-xs">0</span>
+            <span id="notifBadge" class="hidden absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-rose-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 shadow-xs">0</span>
           </button>
 
-          <!-- Dropdown danh sách thông báo -->
-          <div id="notifDropdown" class="hidden absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 py-3 z-50">
-            <div class="px-4 pb-2.5 border-b border-slate-100 flex items-center justify-between">
-              <div class="font-bold text-slate-900 flex items-center gap-2 text-sm">
-                <i data-lucide="bell-ring" class="w-4 h-4 text-blue-600"></i>
+          <!-- Dropdown thông báo -->
+          <div id="notifDropdown" class="hidden absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 py-3 z-50 transition-colors">
+            <div class="px-4 pb-2.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div class="font-bold text-slate-900 dark:text-white flex items-center gap-2 text-sm">
+                <i data-lucide="bell-ring" class="w-4 h-4 text-blue-500"></i>
                 <span>Trung tâm thông báo</span>
               </div>
-              <span id="notifDropdownBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">0 tin</span>
+              <span id="notifDropdownBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold">0 tin</span>
             </div>
 
-            <!-- Danh sách items thông báo render bằng JS -->
             <div id="notifList" class="p-3 space-y-2.5 max-h-80 overflow-y-auto"></div>
           </div>
         </div>
@@ -79,13 +122,13 @@
         <!-- VÙNG NÚT DÀNH CHO ADMIN (Chỉ hiện khi ĐÃ đăng nhập) -->
         <div id="adminActionGroup" class="hidden items-center gap-2 sm:gap-2.5">
           <!-- Sao lưu / Khôi phục -->
-          <button id="btnExport" title="Sao lưu dữ liệu ra file JSON" class="px-3 py-2 text-slate-600 hover:bg-slate-100 rounded-xl border border-slate-200 text-xs sm:text-sm flex items-center gap-1.5 transition">
+          <button id="btnExport" title="Sao lưu dữ liệu ra file JSON" class="px-3 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 text-xs sm:text-sm flex items-center gap-1.5 transition">
             <i data-lucide="download" class="w-4 h-4"></i>
-            <span class="hidden lg:inline">Sao lưu</span>
+            <span class="hidden xl:inline">Sao lưu</span>
           </button>
-          <button id="btnImportTrigger" title="Nhập dữ liệu từ file JSON" class="px-3 py-2 text-slate-600 hover:bg-slate-100 rounded-xl border border-slate-200 text-xs sm:text-sm flex items-center gap-1.5 transition">
+          <button id="btnImportTrigger" title="Nhập dữ liệu từ file JSON" class="px-3 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 text-xs sm:text-sm flex items-center gap-1.5 transition">
             <i data-lucide="upload" class="w-4 h-4"></i>
-            <span class="hidden lg:inline">Nhập</span>
+            <span class="hidden xl:inline">Nhập</span>
           </button>
           <input type="file" id="importFileInput" accept=".json" class="hidden">
 
@@ -97,16 +140,16 @@
 
           <!-- Menu Quản trị Admin -->
           <div class="relative inline-block text-left" id="userMenuContainer">
-            <button id="btnUserMenu" class="flex items-center gap-2 px-3 py-2 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-700 text-xs sm:text-sm font-semibold hover:bg-emerald-100 transition">
-              <i data-lucide="shield-check" class="w-4 h-4"></i>
+            <button id="btnUserMenu" class="flex items-center gap-2 px-3 py-2 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs sm:text-sm font-semibold hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition">
+              <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600 dark:text-emerald-400"></i>
               <span class="hidden sm:inline">Admin</span>
               <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
             </button>
-            <div id="userDropdown" class="hidden absolute right-0 mt-1.5 w-48 bg-white rounded-2xl shadow-xl border border-slate-200 py-1.5 z-40 text-xs sm:text-sm">
-              <button id="btnOpenChangePwModal" class="w-full text-left px-3.5 py-2.5 text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+            <div id="userDropdown" class="hidden absolute right-0 mt-1.5 w-48 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 py-1.5 z-40 text-xs sm:text-sm">
+              <button id="btnOpenChangePwModal" class="w-full text-left px-3.5 py-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 transition">
                 <i data-lucide="key" class="w-4 h-4 text-slate-400"></i> Đổi mật khẩu
               </button>
-              <button id="btnLogout" class="w-full text-left px-3.5 py-2.5 text-rose-600 hover:bg-rose-50 flex items-center gap-2 border-t border-slate-100 mt-1">
+              <button id="btnLogout" class="w-full text-left px-3.5 py-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 border-t border-slate-100 dark:border-slate-800 mt-1 transition">
                 <i data-lucide="log-out" class="w-4 h-4"></i> Đăng xuất
               </button>
             </div>
@@ -115,8 +158,8 @@
 
         <!-- VÙNG NÚT DÀNH CHO KHÁCH (Chỉ hiện khi CHƯA đăng nhập) -->
         <div id="guestActionGroup" class="flex items-center gap-2">
-          <span class="hidden md:inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-semibold border border-slate-200">
-            <i data-lucide="eye" class="w-4 h-4 text-slate-500"></i> Chỉ xem
+          <span class="hidden md:inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700">
+            <i data-lucide="eye" class="w-4 h-4 text-slate-500 dark:text-slate-400"></i> Chỉ xem
           </span>
           <button id="btnOpenLoginModal" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-xs transition">
             <i data-lucide="log-in" class="w-4 h-4"></i>
@@ -128,96 +171,103 @@
     </div>
   </header>
 
-  <!-- Navigation Bar: Chọn chế độ xem & Ngày tháng -->
-  <div class="bg-white border-b border-slate-200 shadow-2xs">
-    <div class="max-w-[1650px] mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+  <!-- Navigation Bar: Chọn chế độ xem & Ngày tháng (Elastic Layout) -->
+  <div class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-2xs transition-colors duration-200">
+    <div class="max-w-[2000px] w-full mx-auto px-4 sm:px-6 lg:px-8 2xl:px-12 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4">
       
       <!-- Chế độ xem: Ngày | Tuần | Tháng | Năm -->
-      <div class="flex bg-slate-100 p-1.5 rounded-2xl w-fit border border-slate-200 self-center md:self-auto">
-        <button data-view="day" class="view-btn px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition text-slate-600 hover:text-slate-900">Ngày</button>
-        <button data-view="week" class="view-btn px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition bg-white text-blue-600 shadow-xs">Tuần</button>
-        <button data-view="month" class="view-btn px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition text-slate-600 hover:text-slate-900">Tháng</button>
-        <button data-view="year" class="view-btn px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition text-slate-600 hover:text-slate-900">Năm (Heatmap)</button>
+      <div class="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-fit border border-slate-200 dark:border-slate-700 self-center md:self-auto">
+        <button data-view="day" class="view-btn px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">Ngày</button>
+        <button data-view="week" class="view-btn px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs">Tuần</button>
+        <button data-view="month" class="view-btn px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">Tháng</button>
+        <button data-view="year" class="view-btn px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">Năm (Heatmap)</button>
+      </div>
+
+      <!-- Mẹo kéo thả nhiệm vụ (Chỉ hiện khi Admin ở màn hình Tuần) -->
+      <div id="dragDropTip" class="hidden text-xs text-slate-500 dark:text-slate-400 items-center gap-1.5 bg-blue-50/70 dark:bg-blue-950/40 px-3.5 py-1.5 rounded-xl border border-blue-100 dark:border-blue-900/50">
+        <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5 text-blue-500"></i>
+        <span>Mẹo: Kéo & thả thẻ nhiệm vụ giữa các ngày để đổi lịch trực quan!</span>
       </div>
 
       <!-- Điều hướng ngày: Trước | Hôm nay | Sau -->
       <div class="flex items-center justify-center gap-3">
-        <button id="btnPrevDate" class="p-2 hover:bg-slate-100 rounded-xl text-slate-600 border border-slate-200 transition">
+        <button id="btnPrevDate" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 transition">
           <i data-lucide="chevron-left" class="w-5 h-5"></i>
         </button>
-        <span id="currentDateDisplay" class="font-extrabold text-slate-800 text-sm sm:text-lg min-w-[200px] text-center tracking-tight">...</span>
-        <button id="btnNextDate" class="p-2 hover:bg-slate-100 rounded-xl text-slate-600 border border-slate-200 transition">
+        <span id="currentDateDisplay" class="font-extrabold text-slate-800 dark:text-white text-sm sm:text-base xl:text-lg min-w-[200px] text-center tracking-tight">...</span>
+        <button id="btnNextDate" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 transition">
           <i data-lucide="chevron-right" class="w-5 h-5"></i>
         </button>
-        <button id="btnToday" class="px-3.5 py-1.5 text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl border border-slate-200 transition">
+        <button id="btnToday" class="px-3.5 py-1.5 text-xs sm:text-sm font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-700 transition">
           Hôm nay
         </button>
       </div>
 
       <!-- Thống kê nhanh tiến độ -->
-      <div class="hidden lg:flex items-center gap-3 text-xs sm:text-sm text-slate-500">
+      <div class="hidden lg:flex items-center gap-3 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
         <div class="font-medium">Tiến độ hôm nay:</div>
-        <div class="w-36 bg-slate-200 rounded-full h-3 overflow-hidden">
-          <div id="todayProgressBar" class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+        <div class="w-32 xl:w-40 bg-slate-200 dark:bg-slate-800 rounded-full h-3 overflow-hidden">
+          <div id="todayProgressBar" class="bg-blue-600 dark:bg-blue-500 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
         </div>
-        <span id="todayProgressText" class="font-bold text-slate-800">0%</span>
+        <span id="todayProgressText" class="font-bold text-slate-800 dark:text-white">0%</span>
       </div>
 
     </div>
   </div>
 
-  <!-- Main Content Container -->
-  <main class="flex-1 max-w-[1650px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+  <!-- Main Content Container: Tối ưu co giãn cân đối từ 14", 24" đến 27" -->
+  <main class="flex-1 max-w-[2000px] w-full mx-auto px-4 sm:px-6 lg:px-8 2xl:px-12 py-6">
     
     <!-- VIEW: NGÀY (DAY VIEW) -->
-    <section id="viewDay" class="space-y-4 max-w-4xl mx-auto hidden">
-      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex items-center justify-between">
+    <section id="viewDay" class="space-y-4 max-w-4xl 2xl:max-w-5xl mx-auto hidden">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-between transition-colors">
         <div>
-          <h2 id="dayViewHeader" class="text-lg font-bold text-slate-900">Danh sách nhiệm vụ</h2>
-          <p class="text-xs sm:text-sm text-slate-500">Theo dõi và thực hiện các mục tiêu đặt ra cho ngày.</p>
+          <h2 id="dayViewHeader" class="text-lg font-bold text-slate-900 dark:text-white">Danh sách nhiệm vụ</h2>
+          <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Theo dõi và thực hiện các mục tiêu đặt ra cho ngày.</p>
         </div>
-        <button id="btnQuickAddTaskDay" class="hidden text-xs sm:text-sm text-blue-600 font-bold hover:underline items-center gap-1.5">
+        <button id="btnQuickAddTaskDay" class="hidden text-xs sm:text-sm text-blue-600 dark:text-blue-400 font-bold hover:underline items-center gap-1.5">
           <i data-lucide="plus-circle" class="w-4 h-4"></i> Thêm nhanh
         </button>
       </div>
 
       <div id="dayTaskList" class="space-y-3"></div>
 
-      <div id="dayEmptyState" class="hidden bg-white rounded-2xl p-12 border border-dashed border-slate-300 text-center">
-        <i data-lucide="calendar" class="w-14 h-14 text-slate-300 mx-auto mb-3"></i>
-        <p class="text-base font-semibold text-slate-700">Chưa có nhiệm vụ nào cho ngày này</p>
-        <p id="emptyStateAdminHint" class="text-xs sm:text-sm text-slate-400 mt-1">Đăng nhập Admin để bắt đầu lên kế hoạch!</p>
+      <div id="dayEmptyState" class="hidden bg-white dark:bg-slate-900 rounded-2xl p-12 border border-dashed border-slate-300 dark:border-slate-800 text-center transition-colors">
+        <i data-lucide="calendar" class="w-14 h-14 text-slate-300 dark:text-slate-700 mx-auto mb-3"></i>
+        <p class="text-base font-semibold text-slate-700 dark:text-slate-300">Chưa có nhiệm vụ nào cho ngày này</p>
+        <p id="emptyStateAdminHint" class="text-xs sm:text-sm text-slate-400 dark:text-slate-500 mt-1">Đăng nhập Admin để bắt đầu lên kế hoạch!</p>
       </div>
     </section>
 
-    <!-- VIEW: TUẦN (WEEK VIEW) - Mặc định mở view này -->
+    <!-- VIEW: TUẦN (WEEK VIEW) - Elastic Grid co giãn chuẩn mực cho 14", 24", 27" -->
     <section id="viewWeek">
       <div class="overflow-x-auto pb-4">
-        <div class="grid grid-cols-7 gap-4 min-w-[1250px]" id="weekGridContainer"></div>
+        <!-- 7 cột: co giãn linh hoạt, trên màn hình lớn 2K/27" sẽ bung rộng rãi, màn hình 14" giữ min-width 1200px không bị co dúm -->
+        <div class="grid grid-cols-7 gap-3.5 xl:gap-4 2xl:gap-5 min-w-[1200px] xl:min-w-full" id="weekGridContainer"></div>
       </div>
     </section>
 
     <!-- VIEW: THÁNG (MONTH VIEW) -->
-    <section id="viewMonth" class="hidden bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
-      <div class="grid grid-cols-7 gap-2 text-center font-bold text-xs sm:text-sm text-slate-400 pb-3 border-b mb-3">
-        <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span class="text-blue-500">T7</span><span class="text-red-500">CN</span>
+    <section id="viewMonth" class="hidden bg-white dark:bg-slate-900 p-6 2xl:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs transition-colors">
+      <div class="grid grid-cols-7 gap-2 text-center font-bold text-xs sm:text-sm text-slate-400 dark:text-slate-500 pb-3 border-b border-slate-100 dark:border-slate-800 mb-3">
+        <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span class="text-blue-500 dark:text-blue-400">T7</span><span class="text-red-500 dark:text-red-400">CN</span>
       </div>
-      <div class="grid grid-cols-7 gap-2.5" id="monthGridContainer"></div>
+      <div class="grid grid-cols-7 gap-2.5 2xl:gap-3.5" id="monthGridContainer"></div>
     </section>
 
     <!-- VIEW: NĂM (YEAR HEATMAP VIEW) -->
-    <section id="viewYear" class="hidden bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-      <div class="flex items-center justify-between border-b pb-4">
+    <section id="viewYear" class="hidden bg-white dark:bg-slate-900 p-6 sm:p-8 2xl:p-10 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-6 transition-colors">
+      <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
         <div>
-          <h2 class="text-lg font-bold text-slate-900">Yearly Activity & Focus Heatmap</h2>
-          <p class="text-xs sm:text-sm text-slate-500">Đo lường mức độ kiên trì và kỷ luật học tập trong cả năm (như GitHub commit graph)</p>
+          <h2 class="text-lg font-bold text-slate-900 dark:text-white">Yearly Activity & Focus Heatmap</h2>
+          <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Đo lường mức độ kiên trì và kỷ luật học tập trong cả năm (như GitHub commit graph)</p>
         </div>
-        <div class="flex items-center gap-2 text-xs sm:text-sm text-slate-500">
+        <div class="flex items-center gap-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
           <span>Ít</span>
-          <span class="w-4 h-4 rounded-xs bg-slate-100 border"></span>
-          <span class="w-4 h-4 rounded-xs bg-emerald-200"></span>
-          <span class="w-4 h-4 rounded-xs bg-emerald-400"></span>
-          <span class="w-4 h-4 rounded-xs bg-emerald-600"></span>
+          <span class="w-4 h-4 rounded-xs bg-slate-100 dark:bg-slate-800 border dark:border-slate-700"></span>
+          <span class="w-4 h-4 rounded-xs bg-emerald-200 dark:bg-emerald-900/60"></span>
+          <span class="w-4 h-4 rounded-xs bg-emerald-400 dark:bg-emerald-700"></span>
+          <span class="w-4 h-4 rounded-xs bg-emerald-600 dark:bg-emerald-500"></span>
           <span>Nhiều</span>
         </div>
       </div>
@@ -227,36 +277,36 @@
   </main>
 
   <!-- MODAL: ĐĂNG NHẬP ADMIN -->
-  <div id="loginModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-slate-100">
-      <div class="flex items-center justify-between border-b pb-3">
-        <div class="flex items-center gap-2 text-blue-600">
+  <div id="loginModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 transition-colors">
+      <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div class="flex items-center gap-2 text-blue-600 dark:text-blue-400">
           <i data-lucide="lock" class="w-5 h-5"></i>
-          <h3 class="text-base font-bold text-slate-900">Đăng nhập Admin</h3>
+          <h3 class="text-base font-bold text-slate-900 dark:text-white">Đăng nhập Admin</h3>
         </div>
-        <button id="btnCloseLoginModal" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+        <button id="btnCloseLoginModal" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
 
-      <p class="text-xs text-slate-500">Đăng nhập để có quyền thêm, chỉnh sửa, xóa task và dời lịch kế hoạch.</p>
+      <p class="text-xs text-slate-500 dark:text-slate-400">Đăng nhập để có quyền thêm, chỉnh sửa, xóa task, kéo thả và dời lịch kế hoạch.</p>
 
       <form id="loginForm" class="space-y-3.5">
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Mật khẩu Admin</label>
-          <input type="password" id="loginPassword" required placeholder="Nhập mật khẩu..." class="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
-          <p class="text-[11px] text-slate-400 mt-1">Mật khẩu mặc định: <code class="bg-slate-100 px-1.5 py-0.5 rounded text-blue-600 font-bold">admin123</code></p>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Mật khẩu Admin</label>
+          <input type="password" id="loginPassword" required placeholder="Nhập mật khẩu..." class="w-full px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+          <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Mật khẩu mặc định: <code class="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-blue-600 dark:text-blue-400 font-bold">admin123</code></p>
         </div>
 
         <div class="flex items-center gap-2">
-          <input type="checkbox" id="rememberMe" checked class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
-          <label for="rememberMe" class="text-xs text-slate-600">Ghi nhớ đăng nhập trên máy này</label>
+          <input type="checkbox" id="rememberMe" checked class="rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500 bg-white dark:bg-slate-800">
+          <label for="rememberMe" class="text-xs text-slate-600 dark:text-slate-400">Ghi nhớ đăng nhập trên máy này</label>
         </div>
 
-        <div id="loginErrorMsg" class="hidden text-xs text-rose-600 font-bold">Mật khẩu không chính xác!</div>
+        <div id="loginErrorMsg" class="hidden text-xs text-rose-600 dark:text-rose-400 font-bold">Mật khẩu không chính xác!</div>
 
-        <div class="flex items-center justify-end gap-2 pt-2 border-t">
-          <button type="button" id="btnCancelLoginModal" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-medium">Hủy</button>
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" id="btnCancelLoginModal" class="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-medium">Hủy</button>
           <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-xs">Đăng nhập</button>
         </div>
       </form>
@@ -264,29 +314,29 @@
   </div>
 
   <!-- MODAL: ĐỔI MẬT KHẨU ADMIN -->
-  <div id="changePwModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-slate-100">
-      <div class="flex items-center justify-between border-b pb-3">
-        <h3 class="text-base font-bold text-slate-900">Đổi mật khẩu Admin</h3>
-        <button id="btnCloseChangePwModal" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+  <div id="changePwModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 transition-colors">
+      <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+        <h3 class="text-base font-bold text-slate-900 dark:text-white">Đổi mật khẩu Admin</h3>
+        <button id="btnCloseChangePwModal" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
 
       <form id="changePwForm" class="space-y-3.5">
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Mật khẩu hiện tại</label>
-          <input type="password" id="currentPw" required class="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Mật khẩu hiện tại</label>
+          <input type="password" id="currentPw" required class="w-full px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Mật khẩu mới</label>
-          <input type="password" id="newPw" required minlength="4" class="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Mật khẩu mới</label>
+          <input type="password" id="newPw" required minlength="4" class="w-full px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
         </div>
 
-        <div id="changePwErrorMsg" class="hidden text-xs text-rose-600 font-medium"></div>
+        <div id="changePwErrorMsg" class="hidden text-xs text-rose-600 dark:text-rose-400 font-medium"></div>
 
-        <div class="flex items-center justify-end gap-2 pt-2 border-t">
-          <button type="button" id="btnCancelChangePwModal" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-medium">Hủy</button>
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" id="btnCancelChangePwModal" class="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-medium">Hủy</button>
           <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-xs">Cập nhật</button>
         </div>
       </form>
@@ -294,11 +344,11 @@
   </div>
 
   <!-- MODAL: THÊM / CHỈNH SỬA TASK (Chỉ Admin) -->
-  <div id="taskModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-4 border border-slate-100">
-      <div class="flex items-center justify-between border-b pb-3">
-        <h3 id="modalTitle" class="text-lg font-bold text-slate-900">Thêm nhiệm vụ mới</h3>
-        <button id="btnCloseModal" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+  <div id="taskModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 transition-colors">
+      <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+        <h3 id="modalTitle" class="text-lg font-bold text-slate-900 dark:text-white">Thêm nhiệm vụ mới</h3>
+        <button id="btnCloseModal" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
@@ -307,18 +357,18 @@
         <input type="hidden" id="taskId">
         
         <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1.5">Tên nhiệm vụ / Mục tiêu học tập *</label>
-          <input type="text" id="taskTitle" required placeholder="Ví dụ: Ôn tập 20 từ vựng IELTS, Đọc 1 chương sách..." class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Tên nhiệm vụ / Mục tiêu học tập *</label>
+          <input type="text" id="taskTitle" required placeholder="Ví dụ: Ôn tập 20 từ vựng IELTS, Đọc 1 chương sách..." class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
         </div>
 
         <div class="grid grid-cols-2 gap-3.5">
           <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1.5">Ngày thực hiện *</label>
-            <input type="date" id="taskDate" required class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Ngày thực hiện *</label>
+            <input type="date" id="taskDate" required class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1.5">Mức độ ưu tiên</label>
-            <select id="taskPriority" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Mức độ ưu tiên</label>
+            <select id="taskPriority" class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
               <option value="medium">Bình thường</option>
               <option value="high">🔥 Ưu tiên cao</option>
               <option value="low">Thấp</option>
@@ -327,49 +377,49 @@
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1.5">Danh mục / Giai đoạn</label>
-          <input type="text" id="taskCategory" placeholder="Ví dụ: Tiếng Anh, Lập trình, Sức khỏe..." class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Danh mục / Giai đoạn</label>
+          <input type="text" id="taskCategory" placeholder="Ví dụ: Tiếng Anh, Lập trình, Sức khỏe..." class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1.5">Ghi chú thêm</label>
-          <textarea id="taskNote" rows="3" placeholder="Ghi chú tài liệu, link bài học, tiêu chí hoàn thành..." class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden"></textarea>
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Ghi chú thêm</label>
+          <textarea id="taskNote" rows="3" placeholder="Ghi chú tài liệu, link bài học, tiêu chí hoàn thành..." class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"></textarea>
         </div>
 
-        <div class="flex items-center justify-end gap-2.5 pt-3 border-t">
-          <button type="button" id="btnCancelModal" class="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-semibold">Hủy</button>
+        <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" id="btnCancelModal" class="px-5 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-semibold">Hủy</button>
           <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-xs">Lưu nhiệm vụ</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- MODAL: TRUNG TÂM REPLAN (Mở qua chuông thông báo hoặc nút replan) -->
-  <div id="replanModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-3xl w-full p-6 sm:p-7 shadow-2xl space-y-4 max-h-[85vh] flex flex-col border border-slate-100">
-      <div class="flex items-center justify-between border-b pb-3">
-        <div class="flex items-center gap-2 text-amber-600">
+  <!-- MODAL: TRUNG TÂM REPLAN -->
+  <div id="replanModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-3xl w-full p-6 sm:p-7 shadow-2xl space-y-4 max-h-[85vh] flex flex-col border border-slate-100 dark:border-slate-800 transition-colors">
+      <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div class="flex items-center gap-2 text-amber-600 dark:text-amber-400">
           <i data-lucide="alert-triangle" class="w-6 h-6"></i>
-          <h3 class="text-lg font-bold text-slate-900">Trung tâm Replan (Kế hoạch cần điều chỉnh)</h3>
+          <h3 class="text-lg font-bold text-slate-900 dark:text-white">Trung tâm Replan (Kế hoạch cần điều chỉnh)</h3>
         </div>
-        <button id="btnCloseReplanModal" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+        <button id="btnCloseReplanModal" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
 
-      <p class="text-xs sm:text-sm text-slate-500">
+      <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
         Những nhiệm vụ dưới đây từ các ngày trước chưa được tích hoàn thành. Bạn có thể dời sang <strong>Hôm nay</strong>, <strong>Ngày mai</strong>, <strong>Tuần sau (+7 ngày)</strong> hoặc <strong>Chọn ngày bất kỳ</strong>!
       </p>
 
       <div id="replanTaskList" class="flex-1 overflow-y-auto space-y-3 pr-1"></div>
 
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t text-xs sm:text-sm text-slate-500">
-        <span>💡 Mẹo: Task bị dời quá 3 lần nên được cân nhắc chia nhỏ ra.</span>
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+        <span>💡 Mẹo: Bạn có thể kéo thả task trực tiếp giữa các ngày trên màn hình Tuần để dời lịch nhanh.</span>
         <div class="flex items-center gap-2 flex-wrap">
           <button id="btnReplanAllToToday" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-xs transition">
             Dời tất cả sang hôm nay
           </button>
-          <button id="btnReplanAllToNextWeek" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-xs shadow-xs transition">
+          <button id="btnReplanAllToNextWeek" class="px-3.5 py-2 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 text-white rounded-xl font-bold text-xs shadow-xs transition">
             Dời tất cả sang tuần sau (+7d)
           </button>
         </div>
@@ -377,12 +427,11 @@
     </div>
   </div>
 
-  <!-- Footer -->
-  <footer class="bg-white border-t border-slate-200 mt-auto py-5 text-center text-xs text-slate-400">
-    Study & Life Planner • Deploy trực tiếp trên GitHub Pages • Dữ liệu lưu an toàn trên trình duyệt
+  <!-- Footer Elastic -->
+  <footer class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 mt-auto py-5 text-center text-xs text-slate-400 dark:text-slate-500 transition-colors duration-200">
+    Study & Life Planner • Deploy trực tiếp trên GitHub Pages • Hỗ trợ Dark Mode & Responsive Co giãn từ 14" - 27"
   </footer>
 
-  <!-- Script logic chính (Cache buster v=2.1 để luôn tải bản mới nhất) -->
-  <script src="app.js?v=2.1"></script>
+  <script src="app.js?v=2.3"></script>
 </body>
 </html>

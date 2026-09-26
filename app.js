@@ -3,10 +3,11 @@
  * Vanilla JavaScript (Zero build dependencies, works seamlessly on GitHub Pages)
  */
 
-// --- 1. STATE, AUTH & STORAGE MANAGEMENT ---
+// --- 1. STATE, AUTH, THEME & STORAGE MANAGEMENT ---
 const STORAGE_KEY = 'study_planner_tasks_v1';
 const AUTH_TOKEN_KEY = 'study_planner_auth_session';
 const ADMIN_PW_KEY = 'study_planner_admin_password';
+const THEME_KEY = 'study_planner_theme';
 
 let state = {
   isAdmin: false,
@@ -14,6 +15,23 @@ let state = {
   currentDate: new Date(), // Ngày đang xem
   tasks: []
 };
+
+// Quản lý Dark Mode
+function initTheme() {
+  const savedTheme = localStorage.getItem(THEME_KEY);
+  const isDark = savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  if (isDark) {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+}
+
+function toggleTheme() {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+  lucide.createIcons();
+}
 
 // Kiểm tra trạng thái đăng nhập
 function checkAuthStatus() {
@@ -171,13 +189,75 @@ function isOverdue(task) {
   return task.date < getTodayStr() && !task.completed;
 }
 
-// --- 3. NOTIFICATION BELL HUB (TRUNG TÂM THÔNG BÁO DUY NHẤT) ---
+// --- 3. DRAG AND DROP ENGINE (KÉO THẢ NHIỆM VỤ GIỮA CÁC NGÀY) ---
+let draggedTaskId = null;
+
+function handleDragStart(e, taskId) {
+  if (!state.isAdmin) return;
+  draggedTaskId = taskId;
+  e.dataTransfer.setData('text/plain', taskId);
+  e.dataTransfer.effectAllowed = 'move';
+  
+  const card = e.currentTarget;
+  setTimeout(() => card.classList.add('dragging'), 0);
+}
+
+function handleDragEnd(e) {
+  draggedTaskId = null;
+  document.querySelectorAll('.task-card').forEach(el => el.classList.remove('dragging'));
+  document.querySelectorAll('.day-dropzone').forEach(el => el.classList.remove('drag-over'));
+}
+
+function handleDragOver(e) {
+  if (!state.isAdmin) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+
+function handleDragEnter(e) {
+  if (!state.isAdmin) return;
+  const dropZone = e.currentTarget.closest('.day-dropzone') || e.currentTarget;
+  dropZone.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+  const dropZone = e.currentTarget.closest('.day-dropzone') || e.currentTarget;
+  if (!dropZone.contains(e.relatedTarget)) {
+    dropZone.classList.remove('drag-over');
+  }
+}
+
+function handleDrop(e, targetDateStr) {
+  e.preventDefault();
+  document.querySelectorAll('.day-dropzone').forEach(el => el.classList.remove('drag-over'));
+
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+
+  const taskId = e.dataTransfer.getData('text/plain') || draggedTaskId;
+  if (!taskId) return;
+
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  if (task.date !== targetDateStr) {
+    if (task.date < getTodayStr() && targetDateStr >= getTodayStr()) {
+      task.replanCount = (task.replanCount || 0) + 1;
+    }
+    task.date = targetDateStr;
+    saveCurrentTasks();
+    renderApp();
+  }
+}
+
+// --- 4. NOTIFICATION BELL HUB (TRUNG TÂM THÔNG BÁO DUY NHẤT) ---
 function getOverdueTasks() {
   const todayStr = getTodayStr();
   return state.tasks.filter(t => t.date < todayStr && !t.completed);
 }
 
-// Toàn bộ các thông báo, cảnh báo đều được tổng hợp và đưa vào dropdown Chuông
 function updateNotificationBell() {
   const overdueTasks = getOverdueTasks();
   const todayTasks = state.tasks.filter(t => t.date === getTodayStr());
@@ -189,23 +269,23 @@ function updateNotificationBell() {
   // 1. Thông báo quyền Khách (Chỉ xem)
   if (!state.isAdmin) {
     notifications.push({
-      badgeColor: 'bg-blue-50/90 border-blue-200 text-blue-900',
+      badgeColor: 'bg-blue-50/90 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900/60 text-blue-900 dark:text-blue-200',
       icon: 'shield-alert',
-      iconColor: 'text-blue-600',
+      iconColor: 'text-blue-600 dark:text-blue-400',
       title: 'Chế độ xem (Chỉ đọc)',
-      desc: 'Bạn đang xem kế hoạch ở chế độ khách. Hãy đăng nhập Admin để thêm, sửa, xóa hoặc tích hoàn thành.',
+      desc: 'Bạn đang xem kế hoạch ở chế độ khách. Hãy đăng nhập Admin để thêm, sửa, xóa, kéo thả và dời lịch.',
       actionHtml: `<button onclick="openLoginModal(); toggleNotifDropdown(false);" class="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-2xs">Đăng nhập ngay</button>`
     });
   }
 
-  // 2. Cảnh báo trễ hạn cần Replan (Rất quan trọng)
+  // 2. Cảnh báo trễ hạn cần Replan
   if (overdueTasks.length > 0) {
     notifications.push({
-      badgeColor: 'bg-amber-50/90 border-amber-200 text-amber-900',
+      badgeColor: 'bg-amber-50/90 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200',
       icon: 'alert-triangle',
-      iconColor: 'text-amber-600',
+      iconColor: 'text-amber-600 dark:text-amber-400',
       title: `Có ${overdueTasks.length} nhiệm vụ trễ hạn!`,
-      desc: 'Nhiệm vụ từ những ngày trước chưa hoàn thành. Hãy mở Replan Center để dời sang hôm nay, ngày mai hoặc tuần sau.',
+      desc: 'Nhiệm vụ từ những ngày trước chưa hoàn thành. Bạn có thể mở Replan Center hoặc kéo thả task sang ngày mới trên màn hình Tuần.',
       actionHtml: state.isAdmin
         ? `<button onclick="openReplanModal(); toggleNotifDropdown(false);" class="mt-2 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-2xs">Mở Replan Center</button>`
         : `<button onclick="openLoginModal(); toggleNotifDropdown(false);" class="mt-2 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-2xs">Đăng nhập để Replan</button>`
@@ -215,9 +295,9 @@ function updateNotificationBell() {
   // 3. Cảnh báo các task bị hoãn quá nhiều lần (>= 3 lần)
   if (highlyPostponed.length > 0 && state.isAdmin) {
     notifications.push({
-      badgeColor: 'bg-rose-50/90 border-rose-200 text-rose-900',
+      badgeColor: 'bg-rose-50/90 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/60 text-rose-900 dark:text-rose-200',
       icon: 'alert-octagon',
-      iconColor: 'text-rose-600',
+      iconColor: 'text-rose-600 dark:text-rose-400',
       title: `${highlyPostponed.length} task bị dời quá 3 lần`,
       desc: `Task "${escapeHtml(highlyPostponed[0].title)}" đang bị trì hoãn nhiều lần. Bạn nên xem xét chia nhỏ nó ra hoặc giảm độ khó.`,
       actionHtml: `<button onclick="openReplanModal(); toggleNotifDropdown(false);" class="mt-2 px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition shadow-2xs">Xem chi tiết</button>`
@@ -227,30 +307,28 @@ function updateNotificationBell() {
   // 4. Nhắc nhở tiến độ hôm nay (Nếu là Admin)
   if (state.isAdmin && pendingToday.length > 0) {
     notifications.push({
-      badgeColor: 'bg-slate-50 border-slate-200 text-slate-800',
+      badgeColor: 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200',
       icon: 'calendar-clock',
-      iconColor: 'text-blue-600',
+      iconColor: 'text-blue-600 dark:text-blue-400',
       title: `Hôm nay còn ${pendingToday.length} việc cần làm`,
       desc: `Đã xong ${todayTasks.length - pendingToday.length}/${todayTasks.length} nhiệm vụ (${Math.round(((todayTasks.length - pendingToday.length)/todayTasks.length)*100)}%). Cố gắng hoàn thành nhé!`,
       actionHtml: ''
     });
   } else if (state.isAdmin && todayTasks.length > 0 && pendingToday.length === 0) {
     notifications.push({
-      badgeColor: 'bg-emerald-50/90 border-emerald-200 text-emerald-900',
+      badgeColor: 'bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/60 text-emerald-900 dark:text-emerald-200',
       icon: 'party-popper',
-      iconColor: 'text-emerald-600',
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
       title: 'Mục tiêu hôm nay hoàn tất!',
       desc: 'Tuyệt vời! Bạn đã hoàn thành 100% nhiệm vụ đặt ra cho hôm nay 🎉',
       actionHtml: ''
     });
   }
 
-  // Cập nhật số đếm trên badge chuông
   const badge = document.getElementById('notifBadge');
   const dropdownBadge = document.getElementById('notifDropdownBadge');
   const listContainer = document.getElementById('notifList');
 
-  // Đếm các thông báo quan trọng (quá hạn hoặc chưa login)
   const alertCount = overdueTasks.length + (state.isAdmin ? 0 : 1);
 
   if (alertCount > 0) {
@@ -264,9 +342,9 @@ function updateNotificationBell() {
 
   if (notifications.length === 0) {
     listContainer.innerHTML = `
-      <div class="text-center py-6 text-slate-400 flex flex-col items-center justify-center gap-1.5">
+      <div class="text-center py-6 text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-1.5">
         <i data-lucide="check-circle-2" class="w-8 h-8 text-emerald-500 opacity-80"></i>
-        <p class="text-xs font-bold text-slate-600">Bạn không có thông báo hay cảnh báo nào!</p>
+        <p class="text-xs font-bold text-slate-600 dark:text-slate-300">Bạn không có thông báo hay cảnh báo nào!</p>
       </div>
     `;
   } else {
@@ -342,7 +420,7 @@ function replanAllOverdueToNextWeek() {
   closeReplanModal();
 }
 
-// --- 4. TASK CRUD (Chỉ Admin) ---
+// --- 5. TASK CRUD (Chỉ Admin) ---
 function toggleTaskComplete(taskId) {
   if (!state.isAdmin) {
     openLoginModal();
@@ -402,13 +480,14 @@ function saveTaskFromForm(formData) {
   renderApp();
 }
 
-// --- 5. RENDER VIEWS & UI UPDATE ---
+// --- 6. RENDER VIEWS & UI UPDATE ---
 
 function updateAuthUI() {
   const adminGroup = document.getElementById('adminActionGroup');
   const guestGroup = document.getElementById('guestActionGroup');
   const btnQuickAdd = document.getElementById('btnQuickAddTaskDay');
   const emptyHint = document.getElementById('emptyStateAdminHint');
+  const dragDropTip = document.getElementById('dragDropTip');
 
   if (state.isAdmin) {
     adminGroup.classList.remove('hidden');
@@ -418,6 +497,10 @@ function updateAuthUI() {
     btnQuickAdd.classList.remove('hidden');
     btnQuickAdd.classList.add('flex');
     if (emptyHint) emptyHint.textContent = 'Bấm "Thêm Task" ở góc trên để bắt đầu lên kế hoạch!';
+    if (dragDropTip) {
+      dragDropTip.classList.toggle('hidden', state.currentView !== 'week');
+      dragDropTip.classList.toggle('flex', state.currentView === 'week');
+    }
   } else {
     adminGroup.classList.add('hidden');
     adminGroup.classList.remove('flex');
@@ -426,6 +509,10 @@ function updateAuthUI() {
     btnQuickAdd.classList.add('hidden');
     btnQuickAdd.classList.remove('flex');
     if (emptyHint) emptyHint.textContent = 'Đăng nhập Admin để bắt đầu lên kế hoạch!';
+    if (dragDropTip) {
+      dragDropTip.classList.add('hidden');
+      dragDropTip.classList.remove('flex');
+    }
   }
 }
 
@@ -454,7 +541,7 @@ function updateHeaderDisplay() {
   document.getElementById('todayProgressText').textContent = `${pct}% (${completedToday}/${todayTasks.length})`;
 }
 
-// B. Render Day View
+// B. Render Day View (Dark Mode & Elastic Fluid)
 function renderDayView() {
   const listContainer = document.getElementById('dayTaskList');
   const emptyState = document.getElementById('dayEmptyState');
@@ -485,70 +572,67 @@ function renderDayView() {
   listContainer.innerHTML = tasksForDay.map(task => {
     const taskIsOverdue = isOverdue(task);
     const priorityBadge = {
-      high: '<span class="px-2 py-0.5 text-xs font-bold rounded-md bg-red-50 text-red-600 border border-red-200">🔥 Ưu tiên cao</span>',
-      medium: '<span class="px-2 py-0.5 text-xs font-semibold rounded-md bg-slate-100 text-slate-600">Bình thường</span>',
-      low: '<span class="px-2 py-0.5 text-xs font-medium rounded-md bg-slate-50 text-slate-400">Thấp</span>'
+      high: '<span class="px-2 py-0.5 text-xs font-bold rounded-md bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50">🔥 Ưu tiên cao</span>',
+      medium: '<span class="px-2 py-0.5 text-xs font-semibold rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">Bình thường</span>',
+      low: '<span class="px-2 py-0.5 text-xs font-medium rounded-md bg-slate-50 dark:bg-slate-800/40 text-slate-400 dark:text-slate-500">Thấp</span>'
     }[task.priority] || '';
 
     const replanBadge = (task.replanCount && task.replanCount > 0)
-      ? `<span class="px-2.5 py-0.5 text-xs font-bold rounded-md ${task.replanCount >= 3 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}" title="Đã bị dời ${task.replanCount} lần">
+      ? `<span class="px-2.5 py-0.5 text-xs font-bold rounded-md ${task.replanCount >= 3 ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300' : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'}" title="Đã bị dời ${task.replanCount} lần">
           <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 inline"></i> Đã dời ${task.replanCount} lần
         </span>`
       : '';
 
-    // Checkbox: Nếu chưa đăng nhập, bấm vào sẽ gọi openLoginModal()
     const checkboxHtml = state.isAdmin
-      ? `<button onclick="toggleTaskComplete('${task.id}')" title="Bấm để đánh dấu hoàn thành" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border transition ${task.completed ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'border-slate-300 hover:border-blue-500 bg-white'}">
+      ? `<button onclick="toggleTaskComplete('${task.id}')" title="Bấm để đánh dấu hoàn thành" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border transition ${task.completed ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'border-slate-300 dark:border-slate-600 hover:border-blue-500 bg-white dark:bg-slate-800'}">
           ${task.completed ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
         </button>`
-      : `<button onclick="openLoginModal()" title="Chỉ đọc - Đăng nhập Admin để tích hoàn thành" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border ${task.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-200 bg-slate-100 hover:border-blue-400'} cursor-pointer">
+      : `<button onclick="openLoginModal()" title="Chỉ đọc - Đăng nhập Admin để tích hoàn thành" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border ${task.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:border-blue-400'} cursor-pointer">
           ${task.completed ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
         </button>`;
 
-    // Thanh Replan (Chỉ hiện cho Admin)
     const replanToolbar = (taskIsOverdue && state.isAdmin)
       ? `<div class="pt-2.5 flex items-center gap-2 flex-wrap">
-          <span class="text-xs font-bold text-amber-700 flex items-center gap-1">
+          <span class="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1">
             <i data-lucide="calendar-sync" class="w-4 h-4"></i> Dời lịch sang:
           </span>
           <button onclick="replanTask('${task.id}', '${todayStr}')" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-2xs">
             Hôm nay
           </button>
-          <button onclick="replanTask('${task.id}', '${tomorrowStr}')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border">
+          <button onclick="replanTask('${task.id}', '${tomorrowStr}')" class="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700">
             Ngày mai
           </button>
-          <button onclick="replanTask('${task.id}', '${nextWeekStr}')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border">
+          <button onclick="replanTask('${task.id}', '${nextWeekStr}')" class="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700">
             Tuần sau (+7d)
           </button>
-          <input type="date" min="${todayStr}" onchange="replanTask('${task.id}', this.value)" title="Chọn ngày cụ thể khác" class="text-xs px-2 py-1 border border-slate-300 rounded-lg bg-white cursor-pointer hover:border-blue-400">
+          <input type="date" min="${todayStr}" onchange="replanTask('${task.id}', this.value)" title="Chọn ngày cụ thể khác" class="text-xs px-2 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white cursor-pointer hover:border-blue-400">
         </div>`
       : '';
 
-    // Action tools (Chỉnh sửa / Xóa - Chỉ hiện cho Admin)
     const adminActionTools = state.isAdmin
       ? `<div class="flex items-center gap-1.5 self-end sm:self-start">
-          <button onclick="openEditTaskModal('${task.id}')" title="Chỉnh sửa" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition">
+          <button onclick="openEditTaskModal('${task.id}')" title="Chỉnh sửa" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition">
             <i data-lucide="edit-3" class="w-4 h-4"></i>
           </button>
-          <button onclick="deleteTask('${task.id}')" title="Xóa" class="p-2 text-slate-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition">
+          <button onclick="deleteTask('${task.id}')" title="Xóa" class="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/40 transition">
             <i data-lucide="trash-2" class="w-4 h-4"></i>
           </button>
         </div>`
       : '';
 
     return `
-      <div class="bg-white rounded-2xl p-4 sm:p-5 border transition duration-200 hover:shadow-xs flex flex-col sm:flex-row sm:items-start justify-between gap-3.5 ${taskIsOverdue ? 'border-amber-400 bg-amber-50/25 ring-1 ring-amber-200' : 'border-slate-200'} ${task.completed ? 'opacity-60 bg-slate-50/60' : ''}">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border transition duration-200 hover:shadow-xs flex flex-col sm:flex-row sm:items-start justify-between gap-3.5 ${taskIsOverdue ? 'border-amber-400 dark:border-amber-700/60 bg-amber-50/30 dark:bg-amber-950/20' : 'border-slate-200 dark:border-slate-800'} ${task.completed ? 'opacity-60 bg-slate-50/60 dark:bg-slate-900/50' : ''}">
         <div class="flex items-start gap-3.5 flex-1">
           ${checkboxHtml}
           
           <div class="space-y-1.5 flex-1">
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="text-base font-bold text-slate-800 ${task.completed ? 'line-through text-slate-400' : ''}">${escapeHtml(task.title)}</span>
+              <span class="text-base font-bold text-slate-800 dark:text-slate-100 ${task.completed ? 'line-through text-slate-400 dark:text-slate-500' : ''}">${escapeHtml(task.title)}</span>
               ${priorityBadge}
-              ${task.category ? `<span class="px-2.5 py-0.5 text-xs font-semibold rounded-md bg-blue-50 text-blue-600 border border-blue-100">${escapeHtml(task.category)}</span>` : ''}
+              ${task.category ? `<span class="px-2.5 py-0.5 text-xs font-semibold rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/40">${escapeHtml(task.category)}</span>` : ''}
               ${replanBadge}
             </div>
-            ${task.note ? `<p class="text-xs sm:text-sm text-slate-500">${escapeHtml(task.note)}</p>` : ''}
+            ${task.note ? `<p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400">${escapeHtml(task.note)}</p>` : ''}
             ${replanToolbar}
           </div>
         </div>
@@ -561,7 +645,7 @@ function renderDayView() {
   lucide.createIcons();
 }
 
-// C. Render Week View (TO HƠN, RỘNG RÃI, DỄ THAO TÁC)
+// C. Render Week View (DARK MODE & ELASTIC DÀNH CHO 14", 24", 27")
 function getMonday(d) {
   const date = new Date(d);
   const day = date.getDay();
@@ -589,32 +673,39 @@ function renderWeekView() {
     const completedCount = tasks.filter(t => t.completed).length;
 
     const addBtnHtml = state.isAdmin
-      ? `<div class="p-3 border-t border-slate-100 mt-auto bg-slate-50/50 rounded-b-2xl">
-          <button onclick="openAddTaskModalForDate('${dateStr}')" class="w-full py-2.5 text-xs sm:text-sm font-bold text-slate-600 hover:text-blue-600 hover:bg-blue-50/80 border border-dashed border-slate-300 hover:border-blue-400 rounded-xl transition flex items-center justify-center gap-1.5 shadow-2xs">
+      ? `<div class="p-3 border-t border-slate-100 dark:border-slate-800 mt-auto bg-slate-50/50 dark:bg-slate-800/30 rounded-b-2xl">
+          <button onclick="openAddTaskModalForDate('${dateStr}')" class="w-full py-2.5 text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/80 dark:hover:bg-blue-950/40 border border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-400 rounded-xl transition flex items-center justify-center gap-1.5 shadow-2xs">
             <i data-lucide="plus" class="w-4 h-4"></i> Thêm nhiệm vụ
           </button>
         </div>`
       : '';
 
     return `
-      <div class="bg-white rounded-2xl border ${isToday ? 'border-blue-500 ring-2 ring-blue-200 shadow-md' : 'border-slate-200 shadow-xs'} flex flex-col min-h-[520px] transition hover:shadow-md">
+      <!-- Cột ngày Elastic: min-height 540px trên màn hình lớn 2K/27" và tự do co giãn -->
+      <div 
+        class="day-dropzone bg-white dark:bg-slate-900 rounded-2xl border transition-all duration-200 flex flex-col min-h-[520px] 2xl:min-h-[600px] ${isToday ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900/50 shadow-md' : 'border-slate-200 dark:border-slate-800 shadow-xs'}"
+        ondragover="handleDragOver(event)"
+        ondragenter="handleDragEnter(event)"
+        ondragleave="handleDragLeave(event)"
+        ondrop="handleDrop(event, '${dateStr}')"
+      >
         
         <!-- Day Column Header -->
-        <div class="p-4 border-b border-slate-100 flex items-center justify-between ${isToday ? 'bg-blue-50/70' : 'bg-slate-50/60'} rounded-t-2xl">
+        <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between ${isToday ? 'bg-blue-50/70 dark:bg-blue-950/40' : 'bg-slate-50/60 dark:bg-slate-800/40'} rounded-t-2xl pointer-events-none">
           <div>
-            <span class="text-xs font-bold uppercase tracking-wider ${idx >= 5 ? 'text-red-500' : 'text-slate-500'}">${dayNames[idx]}</span>
-            <div class="text-xl sm:text-2xl font-black text-slate-900 leading-tight">${dayDate.getDate()}/${dayDate.getMonth() + 1}</div>
+            <span class="text-xs font-bold uppercase tracking-wider ${idx >= 5 ? 'text-red-500 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}">${dayNames[idx]}</span>
+            <div class="text-xl 2xl:text-2xl font-black text-slate-900 dark:text-white leading-tight">${dayDate.getDate()}/${dayDate.getMonth() + 1}</div>
           </div>
-          <span class="text-xs font-extrabold px-2.5 py-1 rounded-full ${isToday ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'} shadow-2xs">
+          <span class="text-xs font-extrabold px-2.5 py-1 rounded-full ${isToday ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'} shadow-2xs">
             ${completedCount}/${tasks.length}
           </span>
         </div>
 
         <!-- Task List inside day -->
-        <div class="p-3 space-y-2.5 flex-1 overflow-y-auto max-h-[500px]">
+        <div class="p-3 space-y-2.5 flex-1 overflow-y-auto max-h-[500px] 2xl:max-h-[650px]">
           ${tasks.length === 0 ? `
-            <div class="text-xs text-slate-400 text-center py-16 flex flex-col items-center justify-center gap-1.5">
-              <i data-lucide="clipboard-check" class="w-8 h-8 text-slate-200"></i>
+            <div class="text-xs text-slate-400 dark:text-slate-600 text-center py-16 flex flex-col items-center justify-center gap-1.5 pointer-events-none">
+              <i data-lucide="clipboard-check" class="w-8 h-8 text-slate-200 dark:text-slate-800"></i>
               <span>Không có task</span>
             </div>` : ''}
           
@@ -623,36 +714,48 @@ function renderWeekView() {
             const priorityDot = {
               high: '<span class="w-2 h-2 rounded-full bg-red-500 shrink-0" title="Ưu tiên cao"></span>',
               medium: '<span class="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Bình thường"></span>',
-              low: '<span class="w-2 h-2 rounded-full bg-slate-300 shrink-0" title="Thấp"></span>'
+              low: '<span class="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0" title="Thấp"></span>'
             }[t.priority] || '';
 
             return `
-              <div onclick="openDayFromGrid('${dateStr}')" class="p-3 rounded-xl border transition-all duration-150 cursor-pointer hover:shadow-sm ${taskIsOverdue ? 'bg-amber-50/60 border-amber-300' : 'bg-white border-slate-200 hover:border-blue-300'} ${t.completed ? 'opacity-60 bg-slate-50/70' : ''}">
+              <div 
+                draggable="${state.isAdmin ? 'true' : 'false'}"
+                ondragstart="handleDragStart(event, '${t.id}')"
+                ondragend="handleDragEnd(event)"
+                onclick="openDayFromGrid('${dateStr}')" 
+                class="task-card p-3 rounded-xl border transition-all duration-150 select-none ${state.isAdmin ? 'cursor-grab active:cursor-grabbing hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md' : 'cursor-pointer hover:border-slate-300'} ${taskIsOverdue ? 'bg-amber-50/60 dark:bg-amber-950/25 border-amber-300 dark:border-amber-700/60' : 'bg-white dark:bg-slate-900/90 border-slate-200 dark:border-slate-800'} ${t.completed ? 'opacity-60 bg-slate-50/70 dark:bg-slate-800/40' : ''}"
+                title="${state.isAdmin ? 'Kéo và thả sang cột ngày khác để dời lịch nhanh' : ''}"
+              >
                 <div class="flex items-start gap-2.5">
-                  <!-- Checkbox: Nếu là khách thì bấm vào mở modal đăng nhập -->
+                  <!-- Checkbox -->
                   ${state.isAdmin ? `
-                    <button onclick="event.stopPropagation(); toggleTaskComplete('${t.id}')" title="Tích hoàn thành" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 ${t.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 hover:border-blue-500 bg-white'}">
+                    <button onclick="event.stopPropagation(); toggleTaskComplete('${t.id}')" title="Tích hoàn thành" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 ${t.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 dark:border-slate-600 hover:border-blue-500 bg-white dark:bg-slate-800'}">
                       ${t.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
                     </button>
                   ` : `
-                    <button onclick="event.stopPropagation(); openLoginModal()" title="Chỉ đọc - Đăng nhập để hoàn thành task" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${t.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-200 bg-slate-100 hover:border-blue-400'} cursor-pointer">
+                    <button onclick="event.stopPropagation(); openLoginModal()" title="Chỉ đọc - Đăng nhập để hoàn thành task" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${t.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:border-blue-400'} cursor-pointer">
                       ${t.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
                     </button>
                   `}
                   
                   <!-- Nội dung task -->
                   <div class="flex-1 min-w-0">
-                    <div class="text-xs sm:text-sm font-semibold text-slate-800 leading-snug break-words ${t.completed ? 'line-through text-slate-400' : ''}">
+                    <div class="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 leading-snug break-words ${t.completed ? 'line-through text-slate-400 dark:text-slate-500' : ''}">
                       ${escapeHtml(t.title)}
                     </div>
                     
                     <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
                       ${priorityDot}
-                      ${t.category ? `<span class="text-[10px] sm:text-xs px-2 py-0.5 font-medium rounded-md bg-blue-50 text-blue-600 border border-blue-100">${escapeHtml(t.category)}</span>` : ''}
-                      ${t.replanCount > 0 ? `<span class="text-[10px] px-1.5 py-0.5 font-semibold rounded bg-amber-100 text-amber-800">Dời ${t.replanCount} lần</span>` : ''}
-                      ${taskIsOverdue ? `<span class="text-[10px] font-bold text-amber-700">⚠️ Trễ hạn</span>` : ''}
+                      ${t.category ? `<span class="text-[10px] sm:text-xs px-2 py-0.5 font-medium rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/40">${escapeHtml(t.category)}</span>` : ''}
+                      ${t.replanCount > 0 ? `<span class="text-[10px] px-1.5 py-0.5 font-semibold rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">Dời ${t.replanCount} lần</span>` : ''}
+                      ${taskIsOverdue ? `<span class="text-[10px] font-bold text-amber-700 dark:text-amber-400">⚠️ Trễ hạn</span>` : ''}
                     </div>
                   </div>
+
+                  <!-- Grip Handle Icon -->
+                  ${state.isAdmin ? `
+                    <i data-lucide="grip-vertical" class="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 hover:text-slate-500 shrink-0 mt-0.5"></i>
+                  ` : ''}
                 </div>
               </div>
             `;
@@ -695,40 +798,52 @@ function renderMonthView() {
       const overdueTasks = tasks.filter(t => isOverdue(t));
 
       html += `
-        <div onclick="openDayFromGrid('${dateStr}')" class="min-h-[110px] p-2 sm:p-2.5 rounded-2xl border cursor-pointer hover:border-blue-400 transition bg-white flex flex-col justify-between ${isToday ? 'border-blue-500 ring-2 ring-blue-100 shadow-xs' : 'border-slate-200'}">
+        <div 
+          class="day-dropzone min-h-[110px] 2xl:min-h-[135px] p-2.5 rounded-2xl border cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition bg-white dark:bg-slate-900/90 flex flex-col justify-between ${isToday ? 'border-blue-500 ring-2 ring-blue-100 dark:ring-blue-900/40 shadow-xs' : 'border-slate-200 dark:border-slate-800'}"
+          onclick="openDayFromGrid('${dateStr}')"
+          ondragover="handleDragOver(event)"
+          ondragenter="handleDragEnter(event)"
+          ondragleave="handleDragLeave(event)"
+          ondrop="handleDrop(event, '${dateStr}')"
+        >
           <div class="flex items-center justify-between">
-            <span class="text-xs sm:text-sm font-bold ${isToday ? 'bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center' : 'text-slate-700'}">${dayNum}</span>
+            <span class="text-xs sm:text-sm font-bold ${isToday ? 'bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center' : 'text-slate-700 dark:text-slate-300'}">${dayNum}</span>
             ${overdueTasks.length > 0 ? `<span class="w-2.5 h-2.5 rounded-full bg-amber-500" title="Có task trễ hạn"></span>` : ''}
           </div>
           
           <div class="space-y-1 my-1.5 overflow-hidden">
             ${tasks.slice(0, 2).map(t => `
-              <div class="text-[11px] px-2 py-0.5 rounded truncate ${t.completed ? 'bg-slate-100 text-slate-400 line-through' : 'bg-blue-50 text-blue-700 font-semibold'}">
+              <div 
+                draggable="${state.isAdmin ? 'true' : 'false'}"
+                ondragstart="handleDragStart(event, '${t.id}')"
+                ondragend="handleDragEnd(event)"
+                class="text-[11px] px-2 py-0.5 rounded truncate ${t.completed ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 line-through' : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold'}"
+              >
                 ${escapeHtml(t.title)}
               </div>
             `).join('')}
-            ${tasks.length > 2 ? `<div class="text-[10px] text-slate-400 font-medium pl-1">+${tasks.length - 2} task nữa</div>` : ''}
+            ${tasks.length > 2 ? `<div class="text-[10px] text-slate-400 dark:text-slate-500 font-medium pl-1">+${tasks.length - 2} task nữa</div>` : ''}
           </div>
 
-          <div class="text-[11px] text-slate-400 text-right font-medium">
+          <div class="text-[11px] text-slate-400 dark:text-slate-500 text-right font-medium">
             ${tasks.length > 0 ? `${tasks.filter(t => t.completed).length}/${tasks.length}` : ''}
           </div>
         </div>
       `;
     } else {
-      html += `<div class="min-h-[110px] p-2 bg-slate-50/50 rounded-2xl border border-slate-100"></div>`;
+      html += `<div class="min-h-[110px] 2xl:min-h-[135px] p-2 bg-slate-50/50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800/60"></div>`;
     }
   }
 
   container.innerHTML = html;
 }
 
-// E. Render Year Heatmap View (GitHub-style Contribution)
+// E. Render Year Heatmap View (Elastic Layout)
 function renderYearView() {
   const container = document.getElementById('yearHeatmapContainer');
   const year = state.currentDate.getFullYear();
 
-  let html = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">`;
+  let html = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 2xl:gap-6">`;
 
   for (let m = 0; m < 12; m++) {
     const monthDate = new Date(year, m, 1);
@@ -736,8 +851,8 @@ function renderYearView() {
     const daysInMonth = new Date(year, m + 1, 0).getDate();
 
     html += `
-      <div class="p-4 bg-slate-50/70 rounded-2xl border border-slate-200">
-        <h4 class="text-xs sm:text-sm font-bold text-slate-800 capitalize mb-3">${monthName}</h4>
+      <div class="p-4 bg-slate-50/70 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800">
+        <h4 class="text-xs sm:text-sm font-bold text-slate-800 dark:text-white capitalize mb-3">${monthName}</h4>
         <div class="grid grid-cols-7 gap-1.5">
     `;
 
@@ -747,15 +862,15 @@ function renderYearView() {
       const tasks = state.tasks.filter(t => t.date === dateStr);
       const completed = tasks.filter(t => t.completed).length;
 
-      let colorClass = 'bg-white border-slate-200';
+      let colorClass = 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800';
       if (completed > 0) {
-        if (completed === 1) colorClass = 'bg-emerald-200 border-emerald-300';
-        else if (completed === 2) colorClass = 'bg-emerald-400 border-emerald-500';
-        else colorClass = 'bg-emerald-600 border-emerald-700 text-white';
+        if (completed === 1) colorClass = 'bg-emerald-200 dark:bg-emerald-900/60 border-emerald-300 dark:border-emerald-800';
+        else if (completed === 2) colorClass = 'bg-emerald-400 dark:bg-emerald-700 border-emerald-500 dark:border-emerald-600';
+        else colorClass = 'bg-emerald-600 dark:bg-emerald-500 border-emerald-700 dark:border-emerald-400 text-white';
       }
 
       html += `
-        <div onclick="openDayFromGrid('${dateStr}')" title="${dateStr}: ${completed}/${tasks.length} hoàn thành" class="w-5 h-5 sm:w-6 sm:h-6 rounded-md border text-[10px] flex items-center justify-center cursor-pointer transition hover:scale-115 ${colorClass}">
+        <div onclick="openDayFromGrid('${dateStr}')" title="${dateStr}: ${completed}/${tasks.length} hoàn thành" class="w-5 h-5 2xl:w-6 2xl:h-6 rounded-md border text-[10px] flex items-center justify-center cursor-pointer transition hover:scale-115 ${colorClass}">
         </div>
       `;
     }
@@ -767,15 +882,15 @@ function renderYearView() {
   container.innerHTML = html;
 }
 
-// --- 6. SWITCH & NAVIGATE ---
+// --- 7. SWITCH & NAVIGATE ---
 function switchView(viewName) {
   state.currentView = viewName;
 
   document.querySelectorAll('.view-btn').forEach(btn => {
     if (btn.getAttribute('data-view') === viewName) {
-      btn.className = 'view-btn px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition bg-white text-blue-600 shadow-xs';
+      btn.className = 'view-btn px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs';
     } else {
-      btn.className = 'view-btn px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition text-slate-600 hover:text-slate-900';
+      btn.className = 'view-btn px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white';
     }
   });
 
@@ -806,7 +921,7 @@ function openDayFromGrid(dateStr) {
   switchView('day');
 }
 
-// --- 7. MODALS ---
+// --- 8. MODALS ---
 const taskModal = document.getElementById('taskModal');
 const taskForm = document.getElementById('taskForm');
 const replanModal = document.getElementById('replanModal');
@@ -899,9 +1014,9 @@ function renderReplanModalContent() {
 
   if (overdueTasks.length === 0) {
     listContainer.innerHTML = `
-      <div class="text-center py-12 text-slate-500">
+      <div class="text-center py-12 text-slate-500 dark:text-slate-400">
         <i data-lucide="check-circle-2" class="w-12 h-12 text-emerald-500 mx-auto mb-2"></i>
-        <p class="font-bold text-slate-700 text-base">Tuyệt vời! Bạn không còn nhiệm vụ nào bị quá hạn.</p>
+        <p class="font-bold text-slate-700 dark:text-slate-200 text-base">Tuyệt vời! Bạn không còn nhiệm vụ nào bị quá hạn.</p>
       </div>
     `;
     lucide.createIcons();
@@ -914,32 +1029,32 @@ function renderReplanModalContent() {
 
   listContainer.innerHTML = overdueTasks.map(task => {
     return `
-      <div class="bg-amber-50/60 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+      <div class="bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
         <div>
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-bold text-slate-800 text-sm sm:text-base">${escapeHtml(task.title)}</span>
-            <span class="text-xs px-2.5 py-0.5 rounded-md bg-rose-100 text-rose-700 font-bold">Ngày cũ: ${task.date}</span>
-            ${task.replanCount > 0 ? `<span class="text-xs px-2 py-0.5 rounded-md bg-amber-200 text-amber-800 font-semibold">Đã dời ${task.replanCount} lần</span>` : ''}
+            <span class="font-bold text-slate-800 dark:text-slate-100 text-sm sm:text-base">${escapeHtml(task.title)}</span>
+            <span class="text-xs px-2.5 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold">Ngày cũ: ${task.date}</span>
+            ${task.replanCount > 0 ? `<span class="text-xs px-2 py-0.5 rounded-md bg-amber-200 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 font-semibold">Đã dời ${task.replanCount} lần</span>` : ''}
           </div>
-          ${task.note ? `<p class="text-xs sm:text-sm text-slate-500 mt-1">${escapeHtml(task.note)}</p>` : ''}
+          ${task.note ? `<p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">${escapeHtml(task.note)}</p>` : ''}
         </div>
 
         <div class="flex items-center gap-2 flex-wrap self-end sm:self-center">
           <button onclick="replanTask('${task.id}', '${todayStr}')" title="Dời về ngày hôm nay" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-2xs">
             Hôm nay
           </button>
-          <button onclick="replanTask('${task.id}', '${tomorrowStr}')" title="Dời sang ngày mai" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition border">
+          <button onclick="replanTask('${task.id}', '${tomorrowStr}')" title="Dời sang ngày mai" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition border border-slate-200 dark:border-slate-700">
             Ngày mai
           </button>
-          <button onclick="replanTask('${task.id}', '${nextWeekStr}')" title="Dời sang 7 ngày tới" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition border">
+          <button onclick="replanTask('${task.id}', '${nextWeekStr}')" title="Dời sang 7 ngày tới" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition border border-slate-200 dark:border-slate-700">
             Tuần sau (+7d)
           </button>
-          <input type="date" min="${todayStr}" onchange="replanTask('${task.id}', this.value)" title="Chọn ngày bất kỳ" class="text-xs px-2.5 py-1 border border-slate-300 rounded-xl bg-white cursor-pointer hover:border-blue-400">
+          <input type="date" min="${todayStr}" onchange="replanTask('${task.id}', this.value)" title="Chọn ngày bất kỳ" class="text-xs px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white cursor-pointer hover:border-blue-400">
           
-          <button onclick="toggleTaskComplete('${task.id}')" title="Đánh dấu đã hoàn thành" class="p-1.5 hover:bg-emerald-100 text-emerald-600 rounded-lg transition">
+          <button onclick="toggleTaskComplete('${task.id}')" title="Đánh dấu đã hoàn thành" class="p-1.5 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-lg transition">
             <i data-lucide="check" class="w-4 h-4"></i>
           </button>
-          <button onclick="deleteTask('${task.id}')" title="Xóa bỏ task này" class="p-1.5 hover:bg-rose-100 text-rose-500 rounded-lg transition">
+          <button onclick="deleteTask('${task.id}')" title="Xóa bỏ task này" class="p-1.5 hover:bg-rose-100 dark:hover:bg-rose-950/60 text-rose-500 dark:text-rose-400 rounded-lg transition">
             <i data-lucide="trash-2" class="w-4 h-4"></i>
           </button>
         </div>
@@ -950,7 +1065,7 @@ function renderReplanModalContent() {
   lucide.createIcons();
 }
 
-// --- 8. EXPORT & IMPORT (Chỉ Admin) ---
+// --- 9. EXPORT & IMPORT (Chỉ Admin) ---
 function exportData() {
   if (!state.isAdmin) {
     openLoginModal();
@@ -1001,7 +1116,7 @@ function escapeHtml(text) {
     .replace(/'/g, "&#039;");
 }
 
-// --- 9. INITIALIZATION & EVENT LISTENERS ---
+// --- 10. INITIALIZATION & EVENT LISTENERS ---
 function renderApp() {
   updateAuthUI();
   updateHeaderDisplay();
@@ -1014,8 +1129,12 @@ function renderApp() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
   checkAuthStatus();
   loadTasks();
+
+  // Nút chuyển Dark / Light Mode
+  document.getElementById('btnThemeToggle').addEventListener('click', toggleTheme);
 
   // Chuyển view
   document.querySelectorAll('.view-btn').forEach(btn => {
@@ -1135,6 +1254,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Render khởi động
   renderApp();
   lucide.createIcons();
 });
