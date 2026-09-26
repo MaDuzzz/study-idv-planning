@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Study & Plan Tracker</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans antialiased">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <!-- Logo & Tiêu đề -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-200">
+          <i data-lucide="calendar-check-2" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg sm:text-xl text-slate-900 leading-tight">Study & Life Planner</h1>
+          <p class="text-xs text-slate-500 hidden sm:block">Kế hoạch cá nhân & Theo dõi mục tiêu</p>
+        </div>
+      </div>
+
+      <!-- Action Buttons (Backup, Restore, Add Task) -->
+      <div class="flex items-center gap-2">
+        <!-- Replan Warning Button (Hiển thị khi có task quá hạn) -->
+        <button id="btnReplanCenter" class="hidden items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 rounded-lg text-xs font-semibold transition animate-pulse">
+          <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600"></i>
+          <span>Cần Replan (<span id="replanCountBadge">0</span>)</span>
+        </button>
+
+        <!-- Sao lưu / Khôi phục -->
+        <button id="btnExport" title="Sao lưu dữ liệu ra file JSON" class="p-2 text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 text-xs flex items-center gap-1">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          <span class="hidden md:inline">Sao lưu</span>
+        </button>
+        <button id="btnImportTrigger" title="Nhập dữ liệu từ file JSON" class="p-2 text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 text-xs flex items-center gap-1">
+          <i data-lucide="upload" class="w-4 h-4"></i>
+          <span class="hidden md:inline">Nhập</span>
+        </button>
+        <input type="file" id="importFileInput" accept=".json" class="hidden">
+
+        <!-- Nút Thêm task mới -->
+        <button id="btnOpenAddModal" class="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium shadow-sm transition">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          <span>Thêm Task</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Thanh cảnh báo nổi bật (Nếu có task chưa hoàn thành từ ngày cũ) -->
+  <div id="overdueAlertBanner" class="hidden bg-amber-500 text-white px-4 py-2.5 shadow-sm text-sm">
+    <div class="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
+      <div class="flex items-center gap-2">
+        <i data-lucide="alert-circle" class="w-5 h-5 flex-shrink-0"></i>
+        <span>Bạn có <strong><span id="bannerOverdueCount">0</span> task</strong> từ những ngày trước chưa hoàn thành! Hãy dời lịch (replan) ngay để không gián đoạn kế hoạch.</span>
+      </div>
+      <button id="btnBannerOpenReplan" class="bg-white text-amber-700 font-semibold px-3 py-1 rounded text-xs hover:bg-amber-50 shadow-sm transition">
+        Xem & Replan ngay
+      </button>
+    </div>
+  </div>
+
+  <!-- Navigation Bar: Chọn chế độ xem & Ngày tháng -->
+  <div class="bg-white border-b border-slate-200 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      
+      <!-- Chế độ xem: Ngày | Tuần | Tháng | Năm -->
+      <div class="flex bg-slate-100 p-1 rounded-xl w-fit border border-slate-200 self-center md:self-auto">
+        <button data-view="day" class="view-btn px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition bg-white text-blue-600 shadow-xs">Ngày</button>
+        <button data-view="week" class="view-btn px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition text-slate-600 hover:text-slate-900">Tuần</button>
+        <button data-view="month" class="view-btn px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition text-slate-600 hover:text-slate-900">Tháng</button>
+        <button data-view="year" class="view-btn px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition text-slate-600 hover:text-slate-900">Năm (Heatmap)</button>
+      </div>
+
+      <!-- Điều hướng ngày: Trước | Hôm nay | Sau -->
+      <div class="flex items-center justify-center gap-3">
+        <button id="btnPrevDate" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 border border-slate-200">
+          <i data-lucide="chevron-left" class="w-5 h-5"></i>
+        </button>
+        <span id="currentDateDisplay" class="font-bold text-slate-800 text-sm sm:text-base min-w-[160px] text-center">...</span>
+        <button id="btnNextDate" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 border border-slate-200">
+          <i data-lucide="chevron-right" class="w-5 h-5"></i>
+        </button>
+        <button id="btnToday" class="px-2.5 py-1 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-200">
+          Hôm nay
+        </button>
+      </div>
+
+      <!-- Thống kê nhanh tiến độ -->
+      <div class="hidden lg:flex items-center gap-3 text-xs text-slate-500">
+        <div>Tiến độ hôm nay:</div>
+        <div class="w-32 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+          <div id="todayProgressBar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+        <span id="todayProgressText" class="font-semibold text-slate-700">0%</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    
+    <!-- VIEW: NGÀY (DAY VIEW) -->
+    <section id="viewDay" class="space-y-4">
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
+        <div>
+          <h2 id="dayViewHeader" class="text-base font-bold text-slate-900">Danh sách nhiệm vụ</h2>
+          <p class="text-xs text-slate-500">Tích chọn để hoàn thành. Task chưa xong qua ngày mới sẽ bị cảnh báo.</p>
+        </div>
+        <button id="btnQuickAddTaskDay" class="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1">
+          <i data-lucide="plus-circle" class="w-4 h-4"></i> Thêm nhanh
+        </button>
+      </div>
+
+      <!-- Danh sách Tasks -->
+      <div id="dayTaskList" class="space-y-2.5"></div>
+
+      <!-- Empty state khi không có task -->
+      <div id="dayEmptyState" class="hidden bg-white rounded-xl p-10 border border-dashed border-slate-300 text-center">
+        <i data-lucide="calendar" class="w-12 h-12 text-slate-300 mx-auto mb-3"></i>
+        <p class="text-sm font-medium text-slate-600">Chưa có nhiệm vụ nào cho ngày này</p>
+        <p class="text-xs text-slate-400 mt-1">Bấm "Thêm Task" ở góc trên để bắt đầu lên kế hoạch!</p>
+      </div>
+    </section>
+
+    <!-- VIEW: TUẦN (WEEK VIEW) -->
+    <section id="viewWeek" class="hidden">
+      <div class="grid grid-cols-1 md:grid-cols-7 gap-3" id="weekGridContainer"></div>
+    </section>
+
+    <!-- VIEW: THÁNG (MONTH VIEW) -->
+    <section id="viewMonth" class="hidden bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <div class="grid grid-cols-7 gap-1 text-center font-bold text-xs text-slate-400 pb-2 border-b mb-2">
+        <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span class="text-blue-500">T7</span><span class="text-red-500">CN</span>
+      </div>
+      <div class="grid grid-cols-7 gap-1.5" id="monthGridContainer"></div>
+    </section>
+
+    <!-- VIEW: NĂM (YEAR HEATMAP VIEW) -->
+    <section id="viewYear" class="hidden bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
+      <div class="flex items-center justify-between border-b pb-4">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">Yearly Activity & Focus Heatmap</h2>
+          <p class="text-xs text-slate-500">Đo lường mức độ kiên trì và kỷ luật học tập trong cả năm (như GitHub commit graph)</p>
+        </div>
+        <div class="flex items-center gap-1.5 text-xs text-slate-500">
+          <span>Ít</span>
+          <span class="w-3.5 h-3.5 rounded-xs bg-slate-100 border"></span>
+          <span class="w-3.5 h-3.5 rounded-xs bg-emerald-200"></span>
+          <span class="w-3.5 h-3.5 rounded-xs bg-emerald-400"></span>
+          <span class="w-3.5 h-3.5 rounded-xs bg-emerald-600"></span>
+          <span>Nhiều</span>
+        </div>
+      </div>
+      <div id="yearHeatmapContainer" class="overflow-x-auto pb-4"></div>
+    </section>
+
+  </main>
+
+  <!-- MODAL: THÊM / CHỈNH SỬA TASK -->
+  <div id="taskModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-100">
+      <div class="flex items-center justify-between">
+        <h3 id="modalTitle" class="text-base font-bold text-slate-900">Thêm nhiệm vụ mới</h3>
+        <button id="btnCloseModal" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="taskForm" class="space-y-3.5">
+        <input type="hidden" id="taskId">
+        
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Tên nhiệm vụ / Mục tiêu học tập *</label>
+          <input type="text" id="taskTitle" required placeholder="Ví dụ: Ôn tập 20 từ vựng IELTS, Đọc 1 chương sách..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Ngày thực hiện *</label>
+            <input type="date" id="taskDate" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Mức độ ưu tiên</label>
+            <select id="taskPriority" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+              <option value="medium">Bình thường</option>
+              <option value="high">🔥 Ưu tiên cao</option>
+              <option value="low">Thấp</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Danh mục / Giai đoạn</label>
+          <input type="text" id="taskCategory" placeholder="Ví dụ: Tiếng Anh, Lập trình, Sức khỏe..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Ghi chú thêm</label>
+          <textarea id="taskNote" rows="2" placeholder="Ghi chú tài liệu, link bài học, tiêu chí hoàn thành..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden"></textarea>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2 border-t">
+          <button type="button" id="btnCancelModal" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium">Hủy</button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium shadow-xs">Lưu nhiệm vụ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: TRUNG TÂM REPLAN (XỬ LÝ TASK QUÁ HẠN) -->
+  <div id="replanModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col border border-slate-100">
+      <div class="flex items-center justify-between border-b pb-3">
+        <div class="flex items-center gap-2 text-amber-600">
+          <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+          <h3 class="text-base font-bold text-slate-900">Trung tâm Replan (Kế hoạch cần điều chỉnh)</h3>
+        </div>
+        <button id="btnCloseReplanModal" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-500">
+        Những nhiệm vụ dưới đây từ các ngày trước chưa được tích hoàn thành. Hãy chủ động dời sang hôm nay hoặc ngày tiếp theo để kế hoạch luôn khả thi!
+      </p>
+
+      <!-- Danh sách task quá hạn -->
+      <div id="replanTaskList" class="flex-1 overflow-y-auto space-y-3 pr-1"></div>
+
+      <div class="flex items-center justify-between pt-3 border-t text-xs text-slate-500">
+        <span>Mẹo: Task bị dời quá 3 lần nên được xem xét chia nhỏ ra.</span>
+        <button id="btnReplanAllToToday" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-xs shadow-xs">
+          Dời tất cả sang hôm nay
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 mt-auto py-4 text-center text-xs text-slate-400">
+    Study & Life Planner • Deploy trực tiếp trên GitHub Pages / GitLab Pages • Dữ liệu lưu an toàn trên trình duyệt
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
