@@ -965,36 +965,107 @@
           </div>
         </div>
 
-        <!-- TAB 2: DANH SÁCH LIÊN KẾT & TÀI NGUYÊN NGOÀI -->
+        <!-- TAB 2: DANH SÁCH LIÊN KẾT & TÀI NGUYÊN (FILES & LINKS) -->
         <div id="tabContentLinks" class="hidden space-y-4">
-          <!-- Form thêm liên kết mới -->
-          <form id="formAddDetailLink" class="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-3">
-            <div class="font-bold text-slate-900 dark:text-white text-xs sm:text-sm flex items-center gap-2">
-              <i data-lucide="plus-circle" class="w-4 h-4 text-blue-500"></i> Thêm tài nguyên / Link tài liệu ngoài
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Tiêu đề tài liệu *</label>
-                <input type="text" id="linkTitleInput" required placeholder="Ví dụ: Slide bài giảng, Bài báo tham khảo..." class="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+          
+          <!-- KHU VỰC 1: TẢI TỆP LÊN GOOGLE DRIVE CỦA SUBTASK NÀY -->
+          <div class="p-4 sm:p-5 bg-gradient-to-br from-blue-50/70 to-indigo-50/40 dark:from-slate-800/80 dark:to-slate-850 rounded-2xl border border-blue-100 dark:border-slate-700/80 space-y-3.5 shadow-2xs">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                  <i data-lucide="cloud-upload" class="w-4 h-4"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">Tải tệp lên Google Drive của nhiệm vụ</h4>
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400">Tự động lưu vào thư mục Drive tương ứng của subtask (hỗ trợ PDF, MP4, slide, hình ảnh...)</p>
+                </div>
               </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Đường dẫn URL *</label>
-                <input type="url" id="linkUrlInput" required placeholder="https://..." class="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+
+              <!-- Nút mở thư mục Drive nếu đã có -->
+              <a id="btnOpenTaskDriveFolder" href="#" target="_blank" class="hidden text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline items-center gap-1 shrink-0">
+                <i data-lucide="folder" class="w-3.5 h-3.5"></i>
+                <span>Mở thư mục Drive ↗</span>
+              </a>
+            </div>
+
+            <!-- Khung kéo thả & chọn tệp (Dropzone) -->
+            <input type="file" id="resourceDriveFileInput" class="hidden" multiple accept=".pdf,.mp4,.mkv,.mov,.webm,.docx,.pptx,.xlsx,.zip,.rar,.png,.jpg,.jpeg,.gif,.txt">
+            <div 
+              id="resourceDriveDropzone"
+              class="border-2 border-dashed border-blue-300 dark:border-blue-700/70 hover:border-blue-500 dark:hover:border-blue-500 bg-white/70 dark:bg-slate-800/60 rounded-xl p-4 sm:p-6 text-center cursor-pointer transition flex flex-col items-center justify-center gap-2 group"
+            >
+              <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition shadow-2xs">
+                <i data-lucide="upload" class="w-5 h-5"></i>
+              </div>
+              <div class="text-xs sm:text-sm">
+                <span class="font-bold text-blue-600 dark:text-blue-400 hover:underline">Bấm để chọn tệp từ máy</span>
+                <span class="text-slate-500 dark:text-slate-400"> hoặc kéo thả tệp vào đây</span>
+              </div>
+              <div class="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+                📄 Tài liệu PDF &bull; 🎬 Video MP4 &bull; 🖼️ Hình ảnh &bull; 📊 Slide PPTX / Word / Excel / ZIP
               </div>
             </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Ghi chú thêm (Tùy chọn)</label>
-              <input type="text" id="linkNoteInput" placeholder="Ví dụ: Đọc chương 2, Tra cứu công thức..." class="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+
+            <!-- Thanh trạng thái đang upload tệp -->
+            <div id="driveUploadProgressContainer" class="hidden p-3 bg-white dark:bg-slate-800 rounded-xl border border-blue-200 dark:border-blue-800 space-y-2">
+              <div class="flex items-center justify-between text-xs font-semibold text-blue-700 dark:text-blue-300">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
+                  <span id="driveUploadStatusText">Đang tải tệp lên Google Drive...</span>
+                </div>
+                <span id="driveUploadProgressPercent" class="font-mono text-[11px]">Đang xử lý</span>
+              </div>
+              <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                <div class="bg-blue-600 h-1.5 rounded-full animate-pulse w-full"></div>
+              </div>
             </div>
-            <div class="flex justify-end">
-              <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition flex items-center gap-1.5">
-                <i data-lucide="plus" class="w-4 h-4"></i> Lưu liên kết
+          </div>
+
+          <!-- KHU VỰC 2: FORM THÊM LIÊN KẾT / URL BÊN NGOÀI -->
+          <div class="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-3">
+            <div class="flex items-center justify-between cursor-pointer select-none" id="toggleAddLinkFormHeader">
+              <div class="font-bold text-slate-900 dark:text-white text-xs sm:text-sm flex items-center gap-2">
+                <i data-lucide="link" class="w-4 h-4 text-blue-500"></i> Đính kèm liên kết / URL ngoài (YouTube, Figma, Web...)
+              </div>
+              <button type="button" id="btnToggleAddLinkForm" class="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-semibold flex items-center gap-1">
+                <span id="toggleAddLinkFormText">Thu gọn</span>
+                <i data-lucide="chevron-up" class="w-3.5 h-3.5" id="toggleAddLinkFormIcon"></i>
               </button>
             </div>
-          </form>
 
-          <!-- Danh sách liên kết đã đính kèm -->
-          <div id="detailLinksList" class="space-y-2.5"></div>
+            <form id="formAddDetailLink" class="space-y-3 pt-1">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Tiêu đề tài liệu / liên kết *</label>
+                  <input type="text" id="linkTitleInput" required placeholder="Ví dụ: Slide bài giảng, Video hướng dẫn..." class="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Đường dẫn URL *</label>
+                  <input type="url" id="linkUrlInput" required placeholder="https://..." class="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Ghi chú thêm (Tùy chọn)</label>
+                <input type="text" id="linkNoteInput" placeholder="Ví dụ: Đọc chương 2, Tra cứu công thức..." class="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+              </div>
+              <div class="flex justify-end">
+                <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition flex items-center gap-1.5">
+                  <i data-lucide="plus" class="w-4 h-4"></i> Lưu liên kết
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- KHU VỰC 3: DANH SÁCH TÀI NGUYÊN ĐÃ ĐÍNH KÈM -->
+          <div class="space-y-2 pt-1">
+            <div class="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300 px-1">
+              <span class="flex items-center gap-1.5">
+                <i data-lucide="folder-open" class="w-4 h-4 text-blue-500"></i>
+                Danh sách tệp & liên kết (<span id="detailLinkCount">0</span>)
+              </span>
+            </div>
+            <div id="detailLinksList" class="space-y-2.5"></div>
+          </div>
         </div>
 
       </div>
@@ -1074,7 +1145,7 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=4.1"></script>
-  <script src="app.js?v=4.1"></script>
+  <script src="firebase-config.js?v=4.3"></script>
+  <script src="app.js?v=4.3"></script>
 </body>
 </html>

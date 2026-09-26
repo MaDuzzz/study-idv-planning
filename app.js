@@ -183,6 +183,10 @@ async function logoutAdmin() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
   sessionStorage.removeItem(AUTH_TOKEN_KEY);
   
+  if (typeof stopDriveAutoSyncTimer === 'function') {
+    stopDriveAutoSyncTimer();
+  }
+
   if (window.StudyPlannerFirebase && state.currentUser) {
     await window.StudyPlannerFirebase.signOutUser();
   }
@@ -2677,6 +2681,13 @@ function openTaskDetailModal(taskId) {
 
   updateDocCounts();
 
+  // Khởi tạo snapshot để kiểm tra thay đổi cho Drive Auto-Sync (2 phút/lần)
+  lastDriveSyncedHtml = task.document?.contentHtml || '';
+  let initialDocName = task.document?.fileName || '';
+  if (initialDocName && !initialDocName.endsWith('.docx')) initialDocName += '.docx';
+  lastDriveSyncedFileName = initialDocName || 'Tai_lieu.docx';
+  startDriveAutoSyncTimer();
+
   // Danh sách links
   renderTaskDetailLinks(task);
 
@@ -2712,6 +2723,7 @@ function toggleDetailFullscreen() {
 }
 
 function closeTaskDetailModal() {
+  stopDriveAutoSyncTimer();
   if (state.activeDetailTaskId) {
     flushSaveTaskDoc(state.activeDetailTaskId);
     state.activeDetailTaskId = null;
@@ -2904,13 +2916,90 @@ function handleExportDocx() {
   }
 }
 
-// Lưu tài liệu vào Google Drive
-async function handleSaveToGoogleDrive() {
+// --- QUẢN LÝ ĐỒNG BỘ GOOGLE DRIVE & AUTO-SYNC ---
+const DRIVE_AUTO_SYNC_INTERVAL_MS = 2 * 60 * 1000; // Tự động đồng bộ vào Google Drive 2 phút/lần
+let isDriveSyncing = false;
+let driveAutoSyncInterval = null;
+let lastDriveSyncedHtml = '';
+let lastDriveSyncedFileName = '';
+
+function startDriveAutoSyncTimer() {
+  stopDriveAutoSyncTimer();
+  driveAutoSyncInterval = setInterval(() => {
+    // Chỉ tự động sync khi modal chi tiết nhiệm vụ đang mở và có activeDetailTaskId
+    const modal = document.getElementById('taskDetailModal');
+    if (modal && !modal.classList.contains('hidden') && state.activeDetailTaskId) {
+      handleAutoSyncToGoogleDrive();
+    } else {
+      stopDriveAutoSyncTimer();
+    }
+  }, DRIVE_AUTO_SYNC_INTERVAL_MS);
+}
+
+function stopDriveAutoSyncTimer() {
+  if (driveAutoSyncInterval) {
+    clearInterval(driveAutoSyncInterval);
+    driveAutoSyncInterval = null;
+  }
+}
+
+// Hàm kích hoạt tự động đồng bộ ngầm định kỳ
+async function handleAutoSyncToGoogleDrive() {
+  if (isDriveSyncing) return;
+  if (!state.activeDetailTaskId) return;
+  if (!state.currentUser || !window.StudyPlannerFirebase) return;
+
+  // Kiểm tra token Google Drive có sẵn không (nếu chưa đăng nhập Google thì bỏ qua không quấy rầy)
+  const token = window.StudyPlannerFirebase.getGoogleAccessToken ? window.StudyPlannerFirebase.getGoogleAccessToken() : null;
+  if (!token) return;
+
+  // Nếu token Google Drive đã hết hạn, không tự động bung popup re-auth làm gián đoạn người dùng gõ
+  if (window.StudyPlannerFirebase.isGoogleAccessTokenExpired && window.StudyPlannerFirebase.isGoogleAccessTokenExpired()) {
+    return;
+  }
+
+  const task = state.tasks.find(t => t.id === state.activeDetailTaskId);
+  if (!task) return;
+
+  const editor = document.getElementById('taskDocEditor');
+  const fileNameInput = document.getElementById('docFileNameInput');
+  if (!editor || !fileNameInput) return;
+
+  const currentHtml = editor.innerHTML || '';
+  let currentFileName = fileNameInput.value.trim() || 'Tai_lieu.docx';
+  if (!currentFileName.endsWith('.docx')) currentFileName += '.docx';
+
+  // Không có bất kỳ thay đổi nào so với lần đã sync lên Google Drive gần nhất -> bỏ qua
+  if (currentHtml === lastDriveSyncedHtml && currentFileName === lastDriveSyncedFileName) {
+    return;
+  }
+
+  // Không tự động tạo file trắng nếu trình soạn thảo hoàn toàn rỗng và chưa từng có file trên Google Drive
+  const plainText = (editor.innerText || editor.textContent || '').trim();
+  if (!plainText && !task.document?.driveFileId) {
+    return;
+  }
+
+  console.log('Đang tự động đồng bộ Google Drive (chu kỳ 2 phút)...');
+  await performGoogleDriveUpload({ silent: true });
+}
+
+/**
+ * Thực hiện upload/cập nhật tài liệu lên Google Drive
+ * @param {Object} options - { silent: boolean }
+ *  - silent = false: Được gọi khi người dùng bấm nút "Lưu vào Drive" thủ công -> Hiển thị spinner nút, toast thông báo
+ *  - silent = true: Được gọi từ vòng lặp tự động đồng bộ 2 phút/lần -> Cập nhật trạng thái thanh công cụ ngầm, không popup làm phiền
+ */
+async function performGoogleDriveUpload(options = {}) {
+  const isSilent = options && options.silent === true;
+  if (isDriveSyncing) return;
   if (!state.activeDetailTaskId) return;
   const task = state.tasks.find(t => t.id === state.activeDetailTaskId);
   if (!task) return;
 
+  // Nếu chưa đăng nhập
   if (!state.currentUser || !window.StudyPlannerFirebase) {
+    if (isSilent) return;
     if (confirm('Bạn cần Đăng nhập bằng tài khoản Google để lưu tài liệu trực tiếp vào Google Drive cá nhân của bạn. Đăng nhập ngay?')) {
       try {
         await window.StudyPlannerFirebase.signInWithGoogle();
@@ -2923,8 +3012,11 @@ async function handleSaveToGoogleDrive() {
     }
   }
 
-  // Nếu token Google Drive đã hết hạn, tự động nhắc gia hạn
+  // Kiểm tra token Google Drive
   if (window.StudyPlannerFirebase.isGoogleAccessTokenExpired && window.StudyPlannerFirebase.isGoogleAccessTokenExpired()) {
+    if (isSilent) {
+      return;
+    }
     console.log('Google Drive Token đã hết hạn. Đang xin cấp mới...');
     try {
       await window.StudyPlannerFirebase.ensureValidGoogleAccessToken(true);
@@ -2940,27 +3032,46 @@ async function handleSaveToGoogleDrive() {
   }
 
   const btnSave = document.getElementById('btnSaveToGoogleDrive');
-  const originalHtml = btnSave.innerHTML;
-  btnSave.disabled = true;
-  btnSave.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin inline mr-1"></i> Đang tải lên...';
-  lucide.createIcons();
+  const driveSyncStatus = document.getElementById('driveSyncStatus');
+  const editorSaveStatus = document.getElementById('editorSaveStatus');
+  const originalBtnHtml = btnSave ? btnSave.innerHTML : '';
+
+  isDriveSyncing = true;
+
+  if (!isSilent && btnSave) {
+    btnSave.disabled = true;
+    btnSave.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin inline mr-1"></i> Đang tải lên...';
+    lucide.createIcons();
+  }
+
+  if (isSilent) {
+    if (driveSyncStatus) {
+      driveSyncStatus.classList.remove('hidden');
+      driveSyncStatus.classList.add('flex');
+      driveSyncStatus.innerHTML = '<i data-lucide="refresh-cw" class="w-3.5 h-3.5 animate-spin text-blue-500"></i> <span class="text-blue-600 dark:text-blue-400">Đang tự động sync Drive...</span>';
+      lucide.createIcons();
+    }
+    if (editorSaveStatus) {
+      editorSaveStatus.innerHTML = '<i data-lucide="refresh-cw" class="w-3.5 h-3.5 animate-spin"></i> Đang tự động đồng bộ Google Drive...';
+      editorSaveStatus.className = 'flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-medium';
+      lucide.createIcons();
+    }
+  }
 
   try {
     const editor = document.getElementById('taskDocEditor');
     const fileNameInput = document.getElementById('docFileNameInput');
-    let fileName = fileNameInput.value.trim() || 'Tai_lieu.docx';
+    let fileName = (fileNameInput ? fileNameInput.value.trim() : '') || 'Tai_lieu.docx';
     if (!fileName.endsWith('.docx')) fileName += '.docx';
 
-    const editorHtml = editor.innerHTML || '<p></p>';
+    const editorHtml = editor ? (editor.innerHTML || '<p></p>') : '<p></p>';
     const fullHtml = buildTaskDocxHtml(task, editorHtml);
 
     // Cấu trúc phân cấp 4 tầng: study_idv_planning / [Năm] / [Task tổng] / [Task con]
-    // 1. Phân cấp Năm
     const yearStr = (task.date && task.date.trim()) 
       ? task.date.split('-')[0] 
       : new Date().getFullYear().toString();
 
-    // 2. Phân cấp Task tổng
     let parentTitle = 'Nhiệm vụ độc lập';
     if (task.parentId) {
       const parent = getParentTask(task.parentId);
@@ -2971,9 +3082,7 @@ async function handleSaveToGoogleDrive() {
       parentTitle = task.category.trim();
     }
 
-    // 3. Phân cấp Task con
     const subtaskTitle = (task.title || 'Nhiệm vụ').trim();
-
     const folderPath = ['study_idv_planning', yearStr, parentTitle, subtaskTitle];
 
     // Gửi trực tiếp fullHtml chuẩn hóa để Google Drive tự động chuyển đổi thành tài liệu Google Docs
@@ -2995,45 +3104,83 @@ async function handleSaveToGoogleDrive() {
 
     await saveSingleTask(task);
 
-    const driveSyncStatus = document.getElementById('driveSyncStatus');
-    const btnOpenDocs = document.getElementById('btnOpenInGoogleDocsLink');
-    driveSyncStatus.classList.remove('hidden');
-    driveSyncStatus.classList.add('flex');
-    btnOpenDocs.href = driveResult.googleDocsUrl || driveResult.webViewLink;
-    btnOpenDocs.classList.remove('hidden');
-    btnOpenDocs.classList.add('flex');
+    // Cập nhật snapshot đã sync thành công
+    lastDriveSyncedHtml = editorHtml;
+    lastDriveSyncedFileName = fileName;
 
-    const displayPath = `study_idv_planning / ${yearStr} / ${parentTitle} / ${subtaskTitle}`;
-    showToast({
-      type: 'success',
-      title: 'Đã lưu vào Google Drive!',
-      message: `Tài liệu <strong>"${escapeHtml(fileName)}"</strong> đã được đồng bộ.<br><span class="font-mono text-[11px] opacity-85 text-slate-500 dark:text-slate-400">📂 ${escapeHtml(displayPath)}</span>`,
-      actionText: 'Mở Google Docs ↗',
-      actionUrl: driveResult.googleDocsUrl || driveResult.webViewLink,
-      duration: 5000
-    });
-  } catch (err) {
-    console.error('Lỗi khi lưu lên Google Drive:', err);
-    if (err.status === 401 || err.code === 'UNAUTHENTICATED' || (err.message && err.message.includes('authentication credentials'))) {
+    const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    const btnOpenDocs = document.getElementById('btnOpenInGoogleDocsLink');
+
+    if (driveSyncStatus) {
+      driveSyncStatus.classList.remove('hidden');
+      driveSyncStatus.classList.add('flex');
+      driveSyncStatus.title = 'Tự động đồng bộ vào Google Drive 2 phút/lần';
+      driveSyncStatus.innerHTML = `<i data-lucide="cloud-check" class="w-4 h-4 text-emerald-500"></i> <span class="text-emerald-600 dark:text-emerald-400">Đã sync Drive (${timeStr})</span>`;
+    }
+
+    if (btnOpenDocs) {
+      btnOpenDocs.href = driveResult.googleDocsUrl || driveResult.webViewLink;
+      btnOpenDocs.classList.remove('hidden');
+      btnOpenDocs.classList.add('flex');
+    }
+
+    if (editorSaveStatus) {
+      editorSaveStatus.innerHTML = `<i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Đã tự động lưu & sync Drive (${timeStr})`;
+      editorSaveStatus.className = 'flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold';
+    }
+
+    lucide.createIcons();
+
+    if (!isSilent) {
+      const displayPath = `study_idv_planning / ${yearStr} / ${parentTitle} / ${subtaskTitle}`;
       showToast({
-        type: 'warning',
-        title: 'Phiên Google Drive đã hết hạn',
-        message: 'Hệ thống đã tự động kết nối lại, vui lòng bấm "Lưu vào Drive" lại một lần nữa để hoàn tất!',
+        type: 'success',
+        title: 'Đã lưu vào Google Drive!',
+        message: `Tài liệu <strong>"${escapeHtml(fileName)}"</strong> đã được đồng bộ.<br><span class="font-mono text-[11px] opacity-85 text-slate-500 dark:text-slate-400">📂 ${escapeHtml(displayPath)}</span>`,
+        actionText: 'Mở Google Docs ↗',
+        actionUrl: driveResult.googleDocsUrl || driveResult.webViewLink,
         duration: 5000
       });
+    }
+  } catch (err) {
+    console.error('Lỗi khi lưu/đồng bộ lên Google Drive:', err);
+    if (isSilent) {
+      if (driveSyncStatus) {
+        driveSyncStatus.classList.remove('hidden');
+        driveSyncStatus.classList.add('flex');
+        driveSyncStatus.innerHTML = '<i data-lucide="alert-circle" class="w-3.5 h-3.5 text-amber-500"></i> <span class="text-amber-600 dark:text-amber-400 text-[11px]">Chưa thể tự động sync Drive</span>';
+        lucide.createIcons();
+      }
     } else {
-      showToast({
-        type: 'error',
-        title: 'Không thể lưu lên Google Drive',
-        message: err.message || 'Đã có lỗi xảy ra trong quá trình kết nối với Google Drive.',
-        duration: 6000
-      });
+      if (err.status === 401 || err.code === 'UNAUTHENTICATED' || (err.message && err.message.includes('authentication credentials'))) {
+        showToast({
+          type: 'warning',
+          title: 'Phiên Google Drive đã hết hạn',
+          message: 'Hệ thống đã tự động kết nối lại, vui lòng bấm "Lưu vào Drive" lại một lần nữa để hoàn tất!',
+          duration: 5000
+        });
+      } else {
+        showToast({
+          type: 'error',
+          title: 'Không thể lưu lên Google Drive',
+          message: err.message || 'Đã có lỗi xảy ra trong quá trình kết nối với Google Drive.',
+          duration: 6000
+        });
+      }
     }
   } finally {
-    btnSave.disabled = false;
-    btnSave.innerHTML = originalHtml;
-    lucide.createIcons();
+    isDriveSyncing = false;
+    if (!isSilent && btnSave) {
+      btnSave.disabled = false;
+      btnSave.innerHTML = originalBtnHtml;
+      lucide.createIcons();
+    }
   }
+}
+
+// Nút bấm lưu tài liệu thủ công vào Google Drive
+async function handleSaveToGoogleDrive() {
+  await performGoogleDriveUpload({ silent: false });
 }
 
 // Chèn Bảng vào Editor
@@ -3059,20 +3206,141 @@ function insertTableIntoEditor(rows = 3, cols = 3) {
   triggerDocAutoSave();
 }
 
-// --- QUẢN LÝ LIÊN KẾT & TÀI NGUYÊN (RELATED LINKS) ---
+// --- QUẢN LÝ LIÊN KẾT & TÀI NGUYÊN (RESOURCES & GOOGLE DRIVE FILES) ---
+
+function formatFileSize(bytes) {
+  if (!bytes || isNaN(bytes) || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function getResourceFileInfo(link) {
+  const title = (link.title || '').toLowerCase();
+  const mime = (link.mimeType || '').toLowerCase();
+  const url = (link.url || '').toLowerCase();
+
+  const isDrive = link.type === 'drive_file' || Boolean(link.fileId) || url.includes('drive.google.com') || url.includes('docs.google.com');
+
+  if (mime.includes('pdf') || title.endsWith('.pdf')) {
+    return {
+      type: 'pdf',
+      label: 'PDF',
+      badgeClass: 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800',
+      icon: 'file-text',
+      iconColor: 'text-rose-500',
+      isDrive
+    };
+  }
+  if (mime.includes('video') || title.endsWith('.mp4') || title.endsWith('.mkv') || title.endsWith('.mov') || title.endsWith('.webm') || title.endsWith('.avi')) {
+    return {
+      type: 'video',
+      label: 'VIDEO',
+      badgeClass: 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800',
+      icon: 'video',
+      iconColor: 'text-purple-500',
+      isDrive
+    };
+  }
+  if (mime.includes('image') || title.endsWith('.png') || title.endsWith('.jpg') || title.endsWith('.jpeg') || title.endsWith('.webp') || title.endsWith('.gif')) {
+    return {
+      type: 'image',
+      label: 'IMAGE',
+      badgeClass: 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+      icon: 'image',
+      iconColor: 'text-emerald-500',
+      isDrive
+    };
+  }
+  if (mime.includes('audio') || title.endsWith('.mp3') || title.endsWith('.wav') || title.endsWith('.m4a') || title.endsWith('.ogg')) {
+    return {
+      type: 'audio',
+      label: 'AUDIO',
+      badgeClass: 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+      icon: 'music',
+      iconColor: 'text-amber-500',
+      isDrive
+    };
+  }
+  if (title.endsWith('.zip') || title.endsWith('.rar') || title.endsWith('.7z') || title.endsWith('.tar') || title.endsWith('.gz')) {
+    return {
+      type: 'archive',
+      label: 'ZIP',
+      badgeClass: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700',
+      icon: 'archive',
+      iconColor: 'text-slate-500',
+      isDrive
+    };
+  }
+  if (title.endsWith('.doc') || title.endsWith('.docx') || mime.includes('word') || url.includes('docs.google.com/document')) {
+    return {
+      type: 'doc',
+      label: 'DOCX',
+      badgeClass: 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+      icon: 'file-type-2',
+      iconColor: 'text-blue-500',
+      isDrive
+    };
+  }
+  if (title.endsWith('.xls') || title.endsWith('.xlsx') || title.endsWith('.csv') || mime.includes('sheet') || url.includes('docs.google.com/spreadsheets')) {
+    return {
+      type: 'sheet',
+      label: 'EXCEL',
+      badgeClass: 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+      icon: 'sheet',
+      iconColor: 'text-emerald-600',
+      isDrive
+    };
+  }
+  if (title.endsWith('.ppt') || title.endsWith('.pptx') || mime.includes('presentation') || url.includes('docs.google.com/presentation')) {
+    return {
+      type: 'presentation',
+      label: 'SLIDE',
+      badgeClass: 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+      icon: 'presentation',
+      iconColor: 'text-amber-600',
+      isDrive
+    };
+  }
+
+  return {
+    type: 'link',
+    label: isDrive ? 'DRIVE' : 'LINK',
+    badgeClass: isDrive ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700',
+    icon: isDrive ? 'hard-drive' : 'link',
+    iconColor: isDrive ? 'text-blue-500' : 'text-slate-400',
+    isDrive
+  };
+}
 
 function renderTaskDetailLinks(task) {
   const container = document.getElementById('detailLinksList');
   const countEl = document.getElementById('detailLinkCount');
   const links = task.links || [];
 
-  countEl.textContent = links.length;
+  if (countEl) countEl.textContent = links.length;
+
+  // Cập nhật nút Mở thư mục Drive nếu task đã có ID thư mục
+  const btnOpenFolder = document.getElementById('btnOpenTaskDriveFolder');
+  const folderId = task.driveFolderId || task.document?.driveFolderId;
+  if (btnOpenFolder) {
+    if (folderId) {
+      btnOpenFolder.href = `https://drive.google.com/drive/folders/${folderId}`;
+      btnOpenFolder.classList.remove('hidden');
+      btnOpenFolder.classList.add('flex');
+    } else {
+      btnOpenFolder.classList.add('hidden');
+      btnOpenFolder.classList.remove('flex');
+    }
+  }
 
   if (links.length === 0) {
     container.innerHTML = `
-      <div class="text-center py-8 text-slate-400 dark:text-slate-500">
-        <i data-lucide="link" class="w-8 h-8 mx-auto mb-2 opacity-40"></i>
-        <p class="text-xs sm:text-sm">Chưa có liên kết hay tài liệu ngoài nào được đính kèm vào nhiệm vụ này.</p>
+      <div class="text-center py-8 text-slate-400 dark:text-slate-500 bg-slate-50/50 dark:bg-slate-850/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+        <i data-lucide="folder-open" class="w-8 h-8 mx-auto mb-2 opacity-40"></i>
+        <p class="text-xs sm:text-sm font-semibold">Chưa có tệp tài liệu hay liên kết nào</p>
+        <p class="text-[11px] mt-0.5 opacity-80">Hãy tải tệp PDF, video MP4 lên Google Drive hoặc dán đường dẫn URL ở trên.</p>
       </div>
     `;
     lucide.createIcons();
@@ -3080,34 +3348,63 @@ function renderTaskDetailLinks(task) {
   }
 
   container.innerHTML = links.map(link => {
+    const fileInfo = getResourceFileInfo(link);
+    const sizeStr = formatFileSize(link.size);
+
     let hostname = '';
     try {
       hostname = new URL(link.url).hostname;
     } catch (e) {
       hostname = link.url;
     }
-    const faviconUrl = `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
+
+    const faviconUrl = fileInfo.isDrive 
+      ? '' 
+      : `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
 
     return `
-      <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700/80 flex items-start justify-between gap-3 shadow-2xs hover:border-blue-400 dark:hover:border-blue-400 transition">
+      <div class="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700/80 flex items-start justify-between gap-3 shadow-2xs hover:border-blue-400 dark:hover:border-blue-400 transition group">
         <div class="flex items-start gap-3 min-w-0 flex-1">
-          <img src="${faviconUrl}" alt="" class="w-5 h-5 rounded-sm mt-0.5 shrink-0" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22><circle cx=%2212%22 cy=%2212%22 r=%2210%22/></svg>'">
+          ${fileInfo.isDrive ? `
+            <div class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-750 flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700 ${fileInfo.iconColor}">
+              <i data-lucide="${fileInfo.icon}" class="w-5 h-5"></i>
+            </div>
+          ` : `
+            <img src="${faviconUrl}" alt="" class="w-5 h-5 rounded-sm mt-1 shrink-0" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22><circle cx=%2212%22 cy=%2212%22 r=%2210%22/></svg>'">
+          `}
+
           <div class="min-w-0 flex-1">
-            <a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer" class="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline break-words flex items-center gap-1">
+            <div class="flex items-center gap-1.5 flex-wrap mb-0.5">
+              <span class="text-[10px] font-black uppercase font-mono px-1.5 py-0.5 rounded border ${fileInfo.badgeClass}">
+                ${fileInfo.label}
+              </span>
+              ${fileInfo.isDrive ? `
+                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 flex items-center gap-0.5">
+                  <i data-lucide="hard-drive" class="w-3 h-3"></i> Google Drive
+                </span>
+              ` : ''}
+              ${sizeStr ? `<span class="text-[11px] font-mono text-slate-400 dark:text-slate-500 font-semibold">• ${sizeStr}</span>` : ''}
+            </div>
+
+            <a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer" class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 break-words flex items-center gap-1 transition">
               <span>${escapeHtml(link.title)}</span>
-              <i data-lucide="external-link" class="w-3.5 h-3.5 shrink-0 inline"></i>
+              <i data-lucide="external-link" class="w-3.5 h-3.5 shrink-0 inline opacity-60"></i>
             </a>
-            <div class="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">${escapeHtml(link.url)}</div>
+
             ${link.note ? `<p class="text-xs text-slate-600 dark:text-slate-300 mt-1">${escapeHtml(link.note)}</p>` : ''}
           </div>
         </div>
 
         <div class="flex items-center gap-1 shrink-0">
-          <button onclick="navigator.clipboard.writeText('${escapeHtml(link.url)}'); alert('Đã sao chép link!');" title="Sao chép link" class="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+          <a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer" title="Mở trên Google Drive / Trình duyệt" class="px-2.5 py-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 rounded-lg border border-blue-200 dark:border-blue-800 transition flex items-center gap-1">
+            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+            <span class="hidden sm:inline">Mở</span>
+          </a>
+          <button onclick="navigator.clipboard.writeText('${escapeHtml(link.url)}'); showToast({ type: 'info', title: 'Đã sao chép link', message: 'Đã lưu đường dẫn vào clipboard.', duration: 2500 });" title="Sao chép link" class="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition">
             <i data-lucide="copy" class="w-4 h-4"></i>
           </button>
           ${state.isAdmin ? `
-            <button onclick="deleteDetailLink('${link.id}')" title="Xóa liên kết" class="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition">
+            <button onclick="deleteDetailLink('${link.id}')" title="Xóa tài nguyên" class="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition">
               <i data-lucide="trash-2" class="w-4 h-4"></i>
             </button>
           ` : ''}
@@ -3138,15 +3435,148 @@ function addDetailLink(title, url, note) {
   renderApp();
 }
 
-function deleteDetailLink(linkId) {
+async function deleteDetailLink(linkId) {
   if (!state.activeDetailTaskId) return;
   const task = state.tasks.find(t => t.id === state.activeDetailTaskId);
   if (!task || !task.links) return;
 
+  const link = task.links.find(l => l.id === linkId);
+  if (!link) return;
+
+  const isDrive = link.type === 'drive_file' || link.fileId;
+  const confirmMsg = isDrive 
+    ? `Bạn có chắc muốn xóa tệp "${link.title}" khỏi danh sách tài nguyên của nhiệm vụ này không?\n\n(Lưu ý: Tệp vẫn được lưu an toàn trong Google Drive của bạn)`
+    : `Bạn có chắc muốn xóa liên kết "${link.title}" khỏi nhiệm vụ này?`;
+
+  if (!confirm(confirmMsg)) return;
+
   task.links = task.links.filter(l => l.id !== linkId);
-  saveSingleTask(task);
+  await saveSingleTask(task);
   renderTaskDetailLinks(task);
   renderApp();
+}
+
+// Xử lý upload danh sách tệp lên thư mục Google Drive của Subtask
+async function handleUploadResourceFilesToDrive(files) {
+  if (!files || files.length === 0) return;
+  if (!state.activeDetailTaskId) return;
+  const task = state.tasks.find(t => t.id === state.activeDetailTaskId);
+  if (!task) return;
+
+  // 1. Kiểm tra đăng nhập Google
+  if (!state.currentUser || !window.StudyPlannerFirebase) {
+    if (confirm('Bạn cần Đăng nhập bằng tài khoản Google để tải tệp lên Google Drive của nhiệm vụ này. Đăng nhập ngay?')) {
+      try {
+        await window.StudyPlannerFirebase.signInWithGoogle();
+      } catch (e) {
+        console.warn('Đăng nhập Google thất bại:', e);
+        return;
+      }
+    } else {
+      return;
+    }
+  }
+
+  // 2. Kiểm tra token Google Drive
+  if (window.StudyPlannerFirebase.isGoogleAccessTokenExpired && window.StudyPlannerFirebase.isGoogleAccessTokenExpired()) {
+    try {
+      await window.StudyPlannerFirebase.ensureValidGoogleAccessToken(true);
+    } catch (e) {
+      console.warn('Không thể gia hạn token Google Drive:', e);
+      showToast({
+        type: 'warning',
+        title: 'Phiên Google Drive hết hạn',
+        message: 'Vui lòng đăng nhập lại Google để tiếp tục tải tệp lên.'
+      });
+      return;
+    }
+  }
+
+  // 3. Phân cấp thư mục 4 tầng trên Drive
+  const yearStr = (task.date && task.date.trim()) 
+    ? task.date.split('-')[0] 
+    : new Date().getFullYear().toString();
+
+  let parentTitle = 'Nhiệm vụ độc lập';
+  if (task.parentId) {
+    const parent = getParentTask(task.parentId);
+    if (parent && parent.title) {
+      parentTitle = parent.title.trim();
+    }
+  } else if (task.category) {
+    parentTitle = task.category.trim();
+  }
+
+  const subtaskTitle = (task.title || 'Nhiệm vụ').trim();
+  const folderPath = ['study_idv_planning', yearStr, parentTitle, subtaskTitle];
+
+  // 4. Hiển thị thanh tiến trình
+  const progressBox = document.getElementById('driveUploadProgressContainer');
+  const statusText = document.getElementById('driveUploadStatusText');
+  const progressPercent = document.getElementById('driveUploadProgressPercent');
+  if (progressBox) progressBox.classList.remove('hidden');
+
+  let successCount = 0;
+  const fileArray = Array.from(files);
+  const totalFiles = fileArray.length;
+
+  for (let i = 0; i < totalFiles; i++) {
+    const file = fileArray[i];
+    const formattedSize = formatFileSize(file.size);
+    if (statusText) statusText.textContent = `Đang tải lên (${i + 1}/${totalFiles}): ${file.name} ${formattedSize ? `(${formattedSize})` : ''}...`;
+    if (progressPercent) progressPercent.textContent = `${Math.round(((i) / totalFiles) * 100)}%`;
+
+    try {
+      const res = await window.StudyPlannerFirebase.uploadBinaryFileToGoogleDrive({
+        file: file,
+        fileName: file.name,
+        mimeType: file.type,
+        folderPath: folderPath
+      });
+
+      if (!task.links) task.links = [];
+      task.links.push({
+        id: 'res_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        title: file.name,
+        url: res.webViewLink,
+        downloadUrl: res.webContentLink,
+        fileId: res.fileId,
+        type: 'drive_file',
+        mimeType: file.type,
+        size: res.size || file.size,
+        createdAt: new Date().toISOString()
+      });
+
+      if (res.folderId) {
+        task.driveFolderId = res.folderId;
+        if (task.document) task.document.driveFolderId = res.folderId;
+      }
+
+      successCount++;
+    } catch (err) {
+      console.error(`Lỗi khi tải lên tệp "${file.name}":`, err);
+      showToast({
+        type: 'error',
+        title: 'Tải tệp thất bại',
+        message: `Không thể tải "${escapeHtml(file.name)}": ${err.message}`
+      });
+    }
+  }
+
+  // 5. Cất thanh tiến trình và lưu task
+  if (progressBox) progressBox.classList.add('hidden');
+  await saveSingleTask(task);
+  renderTaskDetailLinks(task);
+  renderApp();
+
+  if (successCount > 0) {
+    showToast({
+      type: 'success',
+      title: 'Tải lên Google Drive thành công!',
+      message: `Đã lưu <strong>${successCount}/${totalFiles}</strong> tệp vào thư mục Drive của nhiệm vụ.<br><span class="font-mono text-[11px] opacity-85 text-slate-500 dark:text-slate-400">📂 study_idv_planning / ${yearStr} / ${parentTitle} / ${subtaskTitle}</span>`,
+      duration: 5000
+    });
+  }
 }
 
 // --- CẤU HÌNH FIREBASE MODAL ---
@@ -3648,8 +4078,74 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Form Add Link
+  // --- TẢI TỆP LÊN GOOGLE DRIVE (DROPZONE & FILE INPUT) ---
+  const resourceDropzone = document.getElementById('resourceDriveDropzone');
+  const resourceFileInput = document.getElementById('resourceDriveFileInput');
+
+  if (resourceDropzone && resourceFileInput) {
+    resourceDropzone.addEventListener('click', () => {
+      resourceFileInput.click();
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      resourceDropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        resourceDropzone.classList.add('border-blue-500', 'bg-blue-100/70', 'dark:bg-blue-900/40');
+      });
+    });
+
+    ['dragleave', 'dragend'].forEach(eventName => {
+      resourceDropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        resourceDropzone.classList.remove('border-blue-500', 'bg-blue-100/70', 'dark:bg-blue-900/40');
+      });
+    });
+
+    resourceDropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      resourceDropzone.classList.remove('border-blue-500', 'bg-blue-100/70', 'dark:bg-blue-900/40');
+      if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+        handleUploadResourceFilesToDrive(e.dataTransfer.files);
+      }
+    });
+
+    resourceFileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleUploadResourceFilesToDrive(e.target.files);
+        e.target.value = '';
+      }
+    });
+  }
+
+  // Thu gọn / Mở rộng Form Thêm Link ngoài
+  const toggleHeader = document.getElementById('toggleAddLinkFormHeader');
+  const btnToggleForm = document.getElementById('btnToggleAddLinkForm');
   const formAddLink = document.getElementById('formAddDetailLink');
+  const toggleText = document.getElementById('toggleAddLinkFormText');
+  const toggleIcon = document.getElementById('toggleAddLinkFormIcon');
+
+  const toggleLinkForm = () => {
+    if (!formAddLink) return;
+    const isHidden = formAddLink.classList.toggle('hidden');
+    if (toggleText) toggleText.textContent = isHidden ? 'Mở rộng' : 'Thu gọn';
+    if (toggleIcon) toggleIcon.setAttribute('data-lucide', isHidden ? 'chevron-down' : 'chevron-up');
+    lucide.createIcons();
+  };
+
+  if (btnToggleForm) {
+    btnToggleForm.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleLinkForm();
+    });
+  }
+  if (toggleHeader) {
+    toggleHeader.addEventListener('click', toggleLinkForm);
+  }
+
+  // Form Add Link
   if (formAddLink) {
     formAddLink.addEventListener('submit', (e) => {
       e.preventDefault();

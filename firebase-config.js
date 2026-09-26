@@ -509,6 +509,105 @@ async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/htm
   }
 }
 
+/**
+ * Tải file nhị phân bất kỳ (PDF, MP4, hình ảnh, slide, tài liệu, zip...) lên Google Drive
+ * theo cấu trúc phân cấp thư mục của subtask: study_idv_planning / [Năm] / [Task tổng] / [Task con]
+ * @param {Object} params
+ * @param {File|Blob} params.file - File được chọn từ máy
+ * @param {string} [params.fileName] - Tên file tùy chọn
+ * @param {string} [params.mimeType] - MimeType tùy chọn
+ * @param {Array<string>} [params.folderPath] - Mảng đường dẫn thư mục phân cấp
+ */
+async function uploadBinaryFileToGoogleDrive({ file, fileName, mimeType, folderPath = [] }) {
+  let token = await ensureValidGoogleAccessToken();
+  if (!token) {
+    throw new Error('Bạn cần đăng nhập Google để lưu tệp vào Google Drive.');
+  }
+
+  const effectiveFileName = fileName || file.name || 'Tep_dinh_kem';
+  const effectiveMimeType = mimeType || file.type || 'application/octet-stream';
+
+  const executeUpload = async (authToken) => {
+    // 1. Tạo hoặc lấy thư mục đích theo chuỗi phân cấp
+    let targetFolderId = null;
+    if (folderPath && folderPath.length > 0) {
+      targetFolderId = await getOrCreateDriveFolderPath(authToken, folderPath);
+    } else {
+      targetFolderId = await getOrCreateDriveFolder(authToken, GOOGLE_DRIVE_ROOT_FOLDER);
+    }
+
+    const metadata = {
+      name: effectiveFileName,
+      mimeType: effectiveMimeType
+    };
+    if (targetFolderId) {
+      metadata.parents = [targetFolderId];
+    }
+
+    const boundary = '-------314159265358979323846';
+    const metadataHeader = 
+      `--${boundary}\r\n` +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) +
+      `\r\n--${boundary}\r\n` +
+      `Content-Type: ${effectiveMimeType}\r\n\r\n`;
+
+    const closeFooter = `\r\n--${boundary}--`;
+
+    const multipartBlob = new Blob([
+      metadataHeader,
+      file,
+      closeFooter
+    ], { type: `multipart/related; boundary=${boundary}` });
+
+    const url = `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,size,webViewLink,webContentLink,modifiedTime`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`
+      },
+      body: multipartBlob
+    });
+
+    if (response.status === 401) {
+      const authErr = new Error('Request had invalid authentication credentials. Expected OAuth 2 access token');
+      authErr.status = 401;
+      authErr.code = 'UNAUTHENTICATED';
+      throw authErr;
+    }
+
+    if (!response.ok) {
+      const errJson = await response.json().catch(() => ({}));
+      throw new Error(errJson.error?.message || `Lỗi khi upload tệp lên Google Drive (HTTP ${response.status}).`);
+    }
+
+    const fileData = await response.json();
+    return {
+      fileId: fileData.id,
+      fileName: fileData.name,
+      mimeType: fileData.mimeType || effectiveMimeType,
+      size: fileData.size ? parseInt(fileData.size, 10) : (file.size || 0),
+      webViewLink: fileData.webViewLink,
+      webContentLink: fileData.webContentLink || fileData.webViewLink,
+      folderId: targetFolderId || null
+    };
+  };
+
+  try {
+    return await executeUpload(token);
+  } catch (err) {
+    if (err.status === 401 || err.code === 'UNAUTHENTICATED' || (err.message && err.message.includes('authentication credentials'))) {
+      console.warn('Google Access Token hết hạn, đang tự động yêu cầu xác thực mới và thử lại upload tệp...');
+      token = await ensureValidGoogleAccessToken(true);
+      if (!token) throw new Error('Không thể làm mới phiên xác thực Google Drive.');
+      return await executeUpload(token);
+    }
+    throw err;
+  }
+}
+
 // Export các hàm và biến ra window để app.js truy cập trực tiếp
 window.StudyPlannerFirebase = {
   getStoredFirebaseConfig,
@@ -528,5 +627,6 @@ window.StudyPlannerFirebase = {
   deleteParentTaskFromFirestore,
   getOrCreateDriveFolder,
   getOrCreateDriveFolderPath,
-  uploadFileToGoogleDrive
+  uploadFileToGoogleDrive,
+  uploadBinaryFileToGoogleDrive
 };
