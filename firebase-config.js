@@ -378,6 +378,109 @@ async function getOrCreateDriveFolderPath(token, pathSegments) {
 }
 
 /**
+ * Tìm ID thư mục theo tên và thư mục cha (không tự động tạo nếu chưa có)
+ */
+async function findDriveFolder(token, folderName, parentFolderId = null) {
+  let query = `name = '${folderName.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+  if (parentFolderId) {
+    query += ` and '${parentFolderId}' in parents`;
+  }
+
+  const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name)`;
+  const res = await fetch(searchUrl, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => ({}));
+  if (data.files && data.files.length > 0) {
+    return data.files[0].id;
+  }
+  return null;
+}
+
+/**
+ * Tìm ID của thư mục theo chuỗi phân cấp (trả về null nếu không tồn tại)
+ * pathSegments: ['study_idv_planning', '2026', 'Nghiên cứu', 'Đọc Chapter 1']
+ */
+async function findDriveFolderPath(token, pathSegments) {
+  let currentParentId = null;
+  for (const segment of pathSegments) {
+    if (!segment || !segment.trim()) continue;
+    currentParentId = await findDriveFolder(token, segment.trim(), currentParentId);
+    if (!currentParentId) return null;
+  }
+  return currentParentId;
+}
+
+/**
+ * Xóa vĩnh viễn một tệp hoặc thư mục khỏi Google Drive
+ * (Nếu xóa thư mục, toàn bộ tài liệu & tệp con bên trong cũng sẽ được xóa sạch)
+ */
+async function deleteDriveFileOrFolder(fileOrFolderId) {
+  let token = await ensureValidGoogleAccessToken();
+  if (!token || !fileOrFolderId) return false;
+
+  const executeDelete = async (authToken) => {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileOrFolderId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${authToken}` }
+    });
+    if (res.status === 401) {
+      const authErr = new Error('Invalid authentication credentials');
+      authErr.status = 401;
+      throw authErr;
+    }
+    // 204 No Content hoặc 404 Not Found (đã bị xóa) đều coi là thành công
+    return res.status === 204 || res.status === 200 || res.status === 404;
+  };
+
+  try {
+    return await executeDelete(token);
+  } catch (err) {
+    if (err.status === 401) {
+      token = await ensureValidGoogleAccessToken(true);
+      if (!token) return false;
+      return await executeDelete(token);
+    }
+    console.warn('Lỗi khi xóa file/folder trên Drive:', err);
+    return false;
+  }
+}
+
+/**
+ * Xóa toàn bộ thư mục Google Drive của một subtask (dọn sạch tài liệu & tệp đính kèm)
+ * Tìm theo folderId đã lưu hoặc theo đường dẫn folderPath
+ */
+async function deleteSubtaskDriveFolder({ folderId = null, folderPath = [] }) {
+  let token = await ensureValidGoogleAccessToken();
+  if (!token) return false;
+
+  let targetFolderId = folderId;
+
+  // Nếu chưa có targetFolderId, tìm theo chuỗi phân cấp folderPath
+  if (!targetFolderId && folderPath && folderPath.length > 0) {
+    try {
+      targetFolderId = await findDriveFolderPath(token, folderPath);
+    } catch (e) {
+      console.warn('Không thể tìm thư mục subtask theo đường dẫn:', e);
+    }
+  }
+
+  if (!targetFolderId) {
+    console.log('Không tìm thấy thư mục Google Drive tương ứng của subtask (có thể chưa từng tạo trên Drive).');
+    return false;
+  }
+
+  console.log(`Đang xóa thư mục Google Drive của subtask (Folder ID: ${targetFolderId})...`);
+  const success = await deleteDriveFileOrFolder(targetFolderId);
+  if (success) {
+    console.log(`Đã xóa sạch thư mục Google Drive của subtask ID: ${targetFolderId}`);
+  }
+  return success;
+}
+
+/**
  * Tải file văn bản hoặc docx lên thư mục Google Drive của người dùng
  * theo đúng cấu trúc: study_idv_planning / [Năm] / [Task tổng] / [Task con] / [File]
  * Tự động phát hiện token hết hạn (401 UNAUTHENTICATED) và cấp mới token để retry.
@@ -402,30 +505,12 @@ async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/htm
       targetFolderId = await getOrCreateDriveFolder(authToken, GOOGLE_DRIVE_ROOT_FOLDER);
     }
 
-    // 2. Kiểm tra existingFileId: nếu file cũ không phải là Google Doc (ví dụ file docx rỗng cũ), ta bỏ qua để tạo file Google Doc mới
-    let effectiveExistingId = null;
-    if (existingFileId) {
-      try {
-        const checkRes = await fetch(`https://www.googleapis.com/drive/v3/files/${existingFileId}?fields=id,mimeType,trashed`, {
-          headers: { Authorization: `Bearer ${authToken}` }
-        });
-        if (checkRes.ok) {
-          const fileInfo = await checkRes.json();
-          if (!fileInfo.trashed && fileInfo.mimeType === 'application/vnd.google-apps.document') {
-            effectiveExistingId = existingFileId;
-          }
-        }
-      } catch (e) {
-        console.warn('Không thể kiểm tra định dạng file cũ:', e);
-      }
-    }
-
     const cleanDocName = (fileName || 'Tai_lieu').replace(/\.docx$/i, '');
     const metadata = {
       name: cleanDocName,
       mimeType: 'application/vnd.google-apps.document'
     };
-    if (!effectiveExistingId && targetFolderId) {
+    if (targetFolderId) {
       metadata.parents = [targetFolderId];
     }
 
@@ -458,12 +543,15 @@ async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/htm
       closeFooter
     ], { type: `multipart/related; boundary=${boundary}` });
 
-    const url = effectiveExistingId
-      ? `https://www.googleapis.com/upload/drive/v3/files/${effectiveExistingId}?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`
-      : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`;
+    // LƯU Ý KỸ THUẬT QUAN TRỌNG: Google Drive API v3 KHÔNG hỗ trợ cập nhật nội dung văn bản
+    // cho định dạng Google Doc (application/vnd.google-apps.document) qua lệnh PATCH. 
+    // Request PATCH sẽ chỉ cập nhật metadata và âm thầm bỏ qua body, khiến tài liệu trên Google Docs giữ nguyên nội dung cũ.
+    // Do đó, ta luôn thực hiện POST để tạo tài liệu Google Docs mới chứa 100% nội dung HTML cập nhật nhất,
+    // sau đó xóa file cũ (existingFileId) để đảm bảo không bị file rác/trùng lặp trong thư mục.
+    const createUrl = `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`;
 
-    const response = await fetch(url, {
-      method: effectiveExistingId ? 'PATCH' : 'POST',
+    const response = await fetch(createUrl, {
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${authToken}`,
         'Content-Type': `multipart/related; boundary=${boundary}`
@@ -484,9 +572,44 @@ async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/htm
     }
 
     const fileData = await response.json();
-    const docEditLink = `https://docs.google.com/document/d/${fileData.id}/edit`;
+    const newFileId = fileData.id;
+
+    // 2. Dọn dẹp file cũ trên Google Drive:
+    if (existingFileId && existingFileId !== newFileId) {
+      try {
+        await fetch(`https://www.googleapis.com/drive/v3/files/${existingFileId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${authToken}` }
+        });
+      } catch (delErr) {
+        console.warn('Không thể xóa file cũ trên Google Drive:', delErr);
+      }
+    }
+
+    if (targetFolderId) {
+      // Dọn dẹp bất kỳ bản sao cũ trùng tên nào khác trong thư mục để thư mục luôn gọn gàng
+      const safeName = cleanDocName.replace(/'/g, "\\'");
+      const oldQuery = `name='${safeName}' and '${targetFolderId}' in parents and id != '${newFileId}' and trashed = false`;
+      fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(oldQuery)}&fields=files(id)`, {
+        headers: { Authorization: `Bearer ${authToken}` }
+      })
+      .then(res => res.ok ? res.json() : null)
+      .then(searchData => {
+        if (searchData && searchData.files && searchData.files.length > 0) {
+          for (const oldFile of searchData.files) {
+            fetch(`https://www.googleapis.com/drive/v3/files/${oldFile.id}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${authToken}` }
+            }).catch(() => {});
+          }
+        }
+      })
+      .catch(e => console.warn('Lỗi khi quét dọn file cũ trùng tên:', e));
+    }
+
+    const docEditLink = `https://docs.google.com/document/d/${newFileId}/edit`;
     return {
-      fileId: fileData.id,
+      fileId: newFileId,
       fileName: fileData.name,
       webViewLink: fileData.webViewLink || docEditLink,
       googleDocsUrl: docEditLink,
@@ -627,6 +750,10 @@ window.StudyPlannerFirebase = {
   deleteParentTaskFromFirestore,
   getOrCreateDriveFolder,
   getOrCreateDriveFolderPath,
+  findDriveFolder,
+  findDriveFolderPath,
+  deleteDriveFileOrFolder,
+  deleteSubtaskDriveFolder,
   uploadFileToGoogleDrive,
   uploadBinaryFileToGoogleDrive
 };

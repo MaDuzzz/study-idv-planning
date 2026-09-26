@@ -115,6 +115,50 @@
     html.dark .doc-editor table th, html.dark .doc-editor table td { border-color: #475569; }
     .doc-editor table th { background: #f8fafc; font-weight: 700; }
     html.dark .doc-editor table th { background: #1e293b; }
+    .doc-editor img {
+      max-width: 100% !important;
+      height: auto !important;
+      display: block;
+      margin: 1rem auto;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+      transition: outline 0.15s ease;
+    }
+    .doc-editor img:hover {
+      outline: 2px solid #3b82f6;
+    }
+    .doc-editor pre {
+      background: #f1f5f9;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      overflow-x: auto;
+      margin: 0.75rem 0;
+    }
+    html.dark .doc-editor pre {
+      background: #1e293b;
+      color: #e2e8f0;
+    }
+    .doc-editor code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    html.dark .doc-editor code {
+      background: #1e293b;
+      color: #93c5fd;
+    }
+    .doc-editor hr {
+      border: 0;
+      border-top: 2px dashed #cbd5e1;
+      margin: 1.5rem 0;
+    }
+    html.dark .doc-editor hr {
+      border-top-color: #475569;
+    }
 
     /* Modal Layer Stacking Hierarchy (Thứ bậc hiển thị layer triệt để) */
     .modal-layer-hub { z-index: 70 !important; }
@@ -829,6 +873,9 @@
           <button id="btnDetailEditTask" title="Chỉnh sửa ngày/ưu tiên" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition">
             <i data-lucide="edit-3" class="w-4 h-4"></i>
           </button>
+          <button id="btnDetailDeleteTask" title="Xóa nhiệm vụ này" class="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
           <button id="btnToggleDetailFullscreen" title="Phóng to toàn màn hình / Thu nhỏ" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition">
             <i data-lucide="maximize-2" class="w-4 h-4" id="iconFullscreen"></i>
           </button>
@@ -893,52 +940,118 @@
             </div>
           </div>
 
-          <!-- Thanh định dạng soạn thảo WYSIWYG chuẩn Word (Format Toolbar) -->
-          <div class="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1 flex-wrap text-xs">
-            <select id="editorFormatBlock" class="px-2.5 py-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white font-semibold cursor-pointer">
+          <!-- Thanh định dạng soạn thảo WYSIWYG chuẩn Word (Sticky Format Toolbar) -->
+          <div class="sticky top-0 z-20 p-2 bg-white/95 dark:bg-slate-850/95 backdrop-blur-md rounded-xl border border-slate-200 dark:border-slate-700/80 flex items-center gap-1 flex-wrap text-xs shadow-md transition-shadow">
+            
+            <!-- Định dạng khối văn bản (Heading / Paragraph / Code) -->
+            <select id="editorFormatBlock" title="Định dạng đoạn văn" class="px-2.5 py-1 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white font-semibold cursor-pointer">
               <option value="p">Văn bản thường</option>
-              <option value="h1">Tiêu đề lớn (H1)</option>
-              <option value="h2">Tiêu đề vừa (H2)</option>
-              <option value="h3">Tiêu đề nhỏ (H3)</option>
+              <option value="h1">Tiêu đề 1 (H1)</option>
+              <option value="h2">Tiêu đề 2 (H2)</option>
+              <option value="h3">Tiêu đề 3 (H3)</option>
+              <option value="pre">Khối mã (Code)</option>
             </select>
 
-            <span class="w-px h-5 bg-slate-300 dark:bg-slate-600 mx-1"></span>
+            <span class="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-0.5"></span>
 
-            <button type="button" data-cmd="bold" title="In đậm (Ctrl+B)" class="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition font-bold">
+            <!-- Kiểu chữ cơ bản: Đậm, Nghiêng, Gạch chân, Gạch ngang -->
+            <button type="button" data-cmd="bold" title="In đậm (Ctrl+B)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition font-bold">
               <i data-lucide="bold" class="w-4 h-4"></i>
             </button>
-            <button type="button" data-cmd="italic" title="In nghiêng (Ctrl+I)" class="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+            <button type="button" data-cmd="italic" title="In nghiêng (Ctrl+I)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
               <i data-lucide="italic" class="w-4 h-4"></i>
             </button>
-            <button type="button" data-cmd="underline" title="Gạch chân (Ctrl+U)" class="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+            <button type="button" data-cmd="underline" title="Gạch chân (Ctrl+U)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
               <i data-lucide="underline" class="w-4 h-4"></i>
             </button>
-            <button type="button" data-cmd="strikeThrough" title="Gạch ngang" class="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+            <button type="button" data-cmd="strikeThrough" title="Gạch ngang" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
               <i data-lucide="strikethrough" class="w-4 h-4"></i>
             </button>
 
-            <span class="w-px h-5 bg-slate-300 dark:bg-slate-600 mx-1"></span>
+            <span class="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-0.5"></span>
 
-            <button type="button" data-cmd="insertUnorderedList" title="Danh sách gạch đầu dòng" class="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+            <!-- Màu chữ & Màu nền Highlight -->
+            <label title="Màu chữ" class="relative p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer flex items-center">
+              <i data-lucide="baseline" class="w-4 h-4"></i>
+              <input type="color" id="editorTextColorPicker" value="#1e293b" class="sr-only">
+            </label>
+            <label title="Màu nền tô sáng (Highlighter)" class="relative p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer flex items-center">
+              <i data-lucide="highlighter" class="w-4 h-4 text-amber-500"></i>
+              <input type="color" id="editorBgColorPicker" value="#fef08a" class="sr-only">
+            </label>
+
+            <span class="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-0.5"></span>
+
+            <!-- Căn lề: Trái, Giữa, Phải, Đều -->
+            <button type="button" data-cmd="justifyLeft" title="Căn lề trái" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+              <i data-lucide="align-left" class="w-4 h-4"></i>
+            </button>
+            <button type="button" data-cmd="justifyCenter" title="Căn giữa" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+              <i data-lucide="align-center" class="w-4 h-4"></i>
+            </button>
+            <button type="button" data-cmd="justifyRight" title="Căn lề phải" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+              <i data-lucide="align-right" class="w-4 h-4"></i>
+            </button>
+            <button type="button" data-cmd="justifyFull" title="Căn đều 2 bên" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+              <i data-lucide="align-justify" class="w-4 h-4"></i>
+            </button>
+
+            <span class="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-0.5"></span>
+
+            <!-- Danh sách & Thụt lề nhiều cấp (Multi-level Indent) -->
+            <button type="button" data-cmd="insertUnorderedList" title="Danh sách gạch đầu dòng" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
               <i data-lucide="list" class="w-4 h-4"></i>
             </button>
-            <button type="button" data-cmd="insertOrderedList" title="Danh sách đánh số" class="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+            <button type="button" data-cmd="insertOrderedList" title="Danh sách đánh số" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
               <i data-lucide="list-ordered" class="w-4 h-4"></i>
             </button>
+            <button type="button" data-cmd="outdent" title="Giảm thụt lề (Shift+Tab)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+              <i data-lucide="outdent" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
+            </button>
+            <button type="button" data-cmd="indent" title="Tăng thụt lề nhiều cấp (Tab)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+              <i data-lucide="indent" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
+            </button>
 
-            <span class="w-px h-5 bg-slate-300 dark:bg-slate-600 mx-1"></span>
+            <span class="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-0.5"></span>
 
-            <button type="button" id="btnInsertTable" title="Chèn bảng 3x3" class="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-1">
+            <!-- Chèn đối tượng: Bảng, Ảnh, Quote, Kẻ ngang, Link, Sub/Super -->
+            <button type="button" id="btnInsertTable" title="Chèn bảng 3x3" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-1">
               <i data-lucide="table" class="w-4 h-4"></i>
             </button>
-            <button type="button" id="btnInsertQuote" title="Trích dẫn" class="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+            
+            <!-- Nút chèn ảnh (ngoài paste trực tiếp) -->
+            <input type="file" id="editorImageInput" accept="image/*" class="hidden">
+            <button type="button" id="btnInsertImageDoc" title="Chèn hình ảnh từ máy (chuẩn khổ giấy Google Docs)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+              <i data-lucide="image" class="w-4 h-4 text-emerald-500"></i>
+            </button>
+
+            <button type="button" id="btnInsertQuote" title="Trích dẫn" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
               <i data-lucide="quote" class="w-4 h-4"></i>
             </button>
-            <button type="button" id="btnInsertLinkDoc" title="Chèn liên kết" class="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+            <button type="button" data-cmd="insertHorizontalRule" title="Chèn đường kẻ ngang" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+              <i data-lucide="minus" class="w-4 h-4"></i>
+            </button>
+            <button type="button" id="btnInsertLinkDoc" title="Chèn liên kết" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
               <i data-lucide="link-2" class="w-4 h-4"></i>
             </button>
-            <button type="button" data-cmd="removeFormat" title="Xóa định dạng" class="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
-              <i data-lucide="eraser" class="w-4 h-4"></i>
+            <button type="button" data-cmd="subscript" title="Chỉ số dưới (x₂)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+              <i data-lucide="subscript" class="w-4 h-4"></i>
+            </button>
+            <button type="button" data-cmd="superscript" title="Chỉ số trên (x²)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+              <i data-lucide="superscript" class="w-4 h-4"></i>
+            </button>
+
+            <span class="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-0.5"></span>
+
+            <!-- Lịch sử & Dọn định dạng -->
+            <button type="button" data-cmd="undo" title="Hoàn tác (Ctrl+Z)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+              <i data-lucide="undo-2" class="w-4 h-4"></i>
+            </button>
+            <button type="button" data-cmd="redo" title="Làm lại (Ctrl+Y)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+              <i data-lucide="redo-2" class="w-4 h-4"></i>
+            </button>
+            <button type="button" data-cmd="removeFormat" title="Xóa định dạng" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+              <i data-lucide="eraser" class="w-4 h-4 text-rose-500"></i>
             </button>
           </div>
 
@@ -1145,7 +1258,7 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=4.3"></script>
-  <script src="app.js?v=4.3"></script>
+  <script src="firebase-config.js?v=4.6"></script>
+  <script src="app.js?v=4.6"></script>
 </body>
 </html>

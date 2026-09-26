@@ -876,19 +876,78 @@ function toggleTaskComplete(taskId) {
   }
 }
 
-function deleteTask(taskId) {
+async function deleteTask(taskId) {
   if (!state.isAdmin) {
     openLoginModal();
     return;
   }
-  if (confirm('Bạn có chắc chắn muốn xóa nhiệm vụ này không?')) {
-    state.tasks = state.tasks.filter(t => t.id !== taskId);
-    deleteSingleTask(taskId);
-    if (state.activeDetailTaskId === taskId) {
-      closeTaskDetailModal();
+  const taskToDelete = state.tasks.find(t => t.id === taskId);
+  if (!taskToDelete) return;
+
+  const hasDriveData = taskToDelete.driveFolderId || 
+    taskToDelete.document?.driveFolderId || 
+    taskToDelete.document?.driveFileId || 
+    (taskToDelete.links && taskToDelete.links.some(l => l.type === 'drive_file' || l.fileId));
+
+  const confirmMsg = hasDriveData
+    ? `Bạn có chắc chắn muốn xóa nhiệm vụ "${taskToDelete.title}"?\n\n⚠️ Lưu ý: Toàn bộ thư mục và tài liệu của nhiệm vụ này trên Google Drive cũng sẽ được xóa sạch sẽ để tránh trùng lặp.`
+    : `Bạn có chắc chắn muốn xóa nhiệm vụ "${taskToDelete.title}" không?`;
+
+  if (!confirm(confirmMsg)) {
+    return;
+  }
+
+  // 1. Cập nhật state local & Firestore
+  state.tasks = state.tasks.filter(t => t.id !== taskId);
+  await deleteSingleTask(taskId);
+
+  if (state.activeDetailTaskId === taskId) {
+    closeTaskDetailModal();
+  }
+
+  renderApp();
+  renderReplanModalContent();
+  if (!taskManagerModal.classList.contains('hidden')) {
+    renderTaskManagerContent();
+  }
+
+  // 2. Nếu người dùng đăng nhập Google & có Drive integration -> xóa sạch thư mục của subtask trên Google Drive
+  if (state.currentUser && window.StudyPlannerFirebase && window.StudyPlannerFirebase.deleteSubtaskDriveFolder) {
+    const yearStr = (taskToDelete.date && taskToDelete.date.trim()) 
+      ? taskToDelete.date.split('-')[0] 
+      : new Date().getFullYear().toString();
+
+    let parentTitle = 'Nhiệm vụ độc lập';
+    if (taskToDelete.parentId) {
+      const parent = getParentTask(taskToDelete.parentId);
+      if (parent && parent.title) {
+        parentTitle = parent.title.trim();
+      }
+    } else if (taskToDelete.category) {
+      parentTitle = taskToDelete.category.trim();
     }
-    renderApp();
-    renderReplanModalContent();
+
+    const subtaskTitle = (taskToDelete.title || 'Nhiệm vụ').trim();
+    const folderPath = ['study_idv_planning', yearStr, parentTitle, subtaskTitle];
+    const folderId = taskToDelete.driveFolderId || taskToDelete.document?.driveFolderId || null;
+
+    try {
+      const deleted = await window.StudyPlannerFirebase.deleteSubtaskDriveFolder({
+        folderId: folderId,
+        folderPath: folderPath
+      });
+
+      if (deleted) {
+        showToast({
+          type: 'info',
+          title: 'Đã dọn dẹp Google Drive',
+          message: `Nhiệm vụ <strong>"${escapeHtml(taskToDelete.title)}"</strong> và toàn bộ thư mục tài liệu trên Google Drive đã được xóa sạch sẽ.`,
+          duration: 4500
+        });
+      }
+    } catch (driveErr) {
+      console.warn('Lỗi khi xóa thư mục trên Google Drive:', driveErr);
+    }
   }
 }
 
@@ -2667,11 +2726,18 @@ function openTaskDetailModal(taskId) {
   const driveSyncStatus = document.getElementById('driveSyncStatus');
   const btnOpenDocs = document.getElementById('btnOpenInGoogleDocsLink');
   if (task.document.driveWebViewLink) {
-    driveSyncStatus.classList.remove('hidden');
-    driveSyncStatus.classList.add('flex');
     btnOpenDocs.href = task.document.driveWebViewLink;
     btnOpenDocs.classList.remove('hidden');
     btnOpenDocs.classList.add('flex');
+
+    driveSyncStatus.classList.remove('hidden');
+    driveSyncStatus.classList.add('flex');
+    if (task.document.lastDriveSynced) {
+      const syncTimeStr = new Date(task.document.lastDriveSynced).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+      driveSyncStatus.innerHTML = `<i data-lucide="cloud-check" class="w-4 h-4 text-emerald-500"></i> <span class="text-emerald-600 dark:text-emerald-400">Đã sync Drive (${syncTimeStr})</span>`;
+    } else {
+      driveSyncStatus.innerHTML = `<i data-lucide="cloud-check" class="w-4 h-4 text-emerald-500"></i> <span class="text-emerald-600 dark:text-emerald-400">Đã liên kết Drive</span>`;
+    }
   } else {
     driveSyncStatus.classList.add('hidden');
     driveSyncStatus.classList.remove('flex');
@@ -2725,7 +2791,17 @@ function toggleDetailFullscreen() {
 function closeTaskDetailModal() {
   stopDriveAutoSyncTimer();
   if (state.activeDetailTaskId) {
-    flushSaveTaskDoc(state.activeDetailTaskId);
+    const closingTaskId = state.activeDetailTaskId;
+    flushSaveTaskDoc(closingTaskId);
+
+    // Nếu còn thay đổi chưa được sync lên Drive, tự động sync ngầm khi người dùng đóng modal
+    const task = state.tasks.find(t => t.id === closingTaskId);
+    const editor = document.getElementById('taskDocEditor');
+    const curHtml = editor ? (editor.innerHTML || '') : '';
+    if (task && task.document?.driveFileId && curHtml !== lastDriveSyncedHtml && state.currentUser && window.StudyPlannerFirebase) {
+      performGoogleDriveUpload({ silent: true }).catch(e => console.warn('Lỗi auto-sync khi đóng modal:', e));
+    }
+
     state.activeDetailTaskId = null;
   }
   document.getElementById('taskDetailModal').classList.add('hidden');
@@ -2800,6 +2876,29 @@ function triggerDocAutoSave() {
     lucide.createIcons();
   }
 
+  // Cập nhật trạng thái Drive: nếu đã có file trên Drive và có thay đổi so với bản sync Drive gần nhất
+  if (state.activeDetailTaskId) {
+    const task = state.tasks.find(t => t.id === state.activeDetailTaskId);
+    if (task && task.document?.driveFileId) {
+      const editor = document.getElementById('taskDocEditor');
+      const docNameInput = document.getElementById('docFileNameInput');
+      const curHtml = editor ? (editor.innerHTML || '') : '';
+      let curName = docNameInput ? docNameInput.value.trim() : '';
+      if (curName && !curName.endsWith('.docx')) curName += '.docx';
+
+      if (curHtml !== lastDriveSyncedHtml || (curName && curName !== lastDriveSyncedFileName)) {
+        const driveSyncStatus = document.getElementById('driveSyncStatus');
+        if (driveSyncStatus) {
+          driveSyncStatus.classList.remove('hidden');
+          driveSyncStatus.classList.add('flex');
+          driveSyncStatus.innerHTML = '<i data-lucide="clock" class="w-3.5 h-3.5 text-amber-500 animate-pulse"></i> <span class="text-amber-600 dark:text-amber-400 text-[11px]">Chưa sync Drive (tự động sau 2p)</span>';
+          driveSyncStatus.title = 'Có thay đổi mới chưa lưu lên Drive. Hệ thống sẽ tự động đồng bộ sau 2 phút hoặc bấm "Lưu vào Drive" để lưu ngay.';
+          lucide.createIcons();
+        }
+      }
+    }
+  }
+
   if (docSaveTimeout) clearTimeout(docSaveTimeout);
   docSaveTimeout = setTimeout(() => {
     if (state.activeDetailTaskId) {
@@ -2842,9 +2941,99 @@ async function handleImportDocx(file) {
   }
 }
 
+// Chuẩn hóa và giới hạn kích thước hình ảnh cho khổ trang Google Docs (A4 / Letter trừ lề 1 inch)
+const MAX_DOC_IMAGE_WIDTH = 650;
+
+function normalizeDocImagesForGoogleDrive(html) {
+  if (!html) return '';
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const images = doc.querySelectorAll('img');
+    images.forEach(img => {
+      let widthAttr = parseInt(img.getAttribute('width') || '0', 10);
+      if (!widthAttr || widthAttr > MAX_DOC_IMAGE_WIDTH) {
+        img.setAttribute('width', String(MAX_DOC_IMAGE_WIDTH));
+      }
+      img.style.maxWidth = '100%';
+      img.style.height = 'auto';
+      img.style.display = 'block';
+      img.style.margin = '12pt auto';
+      img.style.borderRadius = '4px';
+    });
+    return doc.body.innerHTML;
+  } catch (e) {
+    console.warn('Lỗi khi chuẩn hóa ảnh cho Drive:', e);
+    return html;
+  }
+}
+
+/**
+ * Nén và chuẩn hóa kích thước ảnh về chuẩn trang tài liệu
+ * Tránh tràn lề trên Google Docs và giảm dung lượng payload Firestore
+ */
+async function processAndOptimizeImageFile(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type.startsWith('image/')) {
+      return reject(new Error('Tệp không phải là hình ảnh'));
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        // Nếu ảnh lớn hơn khổ giấy chuẩn (650px), tự động co tỉ lệ chuẩn
+        if (width > MAX_DOC_IMAGE_WIDTH) {
+          height = Math.round(height * (MAX_DOC_IMAGE_WIDTH / width));
+          width = MAX_DOC_IMAGE_WIDTH;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Nén chất lượng cao 90%
+        const isPng = file.type === 'image/png';
+        const mime = isPng ? 'image/png' : 'image/jpeg';
+        const dataUrl = canvas.toDataURL(mime, 0.90);
+
+        resolve({
+          dataUrl,
+          width,
+          height
+        });
+      };
+      img.onerror = () => reject(new Error('Không thể tải dữ liệu ảnh'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('Lỗi khi đọc file ảnh'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function insertOptimizedImageIntoEditor({ dataUrl, width, height }) {
+  const editor = document.getElementById('taskDocEditor');
+  if (!editor) return;
+  editor.focus();
+
+  // Tạo thẻ img chuẩn có thuộc tính width tương thích 100% với Google Docs và căn giữa
+  const imgHtml = `<p style="text-align: center; margin: 12pt 0;"><img src="${dataUrl}" width="${width}" style="max-width: 100%; height: auto; display: inline-block; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.12);" alt="Hình ảnh tài liệu" /></p><p><br></p>`;
+  
+  document.execCommand('insertHTML', false, imgHtml);
+  updateDocCounts();
+  triggerDocAutoSave();
+}
+
 function buildTaskDocxHtml(task, editorHtml) {
   const parent = task.parentId ? getParentTask(task.parentId) : null;
   const parentTitle = parent ? parent.title : (task.category || 'Không');
+  const safeEditorHtml = normalizeDocImagesForGoogleDrive(editorHtml || '<p></p>');
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -2861,6 +3050,8 @@ function buildTaskDocxHtml(task, editorHtml) {
     th, td { border: 1px solid #94a3b8; padding: 6pt 10pt; text-align: left; }
     th { background-color: #f1f5f9; font-weight: bold; }
     blockquote { border-left: 3pt solid #3b82f6; padding-left: 10pt; margin: 10pt 0; color: #64748b; font-style: italic; }
+    img { max-width: 100% !important; height: auto !important; display: block; margin: 12pt auto; border-radius: 4pt; }
+    pre, code { font-family: 'Consolas', 'Courier New', monospace; background-color: #f1f5f9; padding: 2pt 4pt; border-radius: 3pt; font-size: 10pt; }
   </style>
 </head>
 <body>
@@ -2871,7 +3062,7 @@ function buildTaskDocxHtml(task, editorHtml) {
     <strong>Mức độ:</strong> ${task.priority === 'high' ? '🔥 Ưu tiên cao' : (task.priority === 'low' ? 'Thấp' : 'Bình thường')}
   </p>
   <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 14pt;" />
-  ${editorHtml || '<p></p>'}
+  ${safeEditorHtml}
 </body>
 </html>`;
 }
@@ -3101,6 +3292,7 @@ async function performGoogleDriveUpload(options = {}) {
     task.document.fileName = fileName;
     task.document.contentHtml = editorHtml;
     task.document.lastSaved = new Date().toISOString();
+    task.document.lastDriveSynced = new Date().toISOString();
 
     await saveSingleTask(task);
 
@@ -3978,6 +4170,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const btnDetailDelete = document.getElementById('btnDetailDeleteTask');
+  if (btnDetailDelete) {
+    btnDetailDelete.addEventListener('click', () => {
+      if (state.activeDetailTaskId) {
+        deleteTask(state.activeDetailTaskId);
+      }
+    });
+  }
+
   const btnCloseDetail = document.getElementById('btnCloseDetailModal');
   if (btnCloseDetail) btnCloseDetail.addEventListener('click', closeTaskDetailModal);
   const btnCloseDetailBtm = document.getElementById('btnCloseDetailBottom');
@@ -4011,6 +4212,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSaveDrive = document.getElementById('btnSaveToGoogleDrive');
   if (btnSaveDrive) btnSaveDrive.addEventListener('click', handleSaveToGoogleDrive);
 
+  // Quản lý selection để áp dụng màu sắc và chèn ảnh chính xác vị trí con trỏ
+  let savedEditorSelection = null;
+  function saveEditorSelection() {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      savedEditorSelection = sel.getRangeAt(0);
+    }
+  }
+  function restoreEditorSelection() {
+    if (savedEditorSelection) {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedEditorSelection);
+    }
+  }
+
   // WYSIWYG Editor Toolbar
   const formatSelect = document.getElementById('editorFormatBlock');
   if (formatSelect) {
@@ -4031,6 +4248,65 @@ document.addEventListener('DOMContentLoaded', () => {
       triggerDocAutoSave();
     });
   });
+
+  // Chọn màu chữ (Text Color)
+  const textColorPicker = document.getElementById('editorTextColorPicker');
+  if (textColorPicker) {
+    textColorPicker.addEventListener('click', saveEditorSelection);
+    textColorPicker.addEventListener('input', (e) => {
+      restoreEditorSelection();
+      document.getElementById('taskDocEditor').focus();
+      document.execCommand('foreColor', false, e.target.value);
+      triggerDocAutoSave();
+    });
+  }
+
+  // Tô sáng văn bản (Highlighter / Background Color)
+  const bgColorPicker = document.getElementById('editorBgColorPicker');
+  if (bgColorPicker) {
+    bgColorPicker.addEventListener('click', saveEditorSelection);
+    bgColorPicker.addEventListener('input', (e) => {
+      restoreEditorSelection();
+      document.getElementById('taskDocEditor').focus();
+      const ok = document.execCommand('hiliteColor', false, e.target.value);
+      if (!ok) document.execCommand('backColor', false, e.target.value);
+      triggerDocAutoSave();
+    });
+  }
+
+  // Nút chèn ảnh từ máy tính (chuẩn hóa kích thước tương thích Google Docs)
+  const btnInsertImg = document.getElementById('btnInsertImageDoc');
+  const imgFileInput = document.getElementById('editorImageInput');
+  if (btnInsertImg && imgFileInput) {
+    btnInsertImg.addEventListener('click', () => {
+      saveEditorSelection();
+      imgFileInput.click();
+    });
+    imgFileInput.addEventListener('change', async (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        try {
+          restoreEditorSelection();
+          const opt = await processAndOptimizeImageFile(e.target.files[0]);
+          insertOptimizedImageIntoEditor(opt);
+          showToast({
+            type: 'success',
+            title: 'Đã chèn hình ảnh',
+            message: `Hình ảnh đã được co chuẩn khổ trang (${opt.width}px) khớp với Google Docs.`,
+            duration: 3000
+          });
+        } catch (err) {
+          console.error('Lỗi khi chèn ảnh:', err);
+          showToast({
+            type: 'error',
+            title: 'Lỗi chèn ảnh',
+            message: err.message
+          });
+        } finally {
+          e.target.value = '';
+        }
+      }
+    });
+  }
 
   const btnTable = document.getElementById('btnInsertTable');
   if (btnTable) {
@@ -4062,9 +4338,54 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Editor Input Listener
+  // Editor Input, Paste & Keydown Listener
   const docEditor = document.getElementById('taskDocEditor');
   if (docEditor) {
+    docEditor.addEventListener('mouseup', saveEditorSelection);
+    docEditor.addEventListener('keyup', saveEditorSelection);
+
+    // Xử lý dán hình ảnh (Paste Image) thông minh & tự động tối ưu tỉ lệ chuẩn Google Docs
+    docEditor.addEventListener('paste', async (e) => {
+      const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf('image') !== -1) {
+          e.preventDefault(); // Chặn hành vi dán ảnh thô nguyên gốc làm tràn lề văn bản
+          const file = item.getAsFile();
+          if (file) {
+            try {
+              const opt = await processAndOptimizeImageFile(file);
+              insertOptimizedImageIntoEditor(opt);
+              showToast({
+                type: 'success',
+                title: 'Đã tối ưu hình ảnh',
+                message: `Hình ảnh đã được co chuẩn theo khổ trang Google Docs (${opt.width}px).`,
+                duration: 3000
+              });
+            } catch (err) {
+              console.error('Lỗi khi tối ưu ảnh dán:', err);
+            }
+          }
+          return;
+        }
+      }
+    });
+
+    // Multi-level Indent với phím Tab và Shift+Tab
+    docEditor.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          document.execCommand('outdent', false, null);
+        } else {
+          document.execCommand('indent', false, null);
+        }
+        triggerDocAutoSave();
+      }
+    });
+
     docEditor.addEventListener('input', () => {
       updateDocCounts();
       triggerDocAutoSave();
