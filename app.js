@@ -10,6 +10,47 @@ const AUTH_TOKEN_KEY = 'study_planner_auth_session';
 const ADMIN_PW_KEY = 'study_planner_admin_password';
 const THEME_KEY = 'study_planner_theme';
 
+// Bảng màu RGB gợi ý nhanh và ánh xạ tương thích ngược
+const PRESET_RGB_COLORS = [
+  { name: 'Xanh dương', hex: '#2563eb', legacyKey: 'blue' },
+  { name: 'Xanh ngọc', hex: '#059669', legacyKey: 'emerald' },
+  { name: 'Tím violet', hex: '#7c3aed', legacyKey: 'purple' },
+  { name: 'Vàng cam', hex: '#d97706', legacyKey: 'amber' },
+  { name: 'Đỏ hồng', hex: '#e11d48', legacyKey: 'rose' },
+  { name: 'Chàm indigo', hex: '#4f46e5', legacyKey: 'indigo' },
+  { name: 'Xanh lơ cyan', hex: '#0891b2', legacyKey: 'cyan' },
+  { name: 'Hồng sen', hex: '#db2777', legacyKey: 'pink' }
+];
+
+const LEGACY_COLOR_HEX = {
+  blue: '#2563eb',
+  emerald: '#059669',
+  purple: '#7c3aed',
+  amber: '#d97706',
+  rose: '#e11d48',
+  indigo: '#4f46e5',
+  cyan: '#0891b2',
+  pink: '#db2777'
+};
+
+function hexToRgb(hex) {
+  if (!hex) return { r: 37, g: 99, b: 235 };
+  let c = String(hex).replace('#', '').trim();
+  if (c.length === 3) {
+    c = c.split('').map(char => char + char).join('');
+  }
+  if (c.length !== 6) {
+    return { r: 37, g: 99, b: 235 };
+  }
+  const num = parseInt(c, 16);
+  if (isNaN(num)) return { r: 37, g: 99, b: 235 };
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255
+  };
+}
+
 const PARENT_COLOR_PALETTES = {
   blue: {
     name: 'Xanh dương',
@@ -339,8 +380,38 @@ function getParentTask(parentId) {
   return state.parentTasks.find(p => p.id === parentId) || null;
 }
 
-function getParentColorConfig(colorName) {
-  return PARENT_COLOR_PALETTES[colorName] || PARENT_COLOR_PALETTES.blue;
+function getParentColorConfig(color) {
+  let hex = '#2563eb';
+  if (color && typeof color === 'string') {
+    const trimmed = color.trim();
+    if (PARENT_COLOR_PALETTES[trimmed]) {
+      const p = PARENT_COLOR_PALETTES[trimmed];
+      hex = p.hex || LEGACY_COLOR_HEX[trimmed] || '#2563eb';
+      const rgb = hexToRgb(hex);
+      return {
+        ...p,
+        hex: hex,
+        dotStyle: `background-color: ${hex};`,
+        badgeStyle: `background-color: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.14); color: ${hex}; border-color: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.35);`,
+        cardHeaderStyle: `background-color: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.08); border-color: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.22);`
+      };
+    }
+    hex = trimmed.startsWith('#') ? trimmed : '#' + trimmed;
+  }
+  const rgb = hexToRgb(hex);
+  return {
+    name: hex,
+    hex: hex,
+    dot: '',
+    dotStyle: `background-color: ${hex};`,
+    badge: 'font-mono font-bold',
+    badgeStyle: `background-color: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.14); color: ${hex}; border-color: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.35);`,
+    cardHeader: 'border-b',
+    cardHeaderStyle: `background-color: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.08); border-color: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.22);`,
+    btnBg: '',
+    btnBgStyle: `background-color: ${hex};`,
+    ring: ''
+  };
 }
 
 // Bỏ dấu tiếng Việt phục vụ tạo mã tag viết tắt
@@ -393,10 +464,7 @@ function getParentBadgeHtml(task) {
     if (parent) {
       const palette = getParentColorConfig(parent.color);
       const tag = getParentTag(parent);
-      return `<span class="px-2 py-0.5 text-xs font-black font-mono tracking-wide rounded-md flex items-center gap-1 shrink-0 ${palette.badge}" title="Task tổng: ${escapeHtml(parent.title)}">
-        <span class="w-1.5 h-1.5 rounded-full ${palette.dot} shrink-0"></span>
-        <span>${escapeHtml(tag)}</span>
-      </span>`;
+      return `<span class="px-2 py-0.5 text-[11px] font-black font-mono tracking-wide rounded-md inline-flex items-center shrink-0 border ${palette.badge}" style="${palette.badgeStyle || ''}" title="Task tổng: ${escapeHtml(parent.title)}">${escapeHtml(tag)}</span>`;
     }
   }
   if (task.category) {
@@ -825,24 +893,40 @@ async function saveTaskFromForm(formData) {
     openLoginModal();
     return;
   }
-  const { id, title, date, priority, parentId: initialParentId, note } = formData;
+  const { id, title, date, priority, parentId: initialParentId, note, tag } = formData;
   let targetTask = null;
   let parentId = initialParentId;
 
-  // Nếu là tạo mới và người dùng không chọn task parent:
-  // Theo quy tắc nghiệp vụ: mặc định task tổng sẽ là tên task người dùng vừa nhập và task con sẽ thuộc task tổng đó
-  if (!id && !parentId) {
-    const availableColors = Object.keys(PARENT_COLOR_PALETTES);
-    const colorKey = availableColors[state.parentTasks.length % availableColors.length];
-    const newParent = {
-      id: 'parent_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-      title: title,
-      color: colorKey,
-      description: 'Mục tiêu được tạo tự động từ nhiệm vụ',
-      createdAt: new Date().toISOString()
-    };
-    await saveSingleParentTask(newParent);
-    parentId = newParent.id;
+  // Nếu người dùng chọn "Parent Task" (tức là parentId rỗng):
+  if (!parentId) {
+    // 1. Tìm xem đã có parent task nào cùng title chưa, hoặc nếu đang sửa task này
+    let existingParent = state.parentTasks.find(p => p.title.trim().toLowerCase() === title.trim().toLowerCase());
+    if (!existingParent && id) {
+      const prevTask = state.tasks.find(t => t.id === id);
+      if (prevTask && prevTask.parentId) {
+        existingParent = state.parentTasks.find(p => p.id === prevTask.parentId);
+      }
+    }
+
+    if (existingParent) {
+      existingParent.title = title;
+      if (tag) existingParent.tag = tag;
+      await saveSingleParentTask(existingParent);
+      parentId = existingParent.id;
+    } else {
+      const availableColors = PRESET_RGB_COLORS.map(p => p.hex);
+      const colorHex = availableColors[state.parentTasks.length % availableColors.length];
+      const newParent = {
+        id: 'parent_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+        title: title,
+        tag: tag || generateParentTaskTag(title) || 'TASK',
+        color: colorHex,
+        description: note || 'Mục tiêu được tạo tự động từ nhiệm vụ',
+        createdAt: new Date().toISOString()
+      };
+      await saveSingleParentTask(newParent);
+      parentId = newParent.id;
+    }
   }
 
   if (id) {
@@ -1018,8 +1102,8 @@ function renderDayView() {
     }[task.priority] || '';
 
     const replanBadge = (task.replanCount && task.replanCount > 0)
-      ? `<span class="px-2.5 py-0.5 text-xs font-bold rounded-md border ${task.replanCount >= 3 ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-700' : 'bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-700'}" title="Đã bị dời ${task.replanCount} lần">
-          <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 inline"></i> Đã dời ${task.replanCount} lần
+      ? `<span class="inline-flex items-center text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 transition-colors cursor-help shrink-0" title="Nhiệm vụ này đã được dời lịch ${task.replanCount} lần. Cố gắng hoàn thành sớm nhé!">
+          <i data-lucide="alert-triangle" class="w-4 h-4"></i>
         </span>`
       : '';
 
@@ -1199,12 +1283,12 @@ function renderWeekView() {
                     </div>
                     
                     <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
-                      ${priorityDot}
                       ${getParentBadgeHtml(t)}
-                      ${t.replanCount > 0 ? `<span class="text-[10px] px-1.5 py-0.5 font-bold rounded bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-700/80">Dời ${t.replanCount} lần</span>` : ''}
-                      ${t.document && t.document.contentHtml ? `<span class="text-[10px] px-1.5 py-0.5 font-bold rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700/80 flex items-center gap-0.5"><i data-lucide="file-text" class="w-3 h-3"></i> DOCX</span>` : ''}
-                      ${t.links && t.links.length > 0 ? `<span class="text-[10px] px-1.5 py-0.5 font-bold rounded bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-700/80 flex items-center gap-0.5"><i data-lucide="link" class="w-3 h-3"></i> ${t.links.length}</span>` : ''}
-                      ${taskIsOverdue ? `<span class="text-[10px] font-bold text-rose-600 dark:text-rose-400">⚠️ Trễ hạn</span>` : ''}
+                      ${priorityDot}
+                      ${t.replanCount > 0 ? `<span class="inline-flex items-center text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 transition-colors cursor-help shrink-0" title="Nhiệm vụ này đã được dời lịch ${t.replanCount} lần. Cố gắng hoàn thành sớm nhé!"><i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i></span>` : ''}
+                      ${t.document && t.document.contentHtml ? `<span class="text-[10px] px-1.5 py-0.5 font-semibold rounded bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700/80 inline-flex items-center gap-0.5 shrink-0" title="Có tài liệu soạn thảo (.docx)"><i data-lucide="file-text" class="w-3 h-3"></i> DOCX</span>` : ''}
+                      ${t.links && t.links.length > 0 ? `<span class="text-[10px] px-1.5 py-0.5 font-semibold rounded bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-700/80 inline-flex items-center gap-0.5 shrink-0" title="${t.links.length} tài nguyên đính kèm"><i data-lucide="link" class="w-3 h-3"></i> ${t.links.length}</span>` : ''}
+                      ${taskIsOverdue ? `<span class="text-[10px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-0.5 shrink-0"><i data-lucide="clock-alert" class="w-3 h-3"></i> Trễ hạn</span>` : ''}
                     </div>
                   </div>
 
@@ -1439,6 +1523,46 @@ const formParentTask = document.getElementById('formParentTask');
 const quickScheduleModal = document.getElementById('quickScheduleModal');
 const formQuickSchedule = document.getElementById('formQuickSchedule');
 
+// --- MODAL STACKING & ANIMATION HELPERS (Hiệu ứng chuyển cảnh xếp lớp mượt mà) ---
+function pushModalStack(dialogId) {
+  const dlg = document.getElementById(dialogId);
+  if (dlg) {
+    dlg.classList.add('modal-dialog-animated');
+    dlg.style.transform = 'scale(0.965) translateY(-8px)';
+    dlg.style.opacity = '0.55';
+    dlg.style.filter = 'blur(1px)';
+    dlg.style.pointerEvents = 'none';
+  }
+}
+
+function popModalStack(dialogId) {
+  const dlg = document.getElementById(dialogId);
+  if (dlg) {
+    dlg.classList.add('modal-dialog-animated');
+    dlg.style.transform = '';
+    dlg.style.opacity = '';
+    dlg.style.filter = '';
+    dlg.style.pointerEvents = '';
+  }
+}
+
+function animateModalOpen(modalEl, dialogId) {
+  if (!modalEl) return;
+  modalEl.classList.remove('hidden');
+  const dlg = dialogId ? document.getElementById(dialogId) : null;
+  if (dlg) {
+    dlg.classList.add('modal-dialog-animated');
+    dlg.style.transform = 'scale(0.95) translateY(12px)';
+    dlg.style.opacity = '0';
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        dlg.style.transform = 'scale(1) translateY(0)';
+        dlg.style.opacity = '1';
+      });
+    });
+  }
+}
+
 let currentAddTaskTab = 'defined'; // 'defined' | 'others'
 
 function switchAddTaskTypeTab(tabName) {
@@ -1462,8 +1586,38 @@ function switchAddTaskTypeTab(tabName) {
   lucide.createIcons();
 }
 
+let isTaskFormTagManuallyEdited = false;
+
+function updateTaskFormTagCount() {
+  const tagInput = document.getElementById('taskFormTagInput');
+  const countEl = document.getElementById('taskFormTagCount');
+  if (tagInput && countEl) {
+    countEl.textContent = `${tagInput.value.length}/5`;
+  }
+}
+
+function toggleTaskFormTagRow() {
+  const parentSelect = document.getElementById('taskParentSelect');
+  const tagRow = document.getElementById('taskTagRow');
+  const tagInput = document.getElementById('taskFormTagInput');
+  const titleInput = document.getElementById('taskTitle');
+  if (!parentSelect || !tagRow) return;
+
+  // Nếu chọn "Parent Task" (value rỗng)
+  if (!parentSelect.value) {
+    tagRow.classList.remove('hidden');
+    if ((!tagInput.value.trim() || !isTaskFormTagManuallyEdited) && titleInput && titleInput.value.trim()) {
+      tagInput.value = generateParentTaskTag(titleInput.value);
+    }
+  } else {
+    // Nếu chọn một Task tổng đã có sẵn -> ẩn ô tag (subtask kế thừa tag của Parent)
+    tagRow.classList.add('hidden');
+  }
+  updateTaskFormTagCount();
+}
+
 function populateParentSelectOptions(selectEl, selectedParentId = '') {
-  let html = `<option value="">(Không chọn - Task này sẽ là Task tổng mới)</option>`;
+  let html = `<option value="">Parent Task</option>`;
   state.parentTasks.forEach(p => {
     const isSelected = p.id === selectedParentId ? 'selected' : '';
     const tag = getParentTag(p);
@@ -1549,7 +1703,12 @@ function openAddTaskModal(initialDate = null) {
   const parentSelect = document.getElementById('taskParentSelect');
   if (parentSelect) populateParentSelectOptions(parentSelect);
 
-  taskModal.classList.remove('hidden');
+  const formTagInput = document.getElementById('taskFormTagInput');
+  if (formTagInput) formTagInput.value = '';
+  isTaskFormTagManuallyEdited = false;
+  toggleTaskFormTagRow();
+
+  animateModalOpen(taskModal, 'taskDialog');
   lucide.createIcons();
 }
 
@@ -1566,6 +1725,9 @@ function openAddTaskModalForParent(parentId) {
     openLoginModal();
     return;
   }
+  if (!taskManagerModal.classList.contains('hidden')) {
+    pushModalStack('taskManagerDialog');
+  }
   openAddTaskModal();
   switchAddTaskTypeTab('others');
   const parentSelect = document.getElementById('taskParentSelect');
@@ -1573,6 +1735,7 @@ function openAddTaskModalForParent(parentId) {
     populateParentSelectOptions(parentSelect, parentId);
     parentSelect.value = parentId;
   }
+  toggleTaskFormTagRow();
   // Để trống ngày để task mới lưu thẳng vào Kho (chờ xếp lịch)
   document.getElementById('taskDate').value = '';
   document.getElementById('taskTitle').focus();
@@ -1585,6 +1748,10 @@ function openEditTaskModal(taskId) {
   }
   const task = state.tasks.find(t => t.id === taskId);
   if (!task) return;
+
+  if (!taskManagerModal.classList.contains('hidden')) {
+    pushModalStack('taskManagerDialog');
+  }
 
   // Ẩn tabs chọn defined (vì đang edit trực tiếp task này)
   const tabsContainer = document.getElementById('addTaskTypeTabs');
@@ -1606,12 +1773,25 @@ function openEditTaskModal(taskId) {
     parentSelect.value = task.parentId || '';
   }
 
-  taskModal.classList.remove('hidden');
+  const formTagInput = document.getElementById('taskFormTagInput');
+  if (formTagInput) {
+    if (!task.parentId) {
+      const p = state.parentTasks.find(p => p.id === task.parentId || p.title.trim().toLowerCase() === task.title.trim().toLowerCase());
+      formTagInput.value = p ? getParentTag(p) : generateParentTaskTag(task.title);
+      isTaskFormTagManuallyEdited = true;
+    } else {
+      formTagInput.value = '';
+    }
+  }
+  toggleTaskFormTagRow();
+
+  animateModalOpen(taskModal, 'taskDialog');
   lucide.createIcons();
 }
 
 function closeTaskModal() {
   taskModal.classList.add('hidden');
+  popModalStack('taskManagerDialog');
 }
 
 // Xử lý nộp Form 1: Chọn Task có sẵn từ kho để xếp vào ngày
@@ -1655,13 +1835,14 @@ function openTaskManagerModal() {
   if (searchInput) searchInput.value = '';
   updateTaskManagerFilterButtons();
   renderTaskManagerContent();
-  taskManagerModal.classList.remove('hidden');
+  animateModalOpen(taskManagerModal, 'taskManagerDialog');
   document.getElementById('userDropdown').classList.add('hidden');
   lucide.createIcons();
 }
 
 function closeTaskManagerModal() {
   taskManagerModal.classList.add('hidden');
+  popModalStack('taskManagerDialog');
 }
 
 function setTaskManagerFilter(filter) {
@@ -1757,16 +1938,16 @@ function renderTaskManagerContent() {
     html += `
       <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden transition-all">
         <!-- Parent Card Header -->
-        <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${palette.cardHeader}">
+        <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${palette.cardHeader}" style="${palette.cardHeaderStyle || ''}">
           <div class="flex items-start gap-3 min-w-0">
-            <span class="w-3.5 h-3.5 rounded-full ${palette.dot} mt-1 shrink-0 shadow-xs"></span>
+            <span class="w-3.5 h-3.5 rounded-full ${palette.dot} mt-1 shrink-0 shadow-xs" style="${palette.dotStyle || ''}"></span>
             <div class="min-w-0">
               <div class="flex items-center gap-2.5 flex-wrap">
                 <h3 class="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-snug">${escapeHtml(parent.title)}</h3>
-                <span class="px-2.5 py-0.5 text-xs font-mono font-black rounded-md ${palette.badge}">
+                <span class="px-2.5 py-0.5 text-xs font-mono font-black rounded-md border ${palette.badge}" style="${palette.badgeStyle || ''}">
                   #${escapeHtml(getParentTag(parent))}
                 </span>
-                <span class="px-2.5 py-0.5 text-xs font-extrabold rounded-md ${palette.badge}">
+                <span class="px-2.5 py-0.5 text-xs font-extrabold rounded-md border ${palette.badge}" style="${palette.badgeStyle || ''}">
                   ${parentCompletedCount}/${allParentSubtasks.length} task (${parentPct}%)
                 </span>
               </div>
@@ -1901,36 +2082,83 @@ function renderTaskManagerSubtaskRow(task) {
   `;
 }
 
-// --- 8.2. PARENT TASK ADD / EDIT MODAL ---
-function renderParentColorPicker(selectedColor = 'blue') {
-  const container = document.getElementById('parentColorPicker');
+// --- 8.2. PARENT TASK ADD / EDIT MODAL & RGB COLOR PICKER ---
+function renderParentColorPicker(selectedColor = '#2563eb') {
+  let hex = '#2563eb';
+  if (selectedColor && typeof selectedColor === 'string') {
+    const trimmed = selectedColor.trim();
+    if (LEGACY_COLOR_HEX[trimmed]) {
+      hex = LEGACY_COLOR_HEX[trimmed];
+    } else if (trimmed.startsWith('#')) {
+      hex = trimmed;
+    } else {
+      hex = '#' + trimmed;
+    }
+  }
+
+  const customColorPicker = document.getElementById('parentCustomColorPicker');
+  const hexInput = document.getElementById('parentColorHexInput');
+  const hiddenInput = document.getElementById('selectedParentColor');
+
+  if (customColorPicker) customColorPicker.value = hex;
+  if (hexInput) hexInput.value = hex.replace('#', '').toUpperCase();
+  if (hiddenInput) hiddenInput.value = hex;
+
+  updateParentTagPreview(hex);
+  renderQuickColorPresets(hex);
+}
+
+function selectParentColor(colorHex) {
+  renderParentColorPicker(colorHex);
+}
+
+function renderQuickColorPresets(currentHex = '#2563eb') {
+  const container = document.getElementById('parentQuickColorPresets');
   if (!container) return;
 
-  const colors = Object.keys(PARENT_COLOR_PALETTES);
-  container.innerHTML = colors.map(cKey => {
-    const c = PARENT_COLOR_PALETTES[cKey];
-    const isSelected = cKey === selectedColor;
+  const normalizedCurrent = (currentHex || '').toLowerCase();
+  container.innerHTML = PRESET_RGB_COLORS.map(p => {
+    const isSelected = p.hex.toLowerCase() === normalizedCurrent;
     return `
       <button 
         type="button" 
-        onclick="selectParentColor('${cKey}')"
-        class="flex items-center gap-2 p-2 rounded-xl border text-xs font-bold transition ${
+        onclick="selectParentColor('${p.hex}')"
+        title="${p.name} (${p.hex})"
+        class="w-6 h-6 rounded-full transition-all hover:scale-115 shadow-2xs shrink-0 cursor-pointer ${
           isSelected 
-            ? 'border-blue-600 ring-2 ring-blue-300 dark:ring-blue-800 bg-blue-50/50 dark:bg-blue-950/40 shadow-xs' 
-            : 'border-slate-200 dark:border-slate-700 hover:border-slate-400 bg-white dark:bg-slate-800'
+            ? 'ring-2 ring-offset-2 ring-blue-600 dark:ring-offset-slate-800 scale-110' 
+            : 'opacity-85 hover:opacity-100'
         }"
-      >
-        <span class="w-3.5 h-3.5 rounded-full ${c.dot} shrink-0"></span>
-        <span class="text-slate-800 dark:text-slate-200 truncate">${c.name}</span>
-      </button>
+        style="background-color: ${p.hex};"
+      ></button>
     `;
   }).join('');
 }
 
-function selectParentColor(colorKey) {
+function updateParentTagPreview(hexVal) {
   const hiddenInput = document.getElementById('selectedParentColor');
-  if (hiddenInput) hiddenInput.value = colorKey;
-  renderParentColorPicker(colorKey);
+  const hex = hexVal || (hiddenInput ? hiddenInput.value : '#2563eb') || '#2563eb';
+  const rgb = hexToRgb(hex);
+
+  const tagInput = document.getElementById('parentTaskTagInput');
+  const titleInput = document.getElementById('parentTaskTitleInput');
+  let tagText = '';
+  if (tagInput && tagInput.value.trim()) {
+    tagText = tagInput.value.trim().toUpperCase().slice(0, 5);
+  } else if (titleInput && titleInput.value.trim()) {
+    tagText = generateParentTaskTag(titleInput.value.trim());
+  }
+  if (!tagText) tagText = 'TAG';
+
+  const liveText = document.getElementById('parentTagLiveText');
+  const livePreview = document.getElementById('parentTagLivePreview');
+
+  if (liveText) liveText.textContent = tagText;
+  if (livePreview) {
+    livePreview.style.backgroundColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.14)`;
+    livePreview.style.borderColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.35)`;
+    livePreview.style.color = hex;
+  }
 }
 
 let isParentTagManuallyEdited = false;
@@ -1941,6 +2169,7 @@ function updateParentTagCharCount() {
   if (tagInput && countEl) {
     countEl.textContent = `${tagInput.value.length}/5`;
   }
+  updateParentTagPreview();
 }
 
 function openAddParentTaskModal() {
@@ -1951,15 +2180,18 @@ function openAddParentTaskModal() {
   formParentTask.reset();
   document.getElementById('parentTaskId').value = '';
   document.getElementById('parentTaskModalTitle').textContent = 'Thêm Task tổng mới';
-  document.getElementById('selectedParentColor').value = 'blue';
+  document.getElementById('selectedParentColor').value = '#2563eb';
 
   const tagInput = document.getElementById('parentTaskTagInput');
   if (tagInput) tagInput.value = '';
   isParentTagManuallyEdited = false;
   updateParentTagCharCount();
 
-  renderParentColorPicker('blue');
-  parentTaskModal.classList.remove('hidden');
+  renderParentColorPicker('#2563eb');
+  if (!taskManagerModal.classList.contains('hidden')) {
+    pushModalStack('taskManagerDialog');
+  }
+  animateModalOpen(parentTaskModal, 'parentTaskDialog');
   document.getElementById('parentTaskTitleInput').focus();
 }
 
@@ -1974,7 +2206,7 @@ function openEditParentTaskModal(parentId) {
   document.getElementById('parentTaskId').value = parent.id;
   document.getElementById('parentTaskTitleInput').value = parent.title;
   document.getElementById('parentTaskDescInput').value = parent.description || '';
-  document.getElementById('selectedParentColor').value = parent.color || 'blue';
+  document.getElementById('selectedParentColor').value = parent.color || '#2563eb';
   document.getElementById('parentTaskModalTitle').textContent = 'Chỉnh sửa Task tổng';
 
   const tagInput = document.getElementById('parentTaskTagInput');
@@ -1984,12 +2216,16 @@ function openEditParentTaskModal(parentId) {
     updateParentTagCharCount();
   }
   
-  renderParentColorPicker(parent.color || 'blue');
-  parentTaskModal.classList.remove('hidden');
+  renderParentColorPicker(parent.color || '#2563eb');
+  if (!taskManagerModal.classList.contains('hidden')) {
+    pushModalStack('taskManagerDialog');
+  }
+  animateModalOpen(parentTaskModal, 'parentTaskDialog');
 }
 
 function closeParentTaskModal() {
   parentTaskModal.classList.add('hidden');
+  popModalStack('taskManagerDialog');
 }
 
 async function handleSaveParentTask(e) {
@@ -2000,7 +2236,7 @@ async function handleSaveParentTask(e) {
   }
   const id = document.getElementById('parentTaskId').value;
   const title = document.getElementById('parentTaskTitleInput').value.trim();
-  const color = document.getElementById('selectedParentColor').value || 'blue';
+  const color = document.getElementById('selectedParentColor').value || '#2563eb';
   const description = document.getElementById('parentTaskDescInput').value.trim();
 
   if (!title) {
@@ -2065,11 +2301,15 @@ function openQuickScheduleModal(taskId) {
   document.getElementById('quickScheduleTaskId').value = task.id;
   document.getElementById('quickScheduleTaskTitle').textContent = task.title;
   document.getElementById('quickScheduleDateInput').value = formatDate(state.currentDate);
-  quickScheduleModal.classList.remove('hidden');
+  if (!taskManagerModal.classList.contains('hidden')) {
+    pushModalStack('taskManagerDialog');
+  }
+  animateModalOpen(quickScheduleModal, 'quickScheduleDialog');
 }
 
 function closeQuickScheduleModal() {
   quickScheduleModal.classList.add('hidden');
+  popModalStack('taskManagerDialog');
 }
 
 async function handleQuickScheduleSubmit(e) {
@@ -2311,8 +2551,10 @@ function openTaskDetailModal(taskId) {
     if (parent) {
       const palette = getParentColorConfig(parent.color);
       const tag = getParentTag(parent);
-      catEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${palette.dot}"></span> <span class="font-mono font-black mr-1">[${escapeHtml(tag)}]</span> ${escapeHtml(parent.title)}`;
-      catEl.className = `text-xs px-2.5 py-1 rounded-md font-bold flex items-center gap-1.5 ${palette.badge}`;
+      catEl.innerHTML = `<span class="font-mono font-black mr-1">[${escapeHtml(tag)}]</span> ${escapeHtml(parent.title)}`;
+      catEl.className = `text-xs px-2.5 py-1 rounded-md font-bold flex items-center gap-1 border ${palette.badge}`;
+      if (palette.badgeStyle) catEl.setAttribute('style', palette.badgeStyle);
+      else catEl.removeAttribute('style');
       catEl.classList.remove('hidden');
     } else {
       catEl.classList.add('hidden');
@@ -2320,6 +2562,7 @@ function openTaskDetailModal(taskId) {
   } else if (task.category) {
     catEl.textContent = task.category;
     catEl.className = 'text-xs px-2.5 py-1 rounded-md font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700/80';
+    catEl.removeAttribute('style');
     catEl.classList.remove('hidden');
   } else {
     catEl.classList.add('hidden');
@@ -2327,7 +2570,8 @@ function openTaskDetailModal(taskId) {
 
   const replanEl = document.getElementById('detailReplanBadge');
   if (task.replanCount && task.replanCount > 0) {
-    replanEl.textContent = `Đã dời ${task.replanCount} lần`;
+    replanEl.innerHTML = `<i data-lucide="alert-triangle" class="w-3.5 h-3.5 inline mr-1 text-amber-500"></i> Đã dời lịch ${task.replanCount} lần`;
+    replanEl.title = `Nhiệm vụ này đã được dời lịch ${task.replanCount} lần. Cố gắng hoàn thành sớm nhé!`;
     replanEl.classList.remove('hidden');
   } else {
     replanEl.classList.add('hidden');
@@ -2380,7 +2624,10 @@ function openTaskDetailModal(taskId) {
   switchDetailTab('document');
 
   // Mở modal
-  document.getElementById('taskDetailModal').classList.remove('hidden');
+  if (!taskManagerModal.classList.contains('hidden')) {
+    pushModalStack('taskManagerDialog');
+  }
+  animateModalOpen(document.getElementById('taskDetailModal'), 'taskDetailDialog');
   lucide.createIcons();
 }
 
@@ -2393,12 +2640,12 @@ function toggleDetailFullscreen() {
   isDetailFullscreen = !isDetailFullscreen;
 
   if (isDetailFullscreen) {
-    modalBackdrop.className = 'fixed inset-0 bg-slate-950 z-50 flex p-0';
+    modalBackdrop.className = 'fixed inset-0 bg-slate-950 z-[75] modal-layer-detail flex p-0';
     modalDialog.className = 'bg-white dark:bg-slate-900 w-full h-full rounded-none flex flex-col transition-all duration-150 overflow-hidden';
     if (iconFs) iconFs.setAttribute('data-lucide', 'minimize-2');
   } else {
-    modalBackdrop.className = 'fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-1 sm:p-2.5 2xl:p-4';
-    modalDialog.className = 'bg-white dark:bg-slate-900 rounded-2xl w-full h-[96vh] 2xl:h-[97vh] max-w-[98vw] 2xl:max-w-[1950px] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 transition-all duration-200 overflow-hidden';
+    modalBackdrop.className = 'fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[75] modal-layer-detail flex items-center justify-center p-1 sm:p-2.5 2xl:p-4';
+    modalDialog.className = 'bg-white dark:bg-slate-900 rounded-2xl w-full h-[96vh] 2xl:h-[97vh] max-w-[98vw] 2xl:max-w-[1950px] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 transition-all duration-200 overflow-hidden modal-dialog-animated';
     if (iconFs) iconFs.setAttribute('data-lucide', 'maximize-2');
   }
   lucide.createIcons();
@@ -2410,6 +2657,7 @@ function closeTaskDetailModal() {
     state.activeDetailTaskId = null;
   }
   document.getElementById('taskDetailModal').classList.add('hidden');
+  popModalStack('taskManagerDialog');
   renderApp();
 }
 
@@ -2589,9 +2837,23 @@ async function handleSaveToGoogleDrive() {
         await window.StudyPlannerFirebase.signInWithGoogle();
       } catch (e) {
         console.warn('Đăng nhập Google thất bại:', e);
+        return;
       }
+    } else {
+      return;
     }
-    return;
+  }
+
+  // Nếu token Google Drive đã hết hạn, tự động nhắc gia hạn
+  if (window.StudyPlannerFirebase.isGoogleAccessTokenExpired && window.StudyPlannerFirebase.isGoogleAccessTokenExpired()) {
+    console.log('Google Drive Token đã hết hạn. Đang xin cấp mới...');
+    try {
+      await window.StudyPlannerFirebase.ensureValidGoogleAccessToken(true);
+    } catch (e) {
+      console.warn('Không thể gia hạn token Google Drive:', e);
+      alert('Phiên làm việc Google Drive đã hết hạn. Vui lòng đăng nhập lại Google.');
+      return;
+    }
   }
 
   const btnSave = document.getElementById('btnSaveToGoogleDrive');
@@ -2668,7 +2930,11 @@ async function handleSaveToGoogleDrive() {
     alert(`✅ Đã lưu thành công tài liệu "${fileName}" lên Google Drive!\n📂 Thư mục: ${displayPath}`);
   } catch (err) {
     console.error('Lỗi khi lưu lên Google Drive:', err);
-    alert('Không thể lưu lên Google Drive: ' + err.message);
+    if (err.status === 401 || err.code === 'UNAUTHENTICATED' || (err.message && err.message.includes('authentication credentials'))) {
+      alert('Phiên xác thực Google Drive đã hết hạn (Google OAuth token có thời hạn 1 giờ). Hệ thống đã tự động làm mới, vui lòng bấm "Lưu vào Drive" lại một lần nữa!');
+    } else {
+      alert('Không thể lưu lên Google Drive: ' + err.message);
+    }
   } finally {
     btnSave.disabled = false;
     btnSave.innerHTML = originalHtml;
@@ -3000,16 +3266,54 @@ document.addEventListener('DOMContentLoaded', () => {
   taskForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const parentSel = document.getElementById('taskParentSelect');
+    const tagInput = document.getElementById('taskFormTagInput');
+    const titleVal = document.getElementById('taskTitle').value.trim();
+    const tagVal = (tagInput ? tagInput.value.trim() : '') || generateParentTaskTag(titleVal) || 'TASK';
     await saveTaskFromForm({
       id: document.getElementById('taskId').value,
-      title: document.getElementById('taskTitle').value.trim(),
+      title: titleVal,
       date: document.getElementById('taskDate').value,
       priority: document.getElementById('taskPriority').value,
       parentId: parentSel ? parentSel.value : '',
-      note: document.getElementById('taskNote').value.trim()
+      note: document.getElementById('taskNote').value.trim(),
+      tag: tagVal.toUpperCase().slice(0, 5)
     });
     closeTaskModal();
   });
+
+  const taskParentSel = document.getElementById('taskParentSelect');
+  if (taskParentSel) {
+    taskParentSel.addEventListener('change', toggleTaskFormTagRow);
+  }
+
+  const taskTitleInput = document.getElementById('taskTitle');
+  const taskFormTagInput = document.getElementById('taskFormTagInput');
+  const btnRegenSubtaskParentTag = document.getElementById('btnRegenSubtaskParentTag');
+
+  if (taskTitleInput && taskFormTagInput) {
+    taskTitleInput.addEventListener('input', () => {
+      const parentSel = document.getElementById('taskParentSelect');
+      if (parentSel && !parentSel.value && (!isTaskFormTagManuallyEdited || !taskFormTagInput.value.trim())) {
+        taskFormTagInput.value = generateParentTaskTag(taskTitleInput.value);
+        updateTaskFormTagCount();
+      }
+    });
+
+    taskFormTagInput.addEventListener('input', () => {
+      taskFormTagInput.value = taskFormTagInput.value.toUpperCase().slice(0, 5);
+      isTaskFormTagManuallyEdited = true;
+      updateTaskFormTagCount();
+    });
+  }
+
+  if (btnRegenSubtaskParentTag && taskFormTagInput && taskTitleInput) {
+    btnRegenSubtaskParentTag.addEventListener('click', () => {
+      taskFormTagInput.value = generateParentTaskTag(taskTitleInput.value);
+      isTaskFormTagManuallyEdited = false;
+      updateTaskFormTagCount();
+      taskFormTagInput.focus();
+    });
+  }
 
   // --- TASK MANAGER MODAL LISTENERS ---
   const btnOpenAddParent = document.getElementById('btnOpenAddParentModal');
@@ -3069,6 +3373,33 @@ document.addEventListener('DOMContentLoaded', () => {
       isParentTagManuallyEdited = false;
       updateParentTagCharCount();
       parentTagInput.focus();
+    });
+  }
+
+  // --- RGB & HEX COLOR PICKER LISTENERS ---
+  const customColorInput = document.getElementById('parentCustomColorPicker');
+  const hexColorInput = document.getElementById('parentColorHexInput');
+
+  if (customColorInput) {
+    customColorInput.addEventListener('input', (e) => {
+      const hex = e.target.value;
+      if (hexColorInput) hexColorInput.value = hex.replace('#', '').toUpperCase();
+      selectParentColor(hex);
+    });
+  }
+
+  if (hexColorInput) {
+    hexColorInput.addEventListener('input', () => {
+      let val = hexColorInput.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 6).toUpperCase();
+      hexColorInput.value = val;
+      if (val.length === 6 || val.length === 3) {
+        let fullHex = '#' + (val.length === 3 ? val.split('').map(c => c + c).join('') : val);
+        if (customColorInput) customColorInput.value = fullHex;
+        const hiddenInput = document.getElementById('selectedParentColor');
+        if (hiddenInput) hiddenInput.value = fullHex;
+        updateParentTagPreview(fullHex);
+        renderQuickColorPresets(fullHex);
+      }
     });
   }
 

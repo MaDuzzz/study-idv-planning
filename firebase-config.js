@@ -104,6 +104,7 @@ async function signInWithGoogle() {
     if (result.credential) {
       googleAccessToken = result.credential.accessToken;
       sessionStorage.setItem('study_planner_google_access_token', googleAccessToken);
+      sessionStorage.setItem('study_planner_google_token_time', Date.now().toString());
     }
 
     console.log('Đăng nhập thành công:', currentUser.email, 'UID:', currentUser.uid);
@@ -125,6 +126,7 @@ async function signOutUser() {
   currentUser = null;
   googleAccessToken = null;
   sessionStorage.removeItem('study_planner_google_access_token');
+  sessionStorage.removeItem('study_planner_google_token_time');
   console.log('Đã đăng xuất người dùng.');
 }
 
@@ -136,6 +138,31 @@ function getGoogleAccessToken() {
     googleAccessToken = sessionStorage.getItem('study_planner_google_access_token');
   }
   return googleAccessToken;
+}
+
+/**
+ * Kiểm tra xem Google OAuth Access Token đã hết hạn chưa (Google token hết hạn sau 3600s)
+ */
+function isGoogleAccessTokenExpired() {
+  const token = getGoogleAccessToken();
+  if (!token) return true;
+  const timeStr = sessionStorage.getItem('study_planner_google_token_time');
+  if (!timeStr) return false;
+  const tokenTime = parseInt(timeStr, 10);
+  return (Date.now() - tokenTime) > (50 * 60 * 1000); // 50 phút
+}
+
+/**
+ * Đảm bảo Google OAuth Access Token còn hiệu lực, tự động yêu cầu xác thực nếu hết hạn
+ */
+async function ensureValidGoogleAccessToken(forceReauth = false) {
+  if (forceReauth || isGoogleAccessTokenExpired()) {
+    console.log('Google OAuth token đã hết hạn hoặc chưa có. Đang yêu cầu xác thực...');
+    const user = await signInWithGoogle();
+    if (!user) throw new Error('Không thể đăng nhập Google để lấy token Drive.');
+    return getGoogleAccessToken();
+  }
+  return getGoogleAccessToken();
 }
 
 // --- MULTI-TENANT FIRESTORE REPOSITORY ---
@@ -278,7 +305,21 @@ async function getOrCreateDriveFolder(token, folderName = GOOGLE_DRIVE_ROOT_FOLD
   const res = await fetch(searchUrl, {
     headers: { Authorization: `Bearer ${token}` }
   });
+
+  if (res.status === 401) {
+    const err = new Error('Request had invalid authentication credentials. Expected OAuth 2 access token');
+    err.status = 401;
+    err.code = 'UNAUTHENTICATED';
+    throw err;
+  }
+
   const data = await res.json();
+  if (data.error && data.error.code === 401) {
+    const err = new Error(data.error.message || 'Request had invalid authentication credentials.');
+    err.status = 401;
+    err.code = 'UNAUTHENTICATED';
+    throw err;
+  }
 
   if (data.files && data.files.length > 0) {
     return data.files[0].id;
@@ -301,8 +342,22 @@ async function getOrCreateDriveFolder(token, folderName = GOOGLE_DRIVE_ROOT_FOLD
     },
     body: JSON.stringify(folderMetadata)
   });
+
+  if (createRes.status === 401) {
+    const err = new Error('Request had invalid authentication credentials. Expected OAuth 2 access token');
+    err.status = 401;
+    err.code = 'UNAUTHENTICATED';
+    throw err;
+  }
+
   const newFolder = await createRes.json();
   if (newFolder.error) {
+    if (newFolder.error.code === 401) {
+      const err = new Error(newFolder.error.message);
+      err.status = 401;
+      err.code = 'UNAUTHENTICATED';
+      throw err;
+    }
     throw new Error(newFolder.error.message || 'Lỗi khi tạo thư mục trên Google Drive');
   }
   return newFolder.id;
@@ -325,6 +380,7 @@ async function getOrCreateDriveFolderPath(token, pathSegments) {
 /**
  * Tải file văn bản hoặc docx lên thư mục Google Drive của người dùng
  * theo đúng cấu trúc: study_idv_planning / [Năm] / [Task tổng] / [Task con] / [File]
+ * Tự động phát hiện token hết hạn (401 UNAUTHENTICATED) và cấp mới token để retry.
  * @param {string} fileName - Tên file (ví dụ: 'Tai_lieu.docx')
  * @param {Blob|string} content - Nội dung (Blob DOCX hoặc HTML text)
  * @param {string} mimeType - Kiểu MIME
@@ -332,81 +388,103 @@ async function getOrCreateDriveFolderPath(token, pathSegments) {
  * @param {Array<string>} folderPath - Mảng chuỗi phân cấp thư mục
  */
 async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/html', existingFileId = null, folderPath = [] }) {
-  const token = getGoogleAccessToken();
+  let token = await ensureValidGoogleAccessToken();
   if (!token) {
     throw new Error('Bạn cần đăng nhập Google để lưu file vào Google Drive.');
   }
 
-  // Tạo hoặc lấy thư mục đích theo chuỗi phân cấp
-  let targetFolderId = null;
-  if (folderPath && folderPath.length > 0) {
-    targetFolderId = await getOrCreateDriveFolderPath(token, folderPath);
-  } else {
-    targetFolderId = await getOrCreateDriveFolder(token, GOOGLE_DRIVE_ROOT_FOLDER);
-  }
+  const executeUpload = async (authToken) => {
+    // Tạo hoặc lấy thư mục đích theo chuỗi phân cấp
+    let targetFolderId = null;
+    if (folderPath && folderPath.length > 0) {
+      targetFolderId = await getOrCreateDriveFolderPath(authToken, folderPath);
+    } else {
+      targetFolderId = await getOrCreateDriveFolder(authToken, GOOGLE_DRIVE_ROOT_FOLDER);
+    }
 
-  const metadata = {
-    name: fileName,
-    mimeType: mimeType
+    const metadata = {
+      name: fileName,
+      mimeType: mimeType
+    };
+    if (!existingFileId && targetFolderId) {
+      metadata.parents = [targetFolderId];
+    }
+
+    // Sử dụng Multipart Upload chuẩn của Google Drive API v3 (RFC 2387)
+    const boundary = '-------314159265358979323846';
+
+    let fileBlob;
+    if (content instanceof Blob) {
+      fileBlob = content;
+    } else if (typeof content === 'string') {
+      fileBlob = new Blob([content], { type: mimeType });
+    } else {
+      fileBlob = new Blob([content], { type: mimeType });
+    }
+
+    const metadataHeader = 
+      `--${boundary}\r\n` +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) +
+      `\r\n--${boundary}\r\n` +
+      `Content-Type: ${mimeType}\r\n\r\n`;
+
+    const closeFooter = `\r\n--${boundary}--`;
+
+    // Ghép các phần thành một Blob nhị phân nguyên bản (giữ nguyên cấu trúc file Word .docx / zip)
+    const multipartBlob = new Blob([
+      metadataHeader,
+      fileBlob,
+      closeFooter
+    ], { type: `multipart/related; boundary=${boundary}` });
+
+    const url = existingFileId
+      ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`
+      : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`;
+
+    const response = await fetch(url, {
+      method: existingFileId ? 'PATCH' : 'POST',
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`
+      },
+      body: multipartBlob
+    });
+
+    if (response.status === 401) {
+      const authErr = new Error('Request had invalid authentication credentials. Expected OAuth 2 access token');
+      authErr.status = 401;
+      authErr.code = 'UNAUTHENTICATED';
+      throw authErr;
+    }
+
+    if (!response.ok) {
+      const errJson = await response.json().catch(() => ({}));
+      throw new Error(errJson.error?.message || `Lỗi khi upload lên Google Drive (HTTP ${response.status}).`);
+    }
+
+    const fileData = await response.json();
+    return {
+      fileId: fileData.id,
+      fileName: fileData.name,
+      webViewLink: fileData.webViewLink,
+      modifiedTime: fileData.modifiedTime,
+      folderId: targetFolderId || null
+    };
   };
-  if (!existingFileId && targetFolderId) {
-    metadata.parents = [targetFolderId];
+
+  try {
+    return await executeUpload(token);
+  } catch (err) {
+    // Nếu token hết hạn hoặc lỗi xác thực (401), làm mới token và thử lại lần 2
+    if (err.status === 401 || err.code === 'UNAUTHENTICATED' || (err.message && err.message.includes('authentication credentials'))) {
+      console.warn('Google Access Token hết hạn, đang tự động yêu cầu xác thực mới và thử lại upload...');
+      token = await ensureValidGoogleAccessToken(true);
+      if (!token) throw new Error('Không thể làm mới phiên xác thực Google Drive.');
+      return await executeUpload(token);
+    }
+    throw err;
   }
-
-  // Sử dụng Multipart Upload chuẩn của Google Drive API v3 (RFC 2387)
-  const boundary = '-------314159265358979323846';
-
-  let fileBlob;
-  if (content instanceof Blob) {
-    fileBlob = content;
-  } else if (typeof content === 'string') {
-    fileBlob = new Blob([content], { type: mimeType });
-  } else {
-    fileBlob = new Blob([content], { type: mimeType });
-  }
-
-  const metadataHeader = 
-    `--${boundary}\r\n` +
-    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-    JSON.stringify(metadata) +
-    `\r\n--${boundary}\r\n` +
-    `Content-Type: ${mimeType}\r\n\r\n`;
-
-  const closeFooter = `\r\n--${boundary}--`;
-
-  // Ghép các phần thành một Blob nhị phân nguyên bản (giữ nguyên cấu trúc file Word .docx / zip)
-  const multipartBlob = new Blob([
-    metadataHeader,
-    fileBlob,
-    closeFooter
-  ], { type: `multipart/related; boundary=${boundary}` });
-
-  const url = existingFileId
-    ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`
-    : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`;
-
-  const response = await fetch(url, {
-    method: existingFileId ? 'PATCH' : 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': `multipart/related; boundary=${boundary}`
-    },
-    body: multipartBlob
-  });
-
-  if (!response.ok) {
-    const errJson = await response.json();
-    throw new Error(errJson.error?.message || 'Lỗi khi upload lên Google Drive.');
-  }
-
-  const fileData = await response.json();
-  return {
-    fileId: fileData.id,
-    fileName: fileData.name,
-    webViewLink: fileData.webViewLink,
-    modifiedTime: fileData.modifiedTime,
-    folderId: targetFolderId || null
-  };
 }
 
 // Export các hàm và biến ra window để app.js truy cập trực tiếp
@@ -417,6 +495,8 @@ window.StudyPlannerFirebase = {
   signInWithGoogle,
   signOutUser,
   getGoogleAccessToken,
+  isGoogleAccessTokenExpired,
+  ensureValidGoogleAccessToken,
   getCurrentUser: () => currentUser,
   listenToUserTasks,
   saveTaskToFirestore,

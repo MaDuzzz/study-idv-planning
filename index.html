@@ -49,6 +49,10 @@
               500: '#3b82f6',
               600: '#2563eb',
               700: '#1d4ed8',
+            },
+            slate: {
+              750: '#243044',
+              850: '#111827',
             }
           }
         }
@@ -111,6 +115,18 @@
     html.dark .doc-editor table th, html.dark .doc-editor table td { border-color: #475569; }
     .doc-editor table th { background: #f8fafc; font-weight: 700; }
     html.dark .doc-editor table th { background: #1e293b; }
+
+    /* Modal Layer Stacking Hierarchy (Thứ bậc hiển thị layer triệt để) */
+    .modal-layer-hub { z-index: 70 !important; }
+    .modal-layer-detail { z-index: 75 !important; }
+    .modal-layer-child { z-index: 90 !important; }
+    .modal-layer-system { z-index: 100 !important; }
+
+    /* Hiệu ứng chuyển cảnh Modal xếp tầng (Apple Sheet Stacking Animation) */
+    .modal-dialog-animated {
+      transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1), filter 0.28s ease !important;
+      will-change: transform, opacity, filter;
+    }
   </style>
 </head>
 <body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col font-sans antialiased text-sm transition-colors duration-200 pt-[2px]">
@@ -343,8 +359,8 @@
   </main>
 
   <!-- MODAL: ĐĂNG NHẬP ADMIN -->
-  <div id="loginModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 transition-colors">
+  <div id="loginModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[100] modal-layer-system hidden flex items-center justify-center p-4">
+    <div id="loginDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 transition-colors modal-dialog-animated">
       <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
         <div class="flex items-center gap-2 text-blue-600 dark:text-blue-400">
           <i data-lucide="lock" class="w-5 h-5"></i>
@@ -380,8 +396,8 @@
   </div>
 
   <!-- MODAL: ĐỔI MẬT KHẨU ADMIN -->
-  <div id="changePwModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 transition-colors">
+  <div id="changePwModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[100] modal-layer-system hidden flex items-center justify-center p-4">
+    <div id="changePwDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 transition-colors modal-dialog-animated">
       <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
         <h3 class="text-base font-bold text-slate-900 dark:text-white">Đổi mật khẩu Admin</h3>
         <button id="btnCloseChangePwModal" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
@@ -410,8 +426,8 @@
   </div>
 
   <!-- MODAL: THÊM / CHỈNH SỬA TASK (Hỗ trợ 2 chế độ: Chọn từ kho Defined vs Tạo mới Others) -->
-  <div id="taskModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 transition-colors">
+  <div id="taskModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[90] modal-layer-child hidden flex items-center justify-center p-4">
+    <div id="taskDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 transition-colors modal-dialog-animated">
       <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
         <h3 id="modalTitle" class="text-lg font-bold text-slate-900 dark:text-white">Thêm nhiệm vụ vào lịch</h3>
         <button id="btnCloseModal" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
@@ -463,7 +479,7 @@
 
         <div class="grid grid-cols-2 gap-3.5">
           <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Ngày thực hiện (Để trống nếu lưu vào Kho)</label>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Ngày thực hiện</label>
             <input type="date" id="taskDate" class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
           </div>
           <div>
@@ -477,16 +493,36 @@
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-            Task tổng / Mục tiêu lớn (Parent Task)
-          </label>
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Parent Task</label>
           <select id="taskParentSelect" class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
-            <option value="">(Không chọn - Task này sẽ là Task tổng mới)</option>
+            <option value="">Parent Task</option>
             <!-- Dynamic options of existing parent tasks -->
           </select>
-          <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-            💡 Mẹo: Nếu chọn task tổng, task này là sub-task. Nếu không chọn, task này sẽ tự trở thành 1 Task tổng mới có tag màu riêng!
-          </p>
+        </div>
+
+        <!-- Ô Tag viết tắt khi chọn Parent Task -->
+        <div id="taskTagRow" class="space-y-1">
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">
+              Mã Tag viết tắt (Tối đa 5 ký tự)
+            </label>
+            <button type="button" id="btnRegenSubtaskParentTag" title="Tự động sinh mã tag" class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 font-semibold transition cursor-pointer">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+              <span>Tự sinh tag</span>
+            </button>
+          </div>
+          <div class="relative">
+            <input 
+              type="text" 
+              id="taskFormTagInput" 
+              maxlength="5" 
+              placeholder="VD: VA, IELTS, CORE..." 
+              class="w-full px-3.5 py-2.5 uppercase font-mono font-bold tracking-wider bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden pr-14"
+            >
+            <div id="taskFormTagCount" class="absolute right-3.5 top-2.5 text-xs font-mono font-semibold text-slate-400 dark:text-slate-500 pointer-events-none">
+              0/5
+            </div>
+          </div>
         </div>
 
         <div>
@@ -505,8 +541,8 @@
   <!-- ========================================== -->
   <!-- MODAL: KHO NHIỆM VỤ & QUẢN LÝ TASK TỔNG (TASK BACKLOG & HUB) -->
   <!-- ========================================== -->
-  <div id="taskManagerModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 hidden flex items-center justify-center p-3 sm:p-5">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-5xl 2xl:max-w-6xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 transition-colors overflow-hidden">
+  <div id="taskManagerModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[70] modal-layer-hub hidden flex items-center justify-center p-3 sm:p-5">
+    <div id="taskManagerDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-5xl 2xl:max-w-6xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 transition-all duration-300 overflow-hidden modal-dialog-animated">
       
       <!-- Modal Header -->
       <div class="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 bg-slate-50/70 dark:bg-slate-850">
@@ -585,8 +621,8 @@
   <!-- ========================================== -->
   <!-- MODAL: THÊM / SỬA TASK TỔNG (PARENT TASK) -->
   <!-- ========================================== -->
-  <div id="parentTaskModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-60 hidden flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200 dark:border-slate-800 transition-colors">
+  <div id="parentTaskModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[90] modal-layer-child hidden flex items-center justify-center p-4">
+    <div id="parentTaskDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200 dark:border-slate-800 transition-all duration-300 modal-dialog-animated">
       <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
         <h3 id="parentTaskModalTitle" class="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Thêm Task tổng mới</h3>
         <button id="btnCloseParentTaskModal" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
@@ -631,11 +667,58 @@
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Màu sắc nhận diện (Tag Color) *</label>
-          <div id="parentColorPicker" class="grid grid-cols-4 gap-2.5">
-            <!-- 8 round color buttons generated in JS -->
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">
+              Màu sắc nhận diện (Tag Color) *
+            </label>
+            <span class="text-[11px] text-slate-400 dark:text-slate-500 font-medium">Bảng màu RGB & Hex</span>
           </div>
-          <input type="hidden" id="selectedParentColor" value="blue">
+
+          <!-- Bộ chọn màu RGB & Hex kèm xem trước Tag -->
+          <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/80 space-y-3">
+            <div class="flex items-center gap-3">
+              <!-- Ô chọn màu từ bảng màu RGB của trình duyệt -->
+              <div class="relative shrink-0" title="Bấm để mở bảng màu RGB">
+                <input 
+                  type="color" 
+                  id="parentCustomColorPicker" 
+                  value="#2563eb" 
+                  class="w-10 h-10 rounded-xl cursor-pointer border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 p-0.5 shadow-2xs hover:scale-105 transition"
+                >
+              </div>
+
+              <!-- Ô nhập mã Hex trực tiếp -->
+              <div class="relative flex-1">
+                <span class="absolute left-3 top-2.5 text-xs font-mono font-bold text-slate-400 select-none">#</span>
+                <input 
+                  type="text" 
+                  id="parentColorHexInput" 
+                  value="2563EB" 
+                  maxlength="7" 
+                  placeholder="2563EB" 
+                  class="w-full pl-7 pr-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-mono font-bold uppercase text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                >
+              </div>
+
+              <!-- Tag Preview Badge thời gian thực -->
+              <div class="shrink-0 flex flex-col items-end">
+                <span class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold mb-1">Xem trước Tag</span>
+                <div id="parentTagLivePreview" class="px-2.5 py-1 text-xs font-black font-mono tracking-wide rounded-md inline-flex items-center transition-all shadow-2xs border">
+                  <span id="parentTagLiveText">TAG</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Gợi ý nhanh các màu phổ biến (Compact dots) -->
+            <div class="flex items-center justify-between pt-2 border-t border-slate-200/70 dark:border-slate-700/60">
+              <span class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Gợi ý nhanh:</span>
+              <div class="flex items-center gap-2" id="parentQuickColorPresets">
+                <!-- Preset dots rendered in JS -->
+              </div>
+            </div>
+          </div>
+
+          <input type="hidden" id="selectedParentColor" value="#2563eb">
         </div>
 
         <div>
@@ -654,8 +737,8 @@
   <!-- ========================================== -->
   <!-- MODAL: XẾP LỊCH NHANH CHO TASK CON (QUICK SCHEDULE) -->
   <!-- ========================================== -->
-  <div id="quickScheduleModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-60 hidden flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-slate-200 dark:border-slate-800 transition-colors">
+  <div id="quickScheduleModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[90] modal-layer-child hidden flex items-center justify-center p-4">
+    <div id="quickScheduleDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-slate-200 dark:border-slate-800 transition-all duration-300 modal-dialog-animated">
       <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
         <h3 class="text-base font-bold text-slate-900 dark:text-white">Xếp nhiệm vụ vào lịch</h3>
         <button id="btnCloseQuickScheduleModal" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
@@ -684,8 +767,8 @@
   </div>
 
   <!-- MODAL: TRUNG TÂM REPLAN -->
-  <div id="replanModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-3xl w-full p-6 sm:p-7 shadow-2xl space-y-4 max-h-[85vh] flex flex-col border border-slate-100 dark:border-slate-800 transition-colors">
+  <div id="replanModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[70] modal-layer-hub hidden flex items-center justify-center p-4">
+    <div id="replanDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-3xl w-full p-6 sm:p-7 shadow-2xl space-y-4 max-h-[85vh] flex flex-col border border-slate-100 dark:border-slate-800 transition-colors modal-dialog-animated">
       <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
         <div class="flex items-center gap-2 text-amber-600 dark:text-amber-400">
           <i data-lucide="alert-triangle" class="w-6 h-6"></i>
@@ -719,8 +802,8 @@
   <!-- ========================================== -->
   <!-- MODAL: CHI TIẾT NHIỆM VỤ & TRUNG TÂM TÀI LIỆU (TASK DETAIL & DOCX EDITOR) -->
   <!-- ========================================== -->
-  <div id="taskDetailModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 hidden flex items-center justify-center p-1 sm:p-2.5 2xl:p-4">
-    <div id="taskDetailDialog" class="bg-white dark:bg-slate-900 rounded-2xl w-full h-[96vh] 2xl:h-[97vh] max-w-[98vw] 2xl:max-w-[1950px] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 transition-all duration-200 overflow-hidden">
+  <div id="taskDetailModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[75] modal-layer-detail hidden flex items-center justify-center p-1 sm:p-2.5 2xl:p-4">
+    <div id="taskDetailDialog" class="bg-white dark:bg-slate-900 rounded-2xl w-full h-[96vh] 2xl:h-[97vh] max-w-[98vw] 2xl:max-w-[1950px] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 transition-all duration-200 overflow-hidden modal-dialog-animated">
       
       <!-- Modal Header -->
       <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between gap-3 bg-slate-50/70 dark:bg-slate-850 shrink-0">
@@ -930,8 +1013,8 @@
   <!-- ========================================== -->
   <!-- MODAL: CÀI ĐẶT FIREBASE & GOOGLE DRIVE CLOUD SYNC -->
   <!-- ========================================== -->
-  <div id="firebaseSetupModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-4 border border-slate-200 dark:border-slate-800 transition-colors">
+  <div id="firebaseSetupModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[100] modal-layer-system hidden flex items-center justify-center p-4">
+    <div id="firebaseSetupDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-4 border border-slate-200 dark:border-slate-800 transition-colors modal-dialog-animated">
       <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
         <div class="flex items-center gap-2.5 text-amber-500">
           <i data-lucide="cloud-cog" class="w-6 h-6"></i>
@@ -988,7 +1071,7 @@
   </div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=3.6"></script>
-  <script src="app.js?v=3.6"></script>
+  <script src="firebase-config.js?v=3.9"></script>
+  <script src="app.js?v=3.9"></script>
 </body>
 </html>
