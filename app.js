@@ -10,8 +10,8 @@ const ADMIN_PW_KEY = 'study_planner_admin_password';
 
 let state = {
   isAdmin: false,
-  currentView: 'week', // Mặc định mở tuần hoặc ngày
-  currentDate: new Date(), // Selected date
+  currentView: 'week', // Mặc định mở view Tuần
+  currentDate: new Date(), // Ngày đang xem
   tasks: []
 };
 
@@ -76,7 +76,7 @@ function initSampleDataIfEmpty() {
         date: formatDate(yesterday),
         priority: 'high',
         category: 'Học tập',
-        note: 'Task này giả lập bị trễ hạn từ hôm qua để bạn test tính năng Replan!',
+        note: 'Task này bị trễ hạn từ hôm qua để test thông báo chuông & tính năng Replan!',
         completed: false,
         replanCount: 1,
         createdAt: new Date().toISOString()
@@ -171,31 +171,126 @@ function isOverdue(task) {
   return task.date < getTodayStr() && !task.completed;
 }
 
-// --- 3. REPLAN & WARNING ENGINE ---
+// --- 3. NOTIFICATION BELL HUB (TRUNG TÂM THÔNG BÁO DUY NHẤT) ---
 function getOverdueTasks() {
   const todayStr = getTodayStr();
   return state.tasks.filter(t => t.date < todayStr && !t.completed);
 }
 
-function updateReplanAlerts() {
+// Toàn bộ các thông báo, cảnh báo đều được tổng hợp và đưa vào dropdown Chuông
+function updateNotificationBell() {
   const overdueTasks = getOverdueTasks();
-  const count = overdueTasks.length;
+  const todayTasks = state.tasks.filter(t => t.date === getTodayStr());
+  const pendingToday = todayTasks.filter(t => !t.completed);
+  const highlyPostponed = state.tasks.filter(t => (t.replanCount || 0) >= 3 && !t.completed);
 
-  const banner = document.getElementById('overdueAlertBanner');
-  const bannerCount = document.getElementById('bannerOverdueCount');
-  const btnReplanCenter = document.getElementById('btnReplanCenter');
-  const replanBadge = document.getElementById('replanCountBadge');
+  const notifications = [];
 
-  if (count > 0 && state.isAdmin) {
-    banner.classList.remove('hidden');
-    bannerCount.textContent = count;
-    btnReplanCenter.classList.remove('hidden');
-    btnReplanCenter.classList.add('flex');
-    replanBadge.textContent = count;
+  // 1. Thông báo quyền Khách (Chỉ xem)
+  if (!state.isAdmin) {
+    notifications.push({
+      badgeColor: 'bg-blue-50/90 border-blue-200 text-blue-900',
+      icon: 'shield-alert',
+      iconColor: 'text-blue-600',
+      title: 'Chế độ xem (Chỉ đọc)',
+      desc: 'Bạn đang xem kế hoạch ở chế độ khách. Hãy đăng nhập Admin để thêm, sửa, xóa hoặc tích hoàn thành.',
+      actionHtml: `<button onclick="openLoginModal(); toggleNotifDropdown(false);" class="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-2xs">Đăng nhập ngay</button>`
+    });
+  }
+
+  // 2. Cảnh báo trễ hạn cần Replan (Rất quan trọng)
+  if (overdueTasks.length > 0) {
+    notifications.push({
+      badgeColor: 'bg-amber-50/90 border-amber-200 text-amber-900',
+      icon: 'alert-triangle',
+      iconColor: 'text-amber-600',
+      title: `Có ${overdueTasks.length} nhiệm vụ trễ hạn!`,
+      desc: 'Nhiệm vụ từ những ngày trước chưa hoàn thành. Hãy mở Replan Center để dời sang hôm nay, ngày mai hoặc tuần sau.',
+      actionHtml: state.isAdmin
+        ? `<button onclick="openReplanModal(); toggleNotifDropdown(false);" class="mt-2 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-2xs">Mở Replan Center</button>`
+        : `<button onclick="openLoginModal(); toggleNotifDropdown(false);" class="mt-2 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-2xs">Đăng nhập để Replan</button>`
+    });
+  }
+
+  // 3. Cảnh báo các task bị hoãn quá nhiều lần (>= 3 lần)
+  if (highlyPostponed.length > 0 && state.isAdmin) {
+    notifications.push({
+      badgeColor: 'bg-rose-50/90 border-rose-200 text-rose-900',
+      icon: 'alert-octagon',
+      iconColor: 'text-rose-600',
+      title: `${highlyPostponed.length} task bị dời quá 3 lần`,
+      desc: `Task "${escapeHtml(highlyPostponed[0].title)}" đang bị trì hoãn nhiều lần. Bạn nên xem xét chia nhỏ nó ra hoặc giảm độ khó.`,
+      actionHtml: `<button onclick="openReplanModal(); toggleNotifDropdown(false);" class="mt-2 px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition shadow-2xs">Xem chi tiết</button>`
+    });
+  }
+
+  // 4. Nhắc nhở tiến độ hôm nay (Nếu là Admin)
+  if (state.isAdmin && pendingToday.length > 0) {
+    notifications.push({
+      badgeColor: 'bg-slate-50 border-slate-200 text-slate-800',
+      icon: 'calendar-clock',
+      iconColor: 'text-blue-600',
+      title: `Hôm nay còn ${pendingToday.length} việc cần làm`,
+      desc: `Đã xong ${todayTasks.length - pendingToday.length}/${todayTasks.length} nhiệm vụ (${Math.round(((todayTasks.length - pendingToday.length)/todayTasks.length)*100)}%). Cố gắng hoàn thành nhé!`,
+      actionHtml: ''
+    });
+  } else if (state.isAdmin && todayTasks.length > 0 && pendingToday.length === 0) {
+    notifications.push({
+      badgeColor: 'bg-emerald-50/90 border-emerald-200 text-emerald-900',
+      icon: 'party-popper',
+      iconColor: 'text-emerald-600',
+      title: 'Mục tiêu hôm nay hoàn tất!',
+      desc: 'Tuyệt vời! Bạn đã hoàn thành 100% nhiệm vụ đặt ra cho hôm nay 🎉',
+      actionHtml: ''
+    });
+  }
+
+  // Cập nhật số đếm trên badge chuông
+  const badge = document.getElementById('notifBadge');
+  const dropdownBadge = document.getElementById('notifDropdownBadge');
+  const listContainer = document.getElementById('notifList');
+
+  // Đếm các thông báo quan trọng (quá hạn hoặc chưa login)
+  const alertCount = overdueTasks.length + (state.isAdmin ? 0 : 1);
+
+  if (alertCount > 0) {
+    badge.classList.remove('hidden');
+    badge.textContent = alertCount;
   } else {
-    banner.classList.add('hidden');
-    btnReplanCenter.classList.add('hidden');
-    btnReplanCenter.classList.remove('flex');
+    badge.classList.add('hidden');
+  }
+
+  dropdownBadge.textContent = `${notifications.length} mục`;
+
+  if (notifications.length === 0) {
+    listContainer.innerHTML = `
+      <div class="text-center py-6 text-slate-400 flex flex-col items-center justify-center gap-1.5">
+        <i data-lucide="check-circle-2" class="w-8 h-8 text-emerald-500 opacity-80"></i>
+        <p class="text-xs font-bold text-slate-600">Bạn không có thông báo hay cảnh báo nào!</p>
+      </div>
+    `;
+  } else {
+    listContainer.innerHTML = notifications.map(n => `
+      <div class="p-3 rounded-xl border flex items-start gap-2.5 ${n.badgeColor}">
+        <i data-lucide="${n.icon}" class="w-4 h-4 ${n.iconColor} shrink-0 mt-0.5"></i>
+        <div class="flex-1 min-w-0">
+          <div class="font-bold text-xs leading-snug">${n.title}</div>
+          <p class="text-xs mt-0.5 leading-relaxed opacity-90">${n.desc}</p>
+          ${n.actionHtml}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  lucide.createIcons();
+}
+
+function toggleNotifDropdown(forceState = null) {
+  const dropdown = document.getElementById('notifDropdown');
+  if (forceState !== null) {
+    dropdown.classList.toggle('hidden', !forceState);
+  } else {
+    dropdown.classList.toggle('hidden');
   }
 }
 
@@ -216,7 +311,10 @@ function replanTask(taskId, targetDateStr) {
 }
 
 function replanAllOverdueToToday() {
-  if (!state.isAdmin) return;
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
   const todayStr = getTodayStr();
   const overdueTasks = getOverdueTasks();
   overdueTasks.forEach(task => {
@@ -229,7 +327,10 @@ function replanAllOverdueToToday() {
 }
 
 function replanAllOverdueToNextWeek() {
-  if (!state.isAdmin) return;
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
   const nextWeekStr = getNextWeekStr();
   const overdueTasks = getOverdueTasks();
   overdueTasks.forEach(task => {
@@ -256,7 +357,10 @@ function toggleTaskComplete(taskId) {
 }
 
 function deleteTask(taskId) {
-  if (!state.isAdmin) return;
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
   if (confirm('Bạn có chắc chắn muốn xóa nhiệm vụ này không?')) {
     state.tasks = state.tasks.filter(t => t.id !== taskId);
     saveCurrentTasks();
@@ -266,7 +370,10 @@ function deleteTask(taskId) {
 }
 
 function saveTaskFromForm(formData) {
-  if (!state.isAdmin) return;
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
   const { id, title, date, priority, category, note } = formData;
   if (id) {
     const task = state.tasks.find(t => t.id === id);
@@ -300,7 +407,6 @@ function saveTaskFromForm(formData) {
 function updateAuthUI() {
   const adminGroup = document.getElementById('adminActionGroup');
   const guestGroup = document.getElementById('guestActionGroup');
-  const guestNotice = document.getElementById('guestNoticeBanner');
   const btnQuickAdd = document.getElementById('btnQuickAddTaskDay');
   const emptyHint = document.getElementById('emptyStateAdminHint');
 
@@ -309,7 +415,6 @@ function updateAuthUI() {
     adminGroup.classList.add('flex');
     guestGroup.classList.add('hidden');
     guestGroup.classList.remove('flex');
-    guestNotice.classList.add('hidden');
     btnQuickAdd.classList.remove('hidden');
     btnQuickAdd.classList.add('flex');
     if (emptyHint) emptyHint.textContent = 'Bấm "Thêm Task" ở góc trên để bắt đầu lên kế hoạch!';
@@ -318,7 +423,6 @@ function updateAuthUI() {
     adminGroup.classList.remove('flex');
     guestGroup.classList.remove('hidden');
     guestGroup.classList.add('flex');
-    guestNotice.classList.remove('hidden');
     btnQuickAdd.classList.add('hidden');
     btnQuickAdd.classList.remove('flex');
     if (emptyHint) emptyHint.textContent = 'Đăng nhập Admin để bắt đầu lên kế hoạch!';
@@ -392,14 +496,16 @@ function renderDayView() {
         </span>`
       : '';
 
+    // Checkbox: Nếu chưa đăng nhập, bấm vào sẽ gọi openLoginModal()
     const checkboxHtml = state.isAdmin
       ? `<button onclick="toggleTaskComplete('${task.id}')" title="Bấm để đánh dấu hoàn thành" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border transition ${task.completed ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'border-slate-300 hover:border-blue-500 bg-white'}">
           ${task.completed ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
         </button>`
-      : `<div title="Chế độ chỉ xem" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border ${task.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-200 bg-slate-50'} cursor-not-allowed">
+      : `<button onclick="openLoginModal()" title="Chỉ đọc - Đăng nhập Admin để tích hoàn thành" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border ${task.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-200 bg-slate-100 hover:border-blue-400'} cursor-pointer">
           ${task.completed ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
-        </div>`;
+        </button>`;
 
+    // Thanh Replan (Chỉ hiện cho Admin)
     const replanToolbar = (taskIsOverdue && state.isAdmin)
       ? `<div class="pt-2.5 flex items-center gap-2 flex-wrap">
           <span class="text-xs font-bold text-amber-700 flex items-center gap-1">
@@ -418,6 +524,7 @@ function renderDayView() {
         </div>`
       : '';
 
+    // Action tools (Chỉnh sửa / Xóa - Chỉ hiện cho Admin)
     const adminActionTools = state.isAdmin
       ? `<div class="flex items-center gap-1.5 self-end sm:self-start">
           <button onclick="openEditTaskModal('${task.id}')" title="Chỉnh sửa" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition">
@@ -492,7 +599,7 @@ function renderWeekView() {
     return `
       <div class="bg-white rounded-2xl border ${isToday ? 'border-blue-500 ring-2 ring-blue-200 shadow-md' : 'border-slate-200 shadow-xs'} flex flex-col min-h-[520px] transition hover:shadow-md">
         
-        <!-- Day Column Header (To, rõ ràng) -->
+        <!-- Day Column Header -->
         <div class="p-4 border-b border-slate-100 flex items-center justify-between ${isToday ? 'bg-blue-50/70' : 'bg-slate-50/60'} rounded-t-2xl">
           <div>
             <span class="text-xs font-bold uppercase tracking-wider ${idx >= 5 ? 'text-red-500' : 'text-slate-500'}">${dayNames[idx]}</span>
@@ -503,7 +610,7 @@ function renderWeekView() {
           </span>
         </div>
 
-        <!-- Task List inside day (Cards to hơn, chữ không bị cắt ...) -->
+        <!-- Task List inside day -->
         <div class="p-3 space-y-2.5 flex-1 overflow-y-auto max-h-[500px]">
           ${tasks.length === 0 ? `
             <div class="text-xs text-slate-400 text-center py-16 flex flex-col items-center justify-center gap-1.5">
@@ -522,18 +629,18 @@ function renderWeekView() {
             return `
               <div onclick="openDayFromGrid('${dateStr}')" class="p-3 rounded-xl border transition-all duration-150 cursor-pointer hover:shadow-sm ${taskIsOverdue ? 'bg-amber-50/60 border-amber-300' : 'bg-white border-slate-200 hover:border-blue-300'} ${t.completed ? 'opacity-60 bg-slate-50/70' : ''}">
                 <div class="flex items-start gap-2.5">
-                  <!-- Checkbox trực tiếp trên thẻ tuần -->
+                  <!-- Checkbox: Nếu là khách thì bấm vào mở modal đăng nhập -->
                   ${state.isAdmin ? `
                     <button onclick="event.stopPropagation(); toggleTaskComplete('${t.id}')" title="Tích hoàn thành" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 ${t.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 hover:border-blue-500 bg-white'}">
                       ${t.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
                     </button>
                   ` : `
-                    <div class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${t.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-200 bg-slate-50'}">
+                    <button onclick="event.stopPropagation(); openLoginModal()" title="Chỉ đọc - Đăng nhập để hoàn thành task" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${t.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-200 bg-slate-100 hover:border-blue-400'} cursor-pointer">
                       ${t.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
-                    </div>
+                    </button>
                   `}
                   
-                  <!-- Nội dung task (Hiển thị đầy đủ chữ, xuống dòng tự nhiên) -->
+                  <!-- Nội dung task -->
                   <div class="flex-1 min-w-0">
                     <div class="text-xs sm:text-sm font-semibold text-slate-800 leading-snug break-words ${t.completed ? 'line-through text-slate-400' : ''}">
                       ${escapeHtml(t.title)}
@@ -721,11 +828,18 @@ function openAddTaskModal(initialDate = null) {
 }
 
 function openAddTaskModalForDate(dateStr) {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
   openAddTaskModal(dateStr);
 }
 
 function openEditTaskModal(taskId) {
-  if (!state.isAdmin) return;
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
   const task = state.tasks.find(t => t.id === taskId);
   if (!task) return;
 
@@ -838,7 +952,10 @@ function renderReplanModalContent() {
 
 // --- 8. EXPORT & IMPORT (Chỉ Admin) ---
 function exportData() {
-  if (!state.isAdmin) return;
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.tasks, null, 2));
   const downloadAnchor = document.createElement('a');
   downloadAnchor.setAttribute("href", dataStr);
@@ -849,7 +966,10 @@ function exportData() {
 }
 
 function importData(file) {
-  if (!state.isAdmin) return;
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
@@ -885,7 +1005,7 @@ function escapeHtml(text) {
 function renderApp() {
   updateAuthUI();
   updateHeaderDisplay();
-  updateReplanAlerts();
+  updateNotificationBell();
 
   if (state.currentView === 'day') renderDayView();
   else if (state.currentView === 'week') renderWeekView();
@@ -910,9 +1030,27 @@ document.addEventListener('DOMContentLoaded', () => {
     renderApp();
   });
 
+  // Chuông thông báo
+  const btnNotifBell = document.getElementById('btnNotifBell');
+  btnNotifBell.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleNotifDropdown();
+  });
+
+  // Click ra ngoài đóng chuông thông báo & menu user
+  document.addEventListener('click', (e) => {
+    const notifContainer = document.getElementById('notifBellContainer');
+    if (notifContainer && !notifContainer.contains(e.target)) {
+      toggleNotifDropdown(false);
+    }
+    const userContainer = document.getElementById('userMenuContainer');
+    if (userContainer && !userContainer.contains(e.target)) {
+      document.getElementById('userDropdown').classList.add('hidden');
+    }
+  });
+
   // Auth: Mở Login Modal
   document.getElementById('btnOpenLoginModal').addEventListener('click', openLoginModal);
-  document.getElementById('btnBannerLogin').addEventListener('click', openLoginModal);
   document.getElementById('btnCloseLoginModal').addEventListener('click', closeLoginModal);
   document.getElementById('btnCancelLoginModal').addEventListener('click', closeLoginModal);
 
@@ -934,12 +1072,6 @@ document.addEventListener('DOMContentLoaded', () => {
   btnUserMenu.addEventListener('click', (e) => {
     e.stopPropagation();
     userDropdown.classList.toggle('hidden');
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!document.getElementById('userMenuContainer').contains(e.target)) {
-      userDropdown.classList.add('hidden');
-    }
   });
 
   document.getElementById('btnLogout').addEventListener('click', () => {
@@ -988,8 +1120,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Replan Center Modal
-  document.getElementById('btnReplanCenter').addEventListener('click', openReplanModal);
-  document.getElementById('btnBannerOpenReplan').addEventListener('click', openReplanModal);
   document.getElementById('btnCloseReplanModal').addEventListener('click', closeReplanModal);
   document.getElementById('btnReplanAllToToday').addEventListener('click', replanAllOverdueToToday);
   document.getElementById('btnReplanAllToNextWeek').addEventListener('click', replanAllOverdueToNextWeek);
