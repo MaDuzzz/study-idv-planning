@@ -394,7 +394,7 @@ async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/htm
   }
 
   const executeUpload = async (authToken) => {
-    // Tạo hoặc lấy thư mục đích theo chuỗi phân cấp
+    // 1. Tạo hoặc lấy thư mục đích theo chuỗi phân cấp
     let targetFolderId = null;
     if (folderPath && folderPath.length > 0) {
       targetFolderId = await getOrCreateDriveFolderPath(authToken, folderPath);
@@ -402,48 +402,68 @@ async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/htm
       targetFolderId = await getOrCreateDriveFolder(authToken, GOOGLE_DRIVE_ROOT_FOLDER);
     }
 
+    // 2. Kiểm tra existingFileId: nếu file cũ không phải là Google Doc (ví dụ file docx rỗng cũ), ta bỏ qua để tạo file Google Doc mới
+    let effectiveExistingId = null;
+    if (existingFileId) {
+      try {
+        const checkRes = await fetch(`https://www.googleapis.com/drive/v3/files/${existingFileId}?fields=id,mimeType,trashed`, {
+          headers: { Authorization: `Bearer ${authToken}` }
+        });
+        if (checkRes.ok) {
+          const fileInfo = await checkRes.json();
+          if (!fileInfo.trashed && fileInfo.mimeType === 'application/vnd.google-apps.document') {
+            effectiveExistingId = existingFileId;
+          }
+        }
+      } catch (e) {
+        console.warn('Không thể kiểm tra định dạng file cũ:', e);
+      }
+    }
+
+    const cleanDocName = (fileName || 'Tai_lieu').replace(/\.docx$/i, '');
     const metadata = {
-      name: fileName,
-      mimeType: mimeType
+      name: cleanDocName,
+      mimeType: 'application/vnd.google-apps.document'
     };
-    if (!existingFileId && targetFolderId) {
+    if (!effectiveExistingId && targetFolderId) {
       metadata.parents = [targetFolderId];
     }
 
-    // Sử dụng Multipart Upload chuẩn của Google Drive API v3 (RFC 2387)
-    const boundary = '-------314159265358979323846';
-
-    let fileBlob;
-    if (content instanceof Blob) {
-      fileBlob = content;
-    } else if (typeof content === 'string') {
-      fileBlob = new Blob([content], { type: mimeType });
+    // Chuẩn bị nội dung HTML text UTF-8
+    let htmlString = '';
+    if (typeof content === 'string') {
+      htmlString = content;
+    } else if (content instanceof Blob) {
+      htmlString = await content.text();
     } else {
-      fileBlob = new Blob([content], { type: mimeType });
+      htmlString = String(content || '');
     }
+
+    // Sử dụng Multipart Upload chuẩn của Google Drive API v3 (RFC 2387)
+    // Tự động chuyển đổi HTML thành tài liệu Google Docs nguyên bản (hiển thị đầy đủ chữ, bảng, định dạng)
+    const boundary = '-------314159265358979323846';
 
     const metadataHeader = 
       `--${boundary}\r\n` +
       'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
       JSON.stringify(metadata) +
       `\r\n--${boundary}\r\n` +
-      `Content-Type: ${mimeType}\r\n\r\n`;
+      'Content-Type: text/html; charset=UTF-8\r\n\r\n';
 
     const closeFooter = `\r\n--${boundary}--`;
 
-    // Ghép các phần thành một Blob nhị phân nguyên bản (giữ nguyên cấu trúc file Word .docx / zip)
     const multipartBlob = new Blob([
       metadataHeader,
-      fileBlob,
+      htmlString,
       closeFooter
     ], { type: `multipart/related; boundary=${boundary}` });
 
-    const url = existingFileId
-      ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`
+    const url = effectiveExistingId
+      ? `https://www.googleapis.com/upload/drive/v3/files/${effectiveExistingId}?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`
       : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`;
 
     const response = await fetch(url, {
-      method: existingFileId ? 'PATCH' : 'POST',
+      method: effectiveExistingId ? 'PATCH' : 'POST',
       headers: {
         Authorization: `Bearer ${authToken}`,
         'Content-Type': `multipart/related; boundary=${boundary}`
@@ -464,10 +484,12 @@ async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/htm
     }
 
     const fileData = await response.json();
+    const docEditLink = `https://docs.google.com/document/d/${fileData.id}/edit`;
     return {
       fileId: fileData.id,
       fileName: fileData.name,
-      webViewLink: fileData.webViewLink,
+      webViewLink: fileData.webViewLink || docEditLink,
+      googleDocsUrl: docEditLink,
       modifiedTime: fileData.modifiedTime,
       folderId: targetFolderId || null
     };

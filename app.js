@@ -1164,9 +1164,9 @@ function renderDayView() {
           <div class="space-y-1.5 flex-1">
             <div class="flex items-center gap-2 flex-wrap">
               <span class="text-base font-bold ${task.completed ? 'line-through text-slate-500 dark:text-slate-300' : 'text-slate-900 dark:text-white'}">${escapeHtml(task.title)}</span>
-              ${priorityBadge}
-              ${getParentBadgeHtml(task)}
               ${replanBadge}
+              ${getParentBadgeHtml(task)}
+              ${priorityBadge}
               ${docBadge}
               ${linkBadge}
             </div>
@@ -1249,11 +1249,6 @@ function renderWeekView() {
           
           ${tasks.map(t => {
             const taskIsOverdue = isOverdue(t);
-            const priorityDot = {
-              high: '<span class="w-2 h-2 rounded-full bg-red-500 shrink-0" title="Ưu tiên cao"></span>',
-              medium: '<span class="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Bình thường"></span>',
-              low: '<span class="w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-500 shrink-0" title="Thấp"></span>'
-            }[t.priority] || '';
 
             return `
               <div 
@@ -1278,14 +1273,15 @@ function renderWeekView() {
                   
                   <!-- Nội dung task -->
                   <div class="flex-1 min-w-0">
-                    <div class="text-xs sm:text-sm font-semibold leading-snug break-words ${t.completed ? 'line-through text-slate-500 dark:text-slate-300' : 'text-slate-900 dark:text-slate-100 font-bold'}">
-                      ${escapeHtml(t.title)}
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span class="text-xs sm:text-sm font-semibold leading-snug break-words ${t.completed ? 'line-through text-slate-500 dark:text-slate-300' : 'text-slate-900 dark:text-slate-100 font-bold'}">
+                        ${escapeHtml(t.title)}
+                      </span>
+                      ${t.replanCount > 0 ? `<span class="inline-flex items-center text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 transition-colors cursor-help shrink-0" title="Nhiệm vụ này đã được dời lịch ${t.replanCount} lần. Cố gắng hoàn thành sớm nhé!"><i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i></span>` : ''}
                     </div>
                     
                     <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
                       ${getParentBadgeHtml(t)}
-                      ${priorityDot}
-                      ${t.replanCount > 0 ? `<span class="inline-flex items-center text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 transition-colors cursor-help shrink-0" title="Nhiệm vụ này đã được dời lịch ${t.replanCount} lần. Cố gắng hoàn thành sớm nhé!"><i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i></span>` : ''}
                       ${t.document && t.document.contentHtml ? `<span class="text-[10px] px-1.5 py-0.5 font-semibold rounded bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700/80 inline-flex items-center gap-0.5 shrink-0" title="Có tài liệu soạn thảo (.docx)"><i data-lucide="file-text" class="w-3 h-3"></i> DOCX</span>` : ''}
                       ${t.links && t.links.length > 0 ? `<span class="text-[10px] px-1.5 py-0.5 font-semibold rounded bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-700/80 inline-flex items-center gap-0.5 shrink-0" title="${t.links.length} tài nguyên đính kèm"><i data-lucide="link" class="w-3 h-3"></i> ${t.links.length}</span>` : ''}
                       ${taskIsOverdue ? `<span class="text-[10px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-0.5 shrink-0"><i data-lucide="clock-alert" class="w-3 h-3"></i> Trễ hạn</span>` : ''}
@@ -1917,7 +1913,7 @@ function renderTaskManagerContent() {
           Tạo các Task tổng (mục tiêu lớn trong năm) và phân rã các nhiệm vụ con (sub-tasks) để chuẩn bị xếp vào lịch học tập & công việc.
         </p>
         <button onclick="openAddParentTaskModal()" class="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition inline-flex items-center gap-2">
-          <i data-lucide="plus" class="w-4 h-4"></i> Thêm Task tổng đầu tiên
+          <i data-lucide="plus" class="w-4 h-4"></i> Thêm parentTask đầu tiên
         </button>
       </div>
     `;
@@ -1957,9 +1953,9 @@ function renderTaskManagerContent() {
 
           <!-- Parent Action Buttons -->
           <div class="flex items-center gap-1.5 self-end sm:self-center shrink-0">
-            <button onclick="openAddTaskModalForParent('${parent.id}')" title="Thêm task con cho mục tiêu này" class="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs">
+            <button onclick="openAddTaskModalForParent('${parent.id}')" title="Thêm subtask cho mục tiêu này" class="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs">
               <i data-lucide="plus" class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400"></i>
-              <span>Thêm task con</span>
+              <span>Thêm subtask</span>
             </button>
             <button onclick="openEditParentTaskModal('${parent.id}')" title="Sửa tên, tag hoặc màu Task tổng" class="p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 rounded-xl hover:bg-white/80 dark:hover:bg-slate-800 transition">
               <i data-lucide="edit-3" class="w-4 h-4"></i>
@@ -2179,7 +2175,7 @@ function openAddParentTaskModal() {
   }
   formParentTask.reset();
   document.getElementById('parentTaskId').value = '';
-  document.getElementById('parentTaskModalTitle').textContent = 'Thêm Task tổng mới';
+  document.getElementById('parentTaskModalTitle').textContent = 'Thêm parentTask';
   document.getElementById('selectedParentColor').value = '#2563eb';
 
   const tagInput = document.getElementById('parentTaskTagInput');
@@ -2207,7 +2203,7 @@ function openEditParentTaskModal(parentId) {
   document.getElementById('parentTaskTitleInput').value = parent.title;
   document.getElementById('parentTaskDescInput').value = parent.description || '';
   document.getElementById('selectedParentColor').value = parent.color || '#2563eb';
-  document.getElementById('parentTaskModalTitle').textContent = 'Chỉnh sửa Task tổng';
+  document.getElementById('parentTaskModalTitle').textContent = 'Chỉnh sửa parentTask';
 
   const tagInput = document.getElementById('parentTaskTagInput');
   if (tagInput) {
@@ -2506,6 +2502,70 @@ function escapeHtml(text) {
     .replace(/'/g, "&#039;");
 }
 
+/**
+ * Hiển thị thông báo Toast Notification hiện đại, tinh tế (thay thế browser alert thô)
+ */
+function showToast({ type = 'success', title = 'Thông báo', message = '', actionText = null, actionUrl = null, duration = 4500 }) {
+  let container = document.getElementById('toastNotificationContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastNotificationContainer';
+    container.className = 'fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3';
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement('div');
+  toast.className = 'pointer-events-auto bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl p-4 flex items-start gap-3.5 transform transition-all duration-300 translate-y-[-10px] opacity-0 scale-95 backdrop-blur-md';
+
+  const icons = {
+    success: '<div class="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-2xs"><i data-lucide="check-circle-2" class="w-5 h-5"></i></div>',
+    error: '<div class="w-9 h-9 rounded-xl bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 shadow-2xs"><i data-lucide="alert-circle" class="w-5 h-5"></i></div>',
+    warning: '<div class="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-2xs"><i data-lucide="alert-triangle" class="w-5 h-5"></i></div>',
+    info: '<div class="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 shadow-2xs"><i data-lucide="info" class="w-5 h-5"></i></div>'
+  };
+
+  const actionHtml = (actionText && actionUrl)
+    ? `<a href="${actionUrl}" target="_blank" class="inline-flex items-center gap-1.5 mt-2.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-lg text-xs font-bold transition border border-blue-200 dark:border-blue-800 shadow-2xs">
+        <span>${escapeHtml(actionText)}</span>
+        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+      </a>`
+    : '';
+
+  toast.innerHTML = `
+    ${icons[type] || icons.info}
+    <div class="flex-1 min-w-0 pt-0.5">
+      <div class="text-sm font-bold text-slate-900 dark:text-white leading-tight">${escapeHtml(title)}</div>
+      ${message ? `<div class="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed break-words">${message}</div>` : ''}
+      ${actionHtml}
+    </div>
+    <button type="button" class="btn-close-toast text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg transition shrink-0">
+      <i data-lucide="x" class="w-4 h-4"></i>
+    </button>
+  `;
+
+  container.appendChild(toast);
+  lucide.createIcons();
+
+  requestAnimationFrame(() => {
+    toast.classList.remove('translate-y-[-10px]', 'opacity-0', 'scale-95');
+    toast.classList.add('translate-y-0', 'opacity-100', 'scale-100');
+  });
+
+  const dismiss = () => {
+    toast.classList.remove('translate-y-0', 'opacity-100', 'scale-100');
+    toast.classList.add('translate-y-[-10px]', 'opacity-0', 'scale-95');
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
+  };
+
+  toast.querySelector('.btn-close-toast')?.addEventListener('click', dismiss);
+
+  if (duration > 0) {
+    setTimeout(dismiss, duration);
+  }
+}
+
 // --- 9.1 TASK DETAIL & DOCX WYSIWYG EDITOR, GOOGLE DRIVE, RELATED LINKS ---
 
 let docSaveTimeout = null;
@@ -2755,25 +2815,35 @@ async function handleImportDocx(file) {
 
     updateDocCounts();
     triggerDocAutoSave();
-    alert(`Đã nhập thành công tài liệu Word: "${file.name}"!`);
+    showToast({
+      type: 'success',
+      title: 'Nhập Word thành công',
+      message: `Đã đọc và nhập nội dung từ tệp "${escapeHtml(file.name)}" vào trình soạn thảo.`
+    });
   } catch (err) {
     console.error('Lỗi khi đọc file .docx:', err);
-    alert('Không thể đọc file .docx: ' + err.message);
+    showToast({
+      type: 'error',
+      title: 'Không thể đọc file .docx',
+      message: err.message
+    });
   }
 }
 
 function buildTaskDocxHtml(task, editorHtml) {
+  const parent = task.parentId ? getParentTask(task.parentId) : null;
+  const parentTitle = parent ? parent.title : (task.category || 'Không');
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <title>${escapeHtml(task.title)}</title>
   <style>
-    body { font-family: 'Calibri', 'Arial', sans-serif; font-size: 11pt; line-height: 1.6; color: #1e293b; }
+    body { font-family: 'Calibri', 'Arial', sans-serif; font-size: 11pt; line-height: 1.6; color: #1e293b; padding: 10pt; }
     h1 { font-size: 20pt; color: #1e40af; margin-top: 18pt; margin-bottom: 6pt; }
     h2 { font-size: 16pt; color: #1e3a8a; margin-top: 14pt; margin-bottom: 5pt; }
     h3 { font-size: 13pt; color: #2563eb; margin-top: 10pt; margin-bottom: 4pt; }
-    p { margin-bottom: 8pt; }
+    p { margin-bottom: 8pt; line-height: 1.6; }
     ul, ol { margin-left: 24pt; margin-bottom: 8pt; }
     table { border-collapse: collapse; width: 100%; margin: 12pt 0; }
     th, td { border: 1px solid #94a3b8; padding: 6pt 10pt; text-align: left; }
@@ -2785,8 +2855,8 @@ function buildTaskDocxHtml(task, editorHtml) {
   <h1 style="color: #1e40af; border-bottom: 2pt solid #2563eb; padding-bottom: 4pt;">${escapeHtml(task.title)}</h1>
   <p style="color: #64748b; font-size: 9pt;">
     <strong>Kế hoạch:</strong> ${task.date || 'Chưa lên lịch'} &nbsp;|&nbsp; 
-    <strong>Danh mục / Task tổng:</strong> ${escapeHtml(task.category || 'Không')} &nbsp;|&nbsp; 
-    <strong>Mức độ:</strong> ${task.priority || 'Bình thường'}
+    <strong>Parent Task:</strong> ${escapeHtml(parentTitle)} &nbsp;|&nbsp; 
+    <strong>Mức độ:</strong> ${task.priority === 'high' ? '🔥 Ưu tiên cao' : (task.priority === 'low' ? 'Thấp' : 'Bình thường')}
   </p>
   <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 14pt;" />
   ${editorHtml || '<p></p>'}
@@ -2819,9 +2889,18 @@ function handleExportDocx() {
       a.download = fileName;
       a.click();
     }
+    showToast({
+      type: 'success',
+      title: 'Đang tải file Word',
+      message: `Tệp "${escapeHtml(fileName)}" đang được tải về máy của bạn.`
+    });
   } catch (err) {
     console.error('Lỗi khi xuất DOCX:', err);
-    alert('Lỗi xuất DOCX: ' + err.message);
+    showToast({
+      type: 'error',
+      title: 'Lỗi xuất file Word',
+      message: err.message
+    });
   }
 }
 
@@ -2851,7 +2930,11 @@ async function handleSaveToGoogleDrive() {
       await window.StudyPlannerFirebase.ensureValidGoogleAccessToken(true);
     } catch (e) {
       console.warn('Không thể gia hạn token Google Drive:', e);
-      alert('Phiên làm việc Google Drive đã hết hạn. Vui lòng đăng nhập lại Google.');
+      showToast({
+        type: 'warning',
+        title: 'Phiên Google Drive hết hạn',
+        message: 'Vui lòng đăng nhập lại Google để tiếp tục lưu tài liệu.'
+      });
       return;
     }
   }
@@ -2870,13 +2953,6 @@ async function handleSaveToGoogleDrive() {
 
     const editorHtml = editor.innerHTML || '<p></p>';
     const fullHtml = buildTaskDocxHtml(task, editorHtml);
-
-    let contentBlob;
-    if (window.htmlDocx) {
-      contentBlob = window.htmlDocx.asBlob(fullHtml);
-    } else {
-      contentBlob = new Blob([fullHtml], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-    }
 
     // Cấu trúc phân cấp 4 tầng: study_idv_planning / [Năm] / [Task tổng] / [Task con]
     // 1. Phân cấp Năm
@@ -2900,17 +2976,18 @@ async function handleSaveToGoogleDrive() {
 
     const folderPath = ['study_idv_planning', yearStr, parentTitle, subtaskTitle];
 
+    // Gửi trực tiếp fullHtml chuẩn hóa để Google Drive tự động chuyển đổi thành tài liệu Google Docs
     const driveResult = await window.StudyPlannerFirebase.uploadFileToGoogleDrive({
       fileName: fileName,
-      content: contentBlob,
-      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      content: fullHtml,
+      mimeType: 'text/html',
       existingFileId: task.document?.driveFileId || null,
       folderPath: folderPath
     });
 
     if (!task.document) task.document = {};
     task.document.driveFileId = driveResult.fileId;
-    task.document.driveWebViewLink = driveResult.webViewLink;
+    task.document.driveWebViewLink = driveResult.googleDocsUrl || driveResult.webViewLink;
     task.document.driveFolderId = driveResult.folderId || null;
     task.document.fileName = fileName;
     task.document.contentHtml = editorHtml;
@@ -2922,18 +2999,35 @@ async function handleSaveToGoogleDrive() {
     const btnOpenDocs = document.getElementById('btnOpenInGoogleDocsLink');
     driveSyncStatus.classList.remove('hidden');
     driveSyncStatus.classList.add('flex');
-    btnOpenDocs.href = driveResult.webViewLink;
+    btnOpenDocs.href = driveResult.googleDocsUrl || driveResult.webViewLink;
     btnOpenDocs.classList.remove('hidden');
     btnOpenDocs.classList.add('flex');
 
     const displayPath = `study_idv_planning / ${yearStr} / ${parentTitle} / ${subtaskTitle}`;
-    alert(`✅ Đã lưu thành công tài liệu "${fileName}" lên Google Drive!\n📂 Thư mục: ${displayPath}`);
+    showToast({
+      type: 'success',
+      title: 'Đã lưu vào Google Drive!',
+      message: `Tài liệu <strong>"${escapeHtml(fileName)}"</strong> đã được đồng bộ.<br><span class="font-mono text-[11px] opacity-85 text-slate-500 dark:text-slate-400">📂 ${escapeHtml(displayPath)}</span>`,
+      actionText: 'Mở Google Docs ↗',
+      actionUrl: driveResult.googleDocsUrl || driveResult.webViewLink,
+      duration: 5000
+    });
   } catch (err) {
     console.error('Lỗi khi lưu lên Google Drive:', err);
     if (err.status === 401 || err.code === 'UNAUTHENTICATED' || (err.message && err.message.includes('authentication credentials'))) {
-      alert('Phiên xác thực Google Drive đã hết hạn (Google OAuth token có thời hạn 1 giờ). Hệ thống đã tự động làm mới, vui lòng bấm "Lưu vào Drive" lại một lần nữa!');
+      showToast({
+        type: 'warning',
+        title: 'Phiên Google Drive đã hết hạn',
+        message: 'Hệ thống đã tự động kết nối lại, vui lòng bấm "Lưu vào Drive" lại một lần nữa để hoàn tất!',
+        duration: 5000
+      });
     } else {
-      alert('Không thể lưu lên Google Drive: ' + err.message);
+      showToast({
+        type: 'error',
+        title: 'Không thể lưu lên Google Drive',
+        message: err.message || 'Đã có lỗi xảy ra trong quá trình kết nối với Google Drive.',
+        duration: 6000
+      });
     }
   } finally {
     btnSave.disabled = false;
