@@ -72,10 +72,10 @@
     }
   </style>
 </head>
-<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col font-sans antialiased text-sm transition-colors duration-200">
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col font-sans antialiased text-sm transition-colors duration-200 pt-[2px]">
 
-  <!-- Header Elastic: Co giãn cân đối từ 14" (1366px) đến 24" (1920px) và 27" (2560px) -->
-  <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 shadow-xs transition-colors duration-200">
+  <!-- Header Elastic: Lùi xuống 2px so với mép trên / bookmark bar của trình duyệt -->
+  <header class="bg-white dark:bg-slate-900 border-t border-b border-slate-200 dark:border-slate-800 sticky top-[2px] z-30 shadow-xs transition-colors duration-200">
     <div class="max-w-[2000px] w-full mx-auto px-4 sm:px-6 lg:px-8 2xl:px-12 h-18 flex items-center justify-between">
       
       <!-- Logo & Tiêu đề -->
@@ -248,9 +248,9 @@
     </section>
 
     <!-- VIEW: THÁNG (MONTH VIEW) -->
-    <section id="viewMonth" class="hidden bg-white dark:bg-slate-900 p-6 2xl:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs transition-colors">
-      <div class="grid grid-cols-7 gap-2 text-center font-bold text-xs sm:text-sm text-slate-400 dark:text-slate-500 pb-3 border-b border-slate-100 dark:border-slate-800 mb-3">
-        <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span class="text-blue-500 dark:text-blue-400">T7</span><span class="text-red-500 dark:text-red-400">CN</span>
+    <section id="viewMonth" class="hidden bg-white dark:bg-slate-900/90 p-6 2xl:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs transition-colors">
+      <div class="grid grid-cols-7 gap-2 text-center font-bold text-xs sm:text-sm text-slate-700 dark:text-slate-200 pb-3 border-b border-slate-100 dark:border-slate-800 mb-3">
+        <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span class="text-blue-600 dark:text-blue-400 font-extrabold">T7</span><span class="text-rose-600 dark:text-rose-400 font-extrabold">CN</span>
       </div>
       <div class="grid grid-cols-7 gap-2.5 2xl:gap-3.5" id="monthGridContainer"></div>
     </section>
@@ -432,6 +432,6 @@
     Study & Life Planner • Deploy trực tiếp trên GitHub Pages • Hỗ trợ Dark Mode & Responsive Co giãn từ 14" - 27"
   </footer>
 
-  <script src="app.js?v=2.3"></script>
+  <script src="app.js?v=2.4"></script>
 </body>
 </html>

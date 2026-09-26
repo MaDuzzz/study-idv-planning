@@ -572,46 +572,46 @@ function renderDayView() {
   listContainer.innerHTML = tasksForDay.map(task => {
     const taskIsOverdue = isOverdue(task);
     const priorityBadge = {
-      high: '<span class="px-2 py-0.5 text-xs font-bold rounded-md bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50">🔥 Ưu tiên cao</span>',
-      medium: '<span class="px-2 py-0.5 text-xs font-semibold rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">Bình thường</span>',
-      low: '<span class="px-2 py-0.5 text-xs font-medium rounded-md bg-slate-50 dark:bg-slate-800/40 text-slate-400 dark:text-slate-500">Thấp</span>'
+      high: '<span class="px-2 py-0.5 text-xs font-bold rounded-md bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700">🔥 Ưu tiên cao</span>',
+      medium: '<span class="px-2 py-0.5 text-xs font-semibold rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600">Bình thường</span>',
+      low: '<span class="px-2 py-0.5 text-xs font-medium rounded-md bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">Thấp</span>'
     }[task.priority] || '';
 
     const replanBadge = (task.replanCount && task.replanCount > 0)
-      ? `<span class="px-2.5 py-0.5 text-xs font-bold rounded-md ${task.replanCount >= 3 ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300' : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'}" title="Đã bị dời ${task.replanCount} lần">
+      ? `<span class="px-2.5 py-0.5 text-xs font-bold rounded-md border ${task.replanCount >= 3 ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-700' : 'bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-700'}" title="Đã bị dời ${task.replanCount} lần">
           <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 inline"></i> Đã dời ${task.replanCount} lần
         </span>`
       : '';
 
     const checkboxHtml = state.isAdmin
-      ? `<button onclick="toggleTaskComplete('${task.id}')" title="Bấm để đánh dấu hoàn thành" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border transition ${task.completed ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'border-slate-300 dark:border-slate-600 hover:border-blue-500 bg-white dark:bg-slate-800'}">
+      ? `<button onclick="toggleTaskComplete('${task.id}')" title="Bấm để đánh dấu hoàn thành" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border transition ${task.completed ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'border-slate-300 dark:border-slate-500 hover:border-blue-500 bg-white dark:bg-slate-700'}">
           ${task.completed ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
         </button>`
-      : `<button onclick="openLoginModal()" title="Chỉ đọc - Đăng nhập Admin để tích hoàn thành" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border ${task.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:border-blue-400'} cursor-pointer">
+      : `<button onclick="openLoginModal()" title="Chỉ đọc - Đăng nhập Admin để tích hoàn thành" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border ${task.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-750 hover:border-blue-400'} cursor-pointer">
           ${task.completed ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
         </button>`;
 
     const replanToolbar = (taskIsOverdue && state.isAdmin)
       ? `<div class="pt-2.5 flex items-center gap-2 flex-wrap">
-          <span class="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+          <span class="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1">
             <i data-lucide="calendar-sync" class="w-4 h-4"></i> Dời lịch sang:
           </span>
-          <button onclick="replanTask('${task.id}', '${todayStr}')" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-2xs">
+          <button onclick="replanTask('${task.id}', '${todayStr}')" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-2xs">
             Hôm nay
           </button>
-          <button onclick="replanTask('${task.id}', '${tomorrowStr}')" class="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700">
+          <button onclick="replanTask('${task.id}', '${tomorrowStr}')" class="px-3 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-600">
             Ngày mai
           </button>
-          <button onclick="replanTask('${task.id}', '${nextWeekStr}')" class="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700">
+          <button onclick="replanTask('${task.id}', '${nextWeekStr}')" class="px-3 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-600">
             Tuần sau (+7d)
           </button>
-          <input type="date" min="${todayStr}" onchange="replanTask('${task.id}', this.value)" title="Chọn ngày cụ thể khác" class="text-xs px-2 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white cursor-pointer hover:border-blue-400">
+          <input type="date" min="${todayStr}" onchange="replanTask('${task.id}', this.value)" title="Chọn ngày cụ thể khác" class="text-xs px-2 py-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white cursor-pointer hover:border-blue-400">
         </div>`
       : '';
 
     const adminActionTools = state.isAdmin
       ? `<div class="flex items-center gap-1.5 self-end sm:self-start">
-          <button onclick="openEditTaskModal('${task.id}')" title="Chỉnh sửa" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          <button onclick="openEditTaskModal('${task.id}')" title="Chỉnh sửa" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition">
             <i data-lucide="edit-3" class="w-4 h-4"></i>
           </button>
           <button onclick="deleteTask('${task.id}')" title="Xóa" class="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/40 transition">
@@ -621,18 +621,18 @@ function renderDayView() {
       : '';
 
     return `
-      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border transition duration-200 hover:shadow-xs flex flex-col sm:flex-row sm:items-start justify-between gap-3.5 ${taskIsOverdue ? 'border-amber-400 dark:border-amber-700/60 bg-amber-50/30 dark:bg-amber-950/20' : 'border-slate-200 dark:border-slate-800'} ${task.completed ? 'opacity-60 bg-slate-50/60 dark:bg-slate-900/50' : ''}">
+      <div class="rounded-2xl p-4 sm:p-5 border transition duration-200 hover:shadow-xs flex flex-col sm:flex-row sm:items-start justify-between gap-3.5 ${taskIsOverdue ? 'border-amber-300 dark:border-amber-600/80 bg-amber-50/70 dark:bg-amber-950/40' : 'bg-white dark:bg-slate-800/95 border-slate-200 dark:border-slate-700 hover:dark:border-slate-600'} ${task.completed ? 'bg-slate-50/80 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/60' : ''}">
         <div class="flex items-start gap-3.5 flex-1">
           ${checkboxHtml}
           
           <div class="space-y-1.5 flex-1">
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="text-base font-bold text-slate-800 dark:text-slate-100 ${task.completed ? 'line-through text-slate-400 dark:text-slate-500' : ''}">${escapeHtml(task.title)}</span>
+              <span class="text-base font-bold ${task.completed ? 'line-through text-slate-500 dark:text-slate-300' : 'text-slate-900 dark:text-white'}">${escapeHtml(task.title)}</span>
               ${priorityBadge}
-              ${task.category ? `<span class="px-2.5 py-0.5 text-xs font-semibold rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/40">${escapeHtml(task.category)}</span>` : ''}
+              ${task.category ? `<span class="px-2.5 py-0.5 text-xs font-semibold rounded-md bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700/80">${escapeHtml(task.category)}</span>` : ''}
               ${replanBadge}
             </div>
-            ${task.note ? `<p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400">${escapeHtml(task.note)}</p>` : ''}
+            ${task.note ? `<p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300">${escapeHtml(task.note)}</p>` : ''}
             ${replanToolbar}
           </div>
         </div>
@@ -673,8 +673,8 @@ function renderWeekView() {
     const completedCount = tasks.filter(t => t.completed).length;
 
     const addBtnHtml = state.isAdmin
-      ? `<div class="p-3 border-t border-slate-100 dark:border-slate-800 mt-auto bg-slate-50/50 dark:bg-slate-800/30 rounded-b-2xl">
-          <button onclick="openAddTaskModalForDate('${dateStr}')" class="w-full py-2.5 text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/80 dark:hover:bg-blue-950/40 border border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-400 rounded-xl transition flex items-center justify-center gap-1.5 shadow-2xs">
+      ? `<div class="p-3 border-t border-slate-200 dark:border-slate-700/80 mt-auto bg-slate-100/70 dark:bg-slate-800/50 rounded-b-2xl">
+          <button onclick="openAddTaskModalForDate('${dateStr}')" class="w-full py-2.5 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/80 dark:hover:bg-blue-950/60 border border-dashed border-slate-300 dark:border-slate-600 hover:border-blue-400 rounded-xl transition flex items-center justify-center gap-1.5 shadow-2xs">
             <i data-lucide="plus" class="w-4 h-4"></i> Thêm nhiệm vụ
           </button>
         </div>`
@@ -683,7 +683,7 @@ function renderWeekView() {
     return `
       <!-- Cột ngày Elastic: min-height 540px trên màn hình lớn 2K/27" và tự do co giãn -->
       <div 
-        class="day-dropzone bg-white dark:bg-slate-900 rounded-2xl border transition-all duration-200 flex flex-col min-h-[520px] 2xl:min-h-[600px] ${isToday ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900/50 shadow-md' : 'border-slate-200 dark:border-slate-800 shadow-xs'}"
+        class="day-dropzone bg-slate-50/40 dark:bg-slate-900/90 rounded-2xl border transition-all duration-200 flex flex-col min-h-[520px] 2xl:min-h-[600px] ${isToday ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900/60 shadow-md' : 'border-slate-200 dark:border-slate-750 shadow-xs'}"
         ondragover="handleDragOver(event)"
         ondragenter="handleDragEnter(event)"
         ondragleave="handleDragLeave(event)"
@@ -691,12 +691,12 @@ function renderWeekView() {
       >
         
         <!-- Day Column Header -->
-        <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between ${isToday ? 'bg-blue-50/70 dark:bg-blue-950/40' : 'bg-slate-50/60 dark:bg-slate-800/40'} rounded-t-2xl pointer-events-none">
+        <div class="p-4 border-b border-slate-200 dark:border-slate-700/80 flex items-center justify-between ${isToday ? 'bg-blue-100/80 dark:bg-blue-950/70' : 'bg-slate-100 dark:bg-slate-800'} rounded-t-2xl pointer-events-none">
           <div>
-            <span class="text-xs font-bold uppercase tracking-wider ${idx >= 5 ? 'text-red-500 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}">${dayNames[idx]}</span>
+            <span class="text-xs font-bold uppercase tracking-wider ${idx >= 5 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'}">${dayNames[idx]}</span>
             <div class="text-xl 2xl:text-2xl font-black text-slate-900 dark:text-white leading-tight">${dayDate.getDate()}/${dayDate.getMonth() + 1}</div>
           </div>
-          <span class="text-xs font-extrabold px-2.5 py-1 rounded-full ${isToday ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'} shadow-2xs">
+          <span class="text-xs font-extrabold px-2.5 py-1 rounded-full ${isToday ? 'bg-blue-600 text-white font-black' : 'bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-800 dark:text-slate-100 font-bold'} shadow-2xs">
             ${completedCount}/${tasks.length}
           </span>
         </div>
@@ -704,8 +704,8 @@ function renderWeekView() {
         <!-- Task List inside day -->
         <div class="p-3 space-y-2.5 flex-1 overflow-y-auto max-h-[500px] 2xl:max-h-[650px]">
           ${tasks.length === 0 ? `
-            <div class="text-xs text-slate-400 dark:text-slate-600 text-center py-16 flex flex-col items-center justify-center gap-1.5 pointer-events-none">
-              <i data-lucide="clipboard-check" class="w-8 h-8 text-slate-200 dark:text-slate-800"></i>
+            <div class="text-xs text-slate-400 dark:text-slate-500 text-center py-16 flex flex-col items-center justify-center gap-1.5 pointer-events-none">
+              <i data-lucide="clipboard-check" class="w-8 h-8 text-slate-300 dark:text-slate-700"></i>
               <span>Không có task</span>
             </div>` : ''}
           
@@ -714,7 +714,7 @@ function renderWeekView() {
             const priorityDot = {
               high: '<span class="w-2 h-2 rounded-full bg-red-500 shrink-0" title="Ưu tiên cao"></span>',
               medium: '<span class="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Bình thường"></span>',
-              low: '<span class="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0" title="Thấp"></span>'
+              low: '<span class="w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-500 shrink-0" title="Thấp"></span>'
             }[t.priority] || '';
 
             return `
@@ -723,38 +723,38 @@ function renderWeekView() {
                 ondragstart="handleDragStart(event, '${t.id}')"
                 ondragend="handleDragEnd(event)"
                 onclick="openDayFromGrid('${dateStr}')" 
-                class="task-card p-3 rounded-xl border transition-all duration-150 select-none ${state.isAdmin ? 'cursor-grab active:cursor-grabbing hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md' : 'cursor-pointer hover:border-slate-300'} ${taskIsOverdue ? 'bg-amber-50/60 dark:bg-amber-950/25 border-amber-300 dark:border-amber-700/60' : 'bg-white dark:bg-slate-900/90 border-slate-200 dark:border-slate-800'} ${t.completed ? 'opacity-60 bg-slate-50/70 dark:bg-slate-800/40' : ''}"
+                class="task-card p-3 rounded-xl border transition-all duration-150 select-none ${state.isAdmin ? 'cursor-grab active:cursor-grabbing hover:border-blue-400 dark:hover:border-blue-400 hover:shadow-md' : 'cursor-pointer hover:border-slate-300'} ${taskIsOverdue ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-600/80' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:dark:border-slate-600'} ${t.completed ? 'bg-slate-50/90 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60' : ''}"
                 title="${state.isAdmin ? 'Kéo và thả sang cột ngày khác để dời lịch nhanh' : ''}"
               >
                 <div class="flex items-start gap-2.5">
                   <!-- Checkbox -->
                   ${state.isAdmin ? `
-                    <button onclick="event.stopPropagation(); toggleTaskComplete('${t.id}')" title="Tích hoàn thành" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 ${t.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 dark:border-slate-600 hover:border-blue-500 bg-white dark:bg-slate-800'}">
+                    <button onclick="event.stopPropagation(); toggleTaskComplete('${t.id}')" title="Tích hoàn thành" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 ${t.completed ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'border-slate-300 dark:border-slate-500 hover:border-blue-500 bg-white dark:bg-slate-700'}">
                       ${t.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
                     </button>
                   ` : `
-                    <button onclick="event.stopPropagation(); openLoginModal()" title="Chỉ đọc - Đăng nhập để hoàn thành task" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${t.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:border-blue-400'} cursor-pointer">
+                    <button onclick="event.stopPropagation(); openLoginModal()" title="Chỉ đọc - Đăng nhập để hoàn thành task" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${t.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-750 hover:border-blue-400'} cursor-pointer">
                       ${t.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
                     </button>
                   `}
                   
                   <!-- Nội dung task -->
                   <div class="flex-1 min-w-0">
-                    <div class="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 leading-snug break-words ${t.completed ? 'line-through text-slate-400 dark:text-slate-500' : ''}">
+                    <div class="text-xs sm:text-sm font-semibold leading-snug break-words ${t.completed ? 'line-through text-slate-500 dark:text-slate-300' : 'text-slate-900 dark:text-slate-100 font-bold'}">
                       ${escapeHtml(t.title)}
                     </div>
                     
                     <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
                       ${priorityDot}
-                      ${t.category ? `<span class="text-[10px] sm:text-xs px-2 py-0.5 font-medium rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/40">${escapeHtml(t.category)}</span>` : ''}
-                      ${t.replanCount > 0 ? `<span class="text-[10px] px-1.5 py-0.5 font-semibold rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">Dời ${t.replanCount} lần</span>` : ''}
-                      ${taskIsOverdue ? `<span class="text-[10px] font-bold text-amber-700 dark:text-amber-400">⚠️ Trễ hạn</span>` : ''}
+                      ${t.category ? `<span class="text-[10px] sm:text-xs px-2 py-0.5 font-semibold rounded-md bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700/80">${escapeHtml(t.category)}</span>` : ''}
+                      ${t.replanCount > 0 ? `<span class="text-[10px] px-1.5 py-0.5 font-bold rounded bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-700/80">Dời ${t.replanCount} lần</span>` : ''}
+                      ${taskIsOverdue ? `<span class="text-[10px] font-bold text-rose-600 dark:text-rose-400">⚠️ Trễ hạn</span>` : ''}
                     </div>
                   </div>
 
                   <!-- Grip Handle Icon -->
                   ${state.isAdmin ? `
-                    <i data-lucide="grip-vertical" class="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 hover:text-slate-500 shrink-0 mt-0.5"></i>
+                    <i data-lucide="grip-vertical" class="w-3.5 h-3.5 text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0 mt-0.5"></i>
                   ` : ''}
                 </div>
               </div>
@@ -770,7 +770,7 @@ function renderWeekView() {
   lucide.createIcons();
 }
 
-// D. Render Month View
+// D. Render Month View (Dark Mode High Contrast & Elastic)
 function renderMonthView() {
   const container = document.getElementById('monthGridContainer');
   const d = state.currentDate;
@@ -796,10 +796,16 @@ function renderMonthView() {
       const isToday = dateStr === getTodayStr();
       const tasks = state.tasks.filter(t => t.date === dateStr);
       const overdueTasks = tasks.filter(t => isOverdue(t));
+      const completedCount = tasks.filter(t => t.completed).length;
+      const isAllDone = tasks.length > 0 && completedCount === tasks.length;
 
       html += `
         <div 
-          class="day-dropzone min-h-[110px] 2xl:min-h-[135px] p-2.5 rounded-2xl border cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition bg-white dark:bg-slate-900/90 flex flex-col justify-between ${isToday ? 'border-blue-500 ring-2 ring-blue-100 dark:ring-blue-900/40 shadow-xs' : 'border-slate-200 dark:border-slate-800'}"
+          class="day-dropzone min-h-[115px] 2xl:min-h-[140px] p-2.5 rounded-2xl border cursor-pointer transition-all duration-150 flex flex-col justify-between ${
+            isToday 
+              ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40 shadow-sm' 
+              : 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800/80 hover:border-blue-400 dark:hover:border-blue-400 hover:shadow-xs'
+          }"
           onclick="openDayFromGrid('${dateStr}')"
           ondragover="handleDragOver(event)"
           ondragenter="handleDragEnter(event)"
@@ -807,38 +813,64 @@ function renderMonthView() {
           ondrop="handleDrop(event, '${dateStr}')"
         >
           <div class="flex items-center justify-between">
-            <span class="text-xs sm:text-sm font-bold ${isToday ? 'bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center' : 'text-slate-700 dark:text-slate-300'}">${dayNum}</span>
-            ${overdueTasks.length > 0 ? `<span class="w-2.5 h-2.5 rounded-full bg-amber-500" title="Có task trễ hạn"></span>` : ''}
+            <span class="text-xs sm:text-sm font-extrabold ${
+              isToday 
+                ? 'bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-xs' 
+                : 'text-slate-800 dark:text-slate-100'
+            }">${dayNum}</span>
+            ${overdueTasks.length > 0 ? `<span class="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-2xs" title="Có task trễ hạn"></span>` : ''}
           </div>
           
-          <div class="space-y-1 my-1.5 overflow-hidden">
-            ${tasks.slice(0, 2).map(t => `
-              <div 
-                draggable="${state.isAdmin ? 'true' : 'false'}"
-                ondragstart="handleDragStart(event, '${t.id}')"
-                ondragend="handleDragEnd(event)"
-                class="text-[11px] px-2 py-0.5 rounded truncate ${t.completed ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 line-through' : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold'}"
-              >
-                ${escapeHtml(t.title)}
-              </div>
-            `).join('')}
-            ${tasks.length > 2 ? `<div class="text-[10px] text-slate-400 dark:text-slate-500 font-medium pl-1">+${tasks.length - 2} task nữa</div>` : ''}
+          <div class="space-y-1.5 my-1.5 overflow-hidden">
+            ${tasks.slice(0, 3).map(t => {
+              let pillClasses = '';
+              let prefixIcon = '';
+
+              if (t.completed) {
+                pillClasses = 'bg-slate-100 dark:bg-slate-700/90 text-slate-600 dark:text-slate-200 line-through border border-slate-200 dark:border-slate-600 font-medium';
+                prefixIcon = '<i data-lucide="check" class="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0 mr-1 inline-block"></i>';
+              } else if (isOverdue(t)) {
+                pillClasses = 'bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-100 font-bold border border-amber-300 dark:border-amber-600/90 shadow-2xs';
+                prefixIcon = '<span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mr-1 inline-block"></span>';
+              } else if (t.priority === 'high') {
+                pillClasses = 'bg-rose-100 dark:bg-rose-950 text-rose-950 dark:text-rose-100 font-bold border border-rose-300 dark:border-rose-600/90 shadow-2xs';
+                prefixIcon = '<span class="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 mr-1 inline-block"></span>';
+              } else {
+                pillClasses = 'bg-blue-100 dark:bg-blue-950 text-blue-950 dark:text-blue-100 font-bold border border-blue-300 dark:border-blue-600/90 shadow-2xs';
+                prefixIcon = '<span class="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 mr-1 inline-block"></span>';
+              }
+
+              return `
+                <div 
+                  draggable="${state.isAdmin ? 'true' : 'false'}"
+                  ondragstart="handleDragStart(event, '${t.id}')"
+                  ondragend="handleDragEnd(event)"
+                  class="text-[11px] px-2 py-0.5 rounded-md truncate transition-colors flex items-center ${pillClasses}"
+                  title="${escapeHtml(t.title)}"
+                >
+                  ${prefixIcon}
+                  <span class="truncate">${escapeHtml(t.title)}</span>
+                </div>
+              `;
+            }).join('')}
+            ${tasks.length > 3 ? `<div class="text-[10px] text-slate-500 dark:text-slate-300 font-bold pl-1">+${tasks.length - 3} task nữa</div>` : ''}
           </div>
 
-          <div class="text-[11px] text-slate-400 dark:text-slate-500 text-right font-medium">
-            ${tasks.length > 0 ? `${tasks.filter(t => t.completed).length}/${tasks.length}` : ''}
+          <div class="text-[11px] font-bold ${isAllDone ? 'text-emerald-600 dark:text-emerald-400 font-black' : 'text-slate-500 dark:text-slate-300'} text-right">
+            ${tasks.length > 0 ? `${completedCount}/${tasks.length}` : ''}
           </div>
         </div>
       `;
     } else {
-      html += `<div class="min-h-[110px] 2xl:min-h-[135px] p-2 bg-slate-50/50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800/60"></div>`;
+      html += `<div class="min-h-[115px] 2xl:min-h-[140px] p-2 bg-slate-50/40 dark:bg-slate-950/40 rounded-2xl border border-slate-100 dark:border-slate-800/40 opacity-30"></div>`;
     }
   }
 
   container.innerHTML = html;
+  lucide.createIcons();
 }
 
-// E. Render Year Heatmap View (Elastic Layout)
+// E. Render Year Heatmap View (Dark Mode High Contrast & Elastic Layout)
 function renderYearView() {
   const container = document.getElementById('yearHeatmapContainer');
   const year = state.currentDate.getFullYear();
@@ -851,8 +883,8 @@ function renderYearView() {
     const daysInMonth = new Date(year, m + 1, 0).getDate();
 
     html += `
-      <div class="p-4 bg-slate-50/70 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800">
-        <h4 class="text-xs sm:text-sm font-bold text-slate-800 dark:text-white capitalize mb-3">${monthName}</h4>
+      <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-xs">
+        <h4 class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white capitalize mb-3">${monthName}</h4>
         <div class="grid grid-cols-7 gap-1.5">
     `;
 
@@ -862,11 +894,11 @@ function renderYearView() {
       const tasks = state.tasks.filter(t => t.date === dateStr);
       const completed = tasks.filter(t => t.completed).length;
 
-      let colorClass = 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800';
+      let colorClass = 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700';
       if (completed > 0) {
-        if (completed === 1) colorClass = 'bg-emerald-200 dark:bg-emerald-900/60 border-emerald-300 dark:border-emerald-800';
-        else if (completed === 2) colorClass = 'bg-emerald-400 dark:bg-emerald-700 border-emerald-500 dark:border-emerald-600';
-        else colorClass = 'bg-emerald-600 dark:bg-emerald-500 border-emerald-700 dark:border-emerald-400 text-white';
+        if (completed === 1) colorClass = 'bg-emerald-200 dark:bg-emerald-900 border-emerald-300 dark:border-emerald-700';
+        else if (completed === 2) colorClass = 'bg-emerald-400 dark:bg-emerald-600 border-emerald-500 dark:border-emerald-500';
+        else colorClass = 'bg-emerald-600 dark:bg-emerald-400 border-emerald-700 dark:border-emerald-300 text-slate-900';
       }
 
       html += `
@@ -888,9 +920,9 @@ function switchView(viewName) {
 
   document.querySelectorAll('.view-btn').forEach(btn => {
     if (btn.getAttribute('data-view') === viewName) {
-      btn.className = 'view-btn px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs';
+      btn.className = 'view-btn px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-700 shadow-xs';
     } else {
-      btn.className = 'view-btn px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white';
+      btn.className = 'view-btn px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-transparent';
     }
   });
 
@@ -1029,32 +1061,32 @@ function renderReplanModalContent() {
 
   listContainer.innerHTML = overdueTasks.map(task => {
     return `
-      <div class="bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+      <div class="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 shadow-2xs">
         <div>
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-bold text-slate-800 dark:text-slate-100 text-sm sm:text-base">${escapeHtml(task.title)}</span>
-            <span class="text-xs px-2.5 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold">Ngày cũ: ${task.date}</span>
-            ${task.replanCount > 0 ? `<span class="text-xs px-2 py-0.5 rounded-md bg-amber-200 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 font-semibold">Đã dời ${task.replanCount} lần</span>` : ''}
+            <span class="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base">${escapeHtml(task.title)}</span>
+            <span class="text-xs px-2.5 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 font-bold border border-rose-200 dark:border-rose-700">Ngày cũ: ${task.date}</span>
+            ${task.replanCount > 0 ? `<span class="text-xs px-2.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 font-bold border border-amber-200 dark:border-amber-700">Đã dời ${task.replanCount} lần</span>` : ''}
           </div>
-          ${task.note ? `<p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">${escapeHtml(task.note)}</p>` : ''}
+          ${task.note ? `<p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1">${escapeHtml(task.note)}</p>` : ''}
         </div>
 
         <div class="flex items-center gap-2 flex-wrap self-end sm:self-center">
           <button onclick="replanTask('${task.id}', '${todayStr}')" title="Dời về ngày hôm nay" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-2xs">
             Hôm nay
           </button>
-          <button onclick="replanTask('${task.id}', '${tomorrowStr}')" title="Dời sang ngày mai" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition border border-slate-200 dark:border-slate-700">
+          <button onclick="replanTask('${task.id}', '${tomorrowStr}')" title="Dời sang ngày mai" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-semibold transition border border-slate-300 dark:border-slate-600">
             Ngày mai
           </button>
-          <button onclick="replanTask('${task.id}', '${nextWeekStr}')" title="Dời sang 7 ngày tới" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition border border-slate-200 dark:border-slate-700">
+          <button onclick="replanTask('${task.id}', '${nextWeekStr}')" title="Dời sang 7 ngày tới" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-semibold transition border border-slate-300 dark:border-slate-600">
             Tuần sau (+7d)
           </button>
-          <input type="date" min="${todayStr}" onchange="replanTask('${task.id}', this.value)" title="Chọn ngày bất kỳ" class="text-xs px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white cursor-pointer hover:border-blue-400">
+          <input type="date" min="${todayStr}" onchange="replanTask('${task.id}', this.value)" title="Chọn ngày bất kỳ" class="text-xs px-2.5 py-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl text-slate-800 dark:text-white cursor-pointer hover:border-blue-400">
           
-          <button onclick="toggleTaskComplete('${task.id}')" title="Đánh dấu đã hoàn thành" class="p-1.5 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-lg transition">
+          <button onclick="toggleTaskComplete('${task.id}')" title="Đánh dấu đã hoàn thành" class="p-1.5 hover:bg-emerald-100 dark:hover:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-lg transition">
             <i data-lucide="check" class="w-4 h-4"></i>
           </button>
-          <button onclick="deleteTask('${task.id}')" title="Xóa bỏ task này" class="p-1.5 hover:bg-rose-100 dark:hover:bg-rose-950/60 text-rose-500 dark:text-rose-400 rounded-lg transition">
+          <button onclick="deleteTask('${task.id}')" title="Xóa bỏ task này" class="p-1.5 hover:bg-rose-100 dark:hover:bg-rose-950 text-rose-500 dark:text-rose-400 rounded-lg transition">
             <i data-lucide="trash-2" class="w-4 h-4"></i>
           </button>
         </div>
