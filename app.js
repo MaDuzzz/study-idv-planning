@@ -2298,6 +2298,26 @@ function openTaskDetailModal(taskId) {
   lucide.createIcons();
 }
 
+let isDetailFullscreen = false;
+
+function toggleDetailFullscreen() {
+  const modalDialog = document.getElementById('taskDetailDialog');
+  const modalBackdrop = document.getElementById('taskDetailModal');
+  const iconFs = document.getElementById('iconFullscreen');
+  isDetailFullscreen = !isDetailFullscreen;
+
+  if (isDetailFullscreen) {
+    modalBackdrop.className = 'fixed inset-0 bg-slate-950 z-50 flex p-0';
+    modalDialog.className = 'bg-white dark:bg-slate-900 w-full h-full rounded-none flex flex-col transition-all duration-150 overflow-hidden';
+    if (iconFs) iconFs.setAttribute('data-lucide', 'minimize-2');
+  } else {
+    modalBackdrop.className = 'fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-1 sm:p-2.5 2xl:p-4';
+    modalDialog.className = 'bg-white dark:bg-slate-900 rounded-2xl w-full h-[96vh] 2xl:h-[97vh] max-w-[98vw] 2xl:max-w-[1950px] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 transition-all duration-200 overflow-hidden';
+    if (iconFs) iconFs.setAttribute('data-lucide', 'maximize-2');
+  }
+  lucide.createIcons();
+}
+
 function closeTaskDetailModal() {
   if (state.activeDetailTaskId) {
     flushSaveTaskDoc(state.activeDetailTaskId);
@@ -2509,16 +2529,40 @@ async function handleSaveToGoogleDrive() {
       contentBlob = new Blob([fullHtml], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
     }
 
+    // Cấu trúc phân cấp 4 tầng: study_idv_planning / [Năm] / [Task tổng] / [Task con]
+    // 1. Phân cấp Năm
+    const yearStr = (task.date && task.date.trim()) 
+      ? task.date.split('-')[0] 
+      : new Date().getFullYear().toString();
+
+    // 2. Phân cấp Task tổng
+    let parentTitle = 'Nhiệm vụ độc lập';
+    if (task.parentId) {
+      const parent = getParentTask(task.parentId);
+      if (parent && parent.title) {
+        parentTitle = parent.title.trim();
+      }
+    } else if (task.category) {
+      parentTitle = task.category.trim();
+    }
+
+    // 3. Phân cấp Task con
+    const subtaskTitle = (task.title || 'Nhiệm vụ').trim();
+
+    const folderPath = ['study_idv_planning', yearStr, parentTitle, subtaskTitle];
+
     const driveResult = await window.StudyPlannerFirebase.uploadFileToGoogleDrive({
       fileName: fileName,
       content: contentBlob,
       mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      existingFileId: task.document?.driveFileId || null
+      existingFileId: task.document?.driveFileId || null,
+      folderPath: folderPath
     });
 
     if (!task.document) task.document = {};
     task.document.driveFileId = driveResult.fileId;
     task.document.driveWebViewLink = driveResult.webViewLink;
+    task.document.driveFolderId = driveResult.folderId;
     task.document.fileName = fileName;
     task.document.contentHtml = editorHtml;
 
@@ -2532,7 +2576,8 @@ async function handleSaveToGoogleDrive() {
     btnOpenDocs.classList.remove('hidden');
     btnOpenDocs.classList.add('flex');
 
-    alert(`✅ Đã lưu thành công tài liệu "${fileName}" vào thư mục "Study-Planner-Documents" trên Google Drive của bạn!`);
+    const displayPath = `study_idv_planning / ${yearStr} / ${parentTitle} / ${subtaskTitle}`;
+    alert(`✅ Đã lưu thành công tài liệu "${fileName}" lên Google Drive!\n📂 Thư mục: ${displayPath}`);
   } catch (err) {
     console.error('Lỗi khi lưu lên Google Drive:', err);
     alert('Không thể lưu lên Google Drive: ' + err.message);
@@ -2964,6 +3009,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCloseDetailBtm = document.getElementById('btnCloseDetailBottom');
   if (btnCloseDetailBtm) btnCloseDetailBtm.addEventListener('click', closeTaskDetailModal);
 
+  const btnToggleFs = document.getElementById('btnToggleDetailFullscreen');
+  if (btnToggleFs) btnToggleFs.addEventListener('click', toggleDetailFullscreen);
+
   // Tabs
   const tabDoc = document.getElementById('tabBtnDocument');
   if (tabDoc) tabDoc.addEventListener('click', () => switchDetailTab('document'));
@@ -3118,7 +3166,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnDriveFolder) {
     btnDriveFolder.addEventListener('click', () => {
       userDropdown.classList.add('hidden');
-      window.open('https://drive.google.com/drive/u/0/search?q=Study-Planner-Documents', '_blank');
+      window.open('https://drive.google.com/drive/u/0/search?q=study_idv_planning', '_blank');
     });
   }
 

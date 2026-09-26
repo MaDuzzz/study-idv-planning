@@ -240,16 +240,23 @@ async function deleteParentTaskFromFirestore(userId, parentTaskId) {
 
 // --- GOOGLE DRIVE API INTEGRATION ---
 
-const GOOGLE_DRIVE_FOLDER_NAME = 'Study-Planner-Documents';
+const GOOGLE_DRIVE_ROOT_FOLDER = 'study_idv_planning';
 
 /**
- * Tìm hoặc tạo thư mục 'Study-Planner-Documents' trên Google Drive của người dùng
+ * Tìm hoặc tạo thư mục trên Google Drive của người dùng
+ * Hỗ trợ tạo thư mục con bên trong thư mục cha (parentFolderId)
  */
-async function getOrCreateDriveFolder(token) {
+async function getOrCreateDriveFolder(token, folderName = GOOGLE_DRIVE_ROOT_FOLDER, parentFolderId = null) {
   if (!token) throw new Error('Chưa có Google Access Token.');
 
+  const safeFolderName = folderName.replace(/'/g, "\\'");
+  let query = `name='${safeFolderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  if (parentFolderId) {
+    query += ` and '${parentFolderId}' in parents`;
+  }
+
   // 1. Tìm thư mục đã tồn tại chưa
-  const searchUrl = `https://www.googleapis.com/drive/v3/files?q=name='${GOOGLE_DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id, name)`;
+  const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name)`;
   const res = await fetch(searchUrl, {
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -260,42 +267,72 @@ async function getOrCreateDriveFolder(token) {
   }
 
   // 2. Nếu chưa có, tạo thư mục mới
+  const folderMetadata = {
+    name: folderName,
+    mimeType: 'application/vnd.google-apps.folder'
+  };
+  if (parentFolderId) {
+    folderMetadata.parents = [parentFolderId];
+  }
+
   const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      name: GOOGLE_DRIVE_FOLDER_NAME,
-      mimeType: 'application/vnd.google-apps.folder'
-    })
+    body: JSON.stringify(folderMetadata)
   });
   const newFolder = await createRes.json();
+  if (newFolder.error) {
+    throw new Error(newFolder.error.message || 'Lỗi khi tạo thư mục trên Google Drive');
+  }
   return newFolder.id;
 }
 
 /**
+ * Đảm bảo toàn bộ chuỗi phân cấp thư mục tồn tại trên Drive:
+ * pathSegments: ['study_idv_planning', '2026', 'Nghiên cứu & Học thuật', 'Đọc Chapter 1']
+ * Trả về ID của thư mục lá cuối cùng để lưu file vào đó.
+ */
+async function getOrCreateDriveFolderPath(token, pathSegments) {
+  let currentParentId = null;
+  for (const segment of pathSegments) {
+    if (!segment || !segment.trim()) continue;
+    currentParentId = await getOrCreateDriveFolder(token, segment.trim(), currentParentId);
+  }
+  return currentParentId;
+}
+
+/**
  * Tải file văn bản hoặc docx lên thư mục Google Drive của người dùng
- * @param {string} fileName - Tên file (ví dụ: 'On_tap_IELTS.docx')
+ * theo đúng cấu trúc: study_idv_planning / [Năm] / [Task tổng] / [Task con] / [File]
+ * @param {string} fileName - Tên file (ví dụ: 'Tai_lieu.docx')
  * @param {Blob|string} content - Nội dung (Blob DOCX hoặc HTML text)
  * @param {string} mimeType - Kiểu MIME
  * @param {string|null} existingFileId - ID file nếu cập nhật
+ * @param {Array<string>} folderPath - Mảng chuỗi phân cấp thư mục
  */
-async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/html', existingFileId = null }) {
+async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/html', existingFileId = null, folderPath = [] }) {
   const token = getGoogleAccessToken();
   if (!token) {
     throw new Error('Bạn cần đăng nhập Google để lưu file vào Google Drive.');
   }
 
-  const folderId = await getOrCreateDriveFolder(token);
+  // Tạo hoặc lấy thư mục đích theo chuỗi phân cấp
+  let targetFolderId = null;
+  if (folderPath && folderPath.length > 0) {
+    targetFolderId = await getOrCreateDriveFolderPath(token, folderPath);
+  } else {
+    targetFolderId = await getOrCreateDriveFolder(token, GOOGLE_DRIVE_ROOT_FOLDER);
+  }
 
   const metadata = {
     name: fileName,
     mimeType: mimeType
   };
-  if (!existingFileId) {
-    metadata.parents = [folderId];
+  if (!existingFileId && targetFolderId) {
+    metadata.parents = [targetFolderId];
   }
 
   // Sử dụng Multipart Upload của Drive API v3
@@ -369,5 +406,7 @@ window.StudyPlannerFirebase = {
   listenToUserParentTasks,
   saveParentTaskToFirestore,
   deleteParentTaskFromFirestore,
+  getOrCreateDriveFolder,
+  getOrCreateDriveFolderPath,
   uploadFileToGoogleDrive
 };

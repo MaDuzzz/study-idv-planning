@@ -85,8 +85,10 @@
 
     /* Định dạng khung soạn thảo tài liệu chuẩn Word (.docx WYSIWYG) */
     .doc-editor {
-      min-height: 380px;
+      min-height: 480px;
       outline: none;
+      font-size: 15px;
+      line-height: 1.75;
     }
     .doc-editor:empty:before {
       content: attr(data-placeholder);
@@ -689,11 +691,11 @@
   <!-- ========================================== -->
   <!-- MODAL: CHI TIẾT NHIỆM VỤ & TRUNG TÂM TÀI LIỆU (TASK DETAIL & DOCX EDITOR) -->
   <!-- ========================================== -->
-  <div id="taskDetailModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 hidden flex items-center justify-center p-3 sm:p-5">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-5xl 2xl:max-w-6xl w-full max-h-[94vh] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 transition-colors overflow-hidden">
+  <div id="taskDetailModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 hidden flex items-center justify-center p-1 sm:p-2.5 2xl:p-4">
+    <div id="taskDetailDialog" class="bg-white dark:bg-slate-900 rounded-2xl w-full h-[96vh] 2xl:h-[97vh] max-w-[98vw] 2xl:max-w-[1950px] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 transition-all duration-200 overflow-hidden">
       
       <!-- Modal Header -->
-      <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between gap-3 bg-slate-50/70 dark:bg-slate-850">
+      <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between gap-3 bg-slate-50/70 dark:bg-slate-850 shrink-0">
         <div class="flex items-start gap-3 flex-1 min-w-0">
           <button id="btnDetailToggleComplete" title="Đánh dấu hoàn thành" class="mt-1 w-6 h-6 rounded-lg flex items-center justify-center border transition shrink-0 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-blue-500 shadow-2xs">
             <i data-lucide="check" class="w-4 h-4 text-emerald-500 hidden" id="detailCompleteCheckIcon"></i>
@@ -712,9 +714,12 @@
           </div>
         </div>
 
-        <div class="flex items-center gap-2 shrink-0">
+        <div class="flex items-center gap-1.5 shrink-0">
           <button id="btnDetailEditTask" title="Chỉnh sửa ngày/ưu tiên" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-            <i data-lucide="edit-3" class="w-5 h-5"></i>
+            <i data-lucide="edit-3" class="w-4 h-4"></i>
+          </button>
+          <button id="btnToggleDetailFullscreen" title="Phóng to toàn màn hình / Thu nhỏ" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+            <i data-lucide="maximize-2" class="w-4 h-4" id="iconFullscreen"></i>
           </button>
           <button id="btnCloseDetailModal" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition">
             <i data-lucide="x" class="w-5 h-5"></i>
@@ -826,12 +831,12 @@
             </button>
           </div>
 
-          <!-- Khung soạn thảo văn bản mô phỏng trang giấy Word -->
-          <div class="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-7 shadow-xs">
+          <!-- Khung soạn thảo văn bản mô phỏng trang giấy Word rộng rãi (Elastic Canvas) -->
+          <div class="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 2xl:p-12 shadow-xs min-h-[520px] 2xl:min-h-[640px] flex flex-col">
             <div 
               id="taskDocEditor" 
               contenteditable="true" 
-              class="doc-editor text-slate-800 dark:text-slate-100" 
+              class="doc-editor flex-1 text-slate-800 dark:text-slate-100 text-sm sm:text-base leading-relaxed" 
               data-placeholder="Bắt đầu soạn thảo tài liệu, ghi chú hoặc nội dung học tập... Bạn cũng có thể bấm 'Mở .docx' để đọc file Word từ máy tính."
             ></div>
           </div>
@@ -955,7 +960,7 @@
   </div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=3.3"></script>
-  <script src="app.js?v=3.3"></script>
+  <script src="firebase-config.js?v=3.4"></script>
+  <script src="app.js?v=3.4"></script>
 </body>
 </html>
