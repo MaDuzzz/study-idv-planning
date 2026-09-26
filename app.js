@@ -1,18 +1,65 @@
 /**
  * Study & Life Planner - Main Application Logic
- * Vanilla JavaScript (Zero build dependencies, works seamlessly on GitHub Pages & GitLab Pages)
+ * Vanilla JavaScript (Zero build dependencies, works seamlessly on GitHub Pages)
  */
 
-// --- 1. STATE & STORAGE MANAGEMENT ---
+// --- 1. STATE, AUTH & STORAGE MANAGEMENT ---
 const STORAGE_KEY = 'study_planner_tasks_v1';
+const AUTH_TOKEN_KEY = 'study_planner_auth_session';
+const ADMIN_PW_KEY = 'study_planner_admin_password';
 
 let state = {
-  currentView: 'day', // 'day' | 'week' | 'month' | 'year'
+  isAdmin: false,
+  currentView: 'week', // Mặc định mở tuần hoặc ngày
   currentDate: new Date(), // Selected date
   tasks: []
 };
 
-// Khởi tạo dữ liệu mẫu nếu lần đầu truy cập để người dùng dễ hình dung
+// Kiểm tra trạng thái đăng nhập
+function checkAuthStatus() {
+  const isAuthLocal = localStorage.getItem(AUTH_TOKEN_KEY) === 'authenticated';
+  const isAuthSession = sessionStorage.getItem(AUTH_TOKEN_KEY) === 'authenticated';
+  state.isAdmin = isAuthLocal || isAuthSession;
+}
+
+function getStoredPassword() {
+  return localStorage.getItem(ADMIN_PW_KEY) || 'admin123';
+}
+
+function loginAdmin(inputPassword, rememberMe) {
+  const currentPassword = getStoredPassword();
+  if (inputPassword === currentPassword) {
+    state.isAdmin = true;
+    if (rememberMe) {
+      localStorage.setItem(AUTH_TOKEN_KEY, 'authenticated');
+    } else {
+      sessionStorage.setItem(AUTH_TOKEN_KEY, 'authenticated');
+    }
+    return true;
+  }
+  return false;
+}
+
+function logoutAdmin() {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  sessionStorage.removeItem(AUTH_TOKEN_KEY);
+  state.isAdmin = false;
+  renderApp();
+}
+
+function changeAdminPassword(currentPw, newPw) {
+  const storedPw = getStoredPassword();
+  if (currentPw !== storedPw) {
+    return { success: false, message: 'Mật khẩu hiện tại không đúng!' };
+  }
+  if (!newPw || newPw.length < 4) {
+    return { success: false, message: 'Mật khẩu mới phải từ 4 ký tự trở lên!' };
+  }
+  localStorage.setItem(ADMIN_PW_KEY, newPw);
+  return { success: true, message: 'Đổi mật khẩu thành công!' };
+}
+
+// Khởi tạo dữ liệu mẫu nếu lần đầu truy cập
 function initSampleDataIfEmpty() {
   const existing = localStorage.getItem(STORAGE_KEY);
   if (!existing) {
@@ -29,7 +76,7 @@ function initSampleDataIfEmpty() {
         date: formatDate(yesterday),
         priority: 'high',
         category: 'Học tập',
-        note: 'Task này giả lập bị trễ hạn từ hôm qua để test tính năng Warning & Replan!',
+        note: 'Task này giả lập bị trễ hạn từ hôm qua để bạn test tính năng Replan!',
         completed: false,
         replanCount: 1,
         createdAt: new Date().toISOString()
@@ -87,6 +134,7 @@ function saveTasksToStorage(tasks) {
 }
 
 function saveCurrentTasks() {
+  if (!state.isAdmin) return;
   saveTasksToStorage(state.tasks);
 }
 
@@ -100,6 +148,18 @@ function formatDate(d) {
 
 function getTodayStr() {
   return formatDate(new Date());
+}
+
+function getTomorrowStr() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return formatDate(tomorrow);
+}
+
+function getNextWeekStr() {
+  const nextWeek = new Date();
+  nextWeek.setDate(nextWeek.getDate() + 7);
+  return formatDate(nextWeek);
 }
 
 function parseDateStr(str) {
@@ -126,7 +186,7 @@ function updateReplanAlerts() {
   const btnReplanCenter = document.getElementById('btnReplanCenter');
   const replanBadge = document.getElementById('replanCountBadge');
 
-  if (count > 0) {
+  if (count > 0 && state.isAdmin) {
     banner.classList.remove('hidden');
     bannerCount.textContent = count;
     btnReplanCenter.classList.remove('hidden');
@@ -140,6 +200,11 @@ function updateReplanAlerts() {
 }
 
 function replanTask(taskId, targetDateStr) {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+  if (!targetDateStr) return;
   const task = state.tasks.find(t => t.id === taskId);
   if (!task) return;
 
@@ -151,6 +216,7 @@ function replanTask(taskId, targetDateStr) {
 }
 
 function replanAllOverdueToToday() {
+  if (!state.isAdmin) return;
   const todayStr = getTodayStr();
   const overdueTasks = getOverdueTasks();
   overdueTasks.forEach(task => {
@@ -162,8 +228,25 @@ function replanAllOverdueToToday() {
   closeReplanModal();
 }
 
-// --- 4. TASK CRUD ---
+function replanAllOverdueToNextWeek() {
+  if (!state.isAdmin) return;
+  const nextWeekStr = getNextWeekStr();
+  const overdueTasks = getOverdueTasks();
+  overdueTasks.forEach(task => {
+    task.date = nextWeekStr;
+    task.replanCount = (task.replanCount || 0) + 1;
+  });
+  saveCurrentTasks();
+  renderApp();
+  closeReplanModal();
+}
+
+// --- 4. TASK CRUD (Chỉ Admin) ---
 function toggleTaskComplete(taskId) {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
   const task = state.tasks.find(t => t.id === taskId);
   if (task) {
     task.completed = !task.completed;
@@ -173,6 +256,7 @@ function toggleTaskComplete(taskId) {
 }
 
 function deleteTask(taskId) {
+  if (!state.isAdmin) return;
   if (confirm('Bạn có chắc chắn muốn xóa nhiệm vụ này không?')) {
     state.tasks = state.tasks.filter(t => t.id !== taskId);
     saveCurrentTasks();
@@ -182,6 +266,7 @@ function deleteTask(taskId) {
 }
 
 function saveTaskFromForm(formData) {
+  if (!state.isAdmin) return;
   const { id, title, date, priority, category, note } = formData;
   if (id) {
     const task = state.tasks.find(t => t.id === id);
@@ -210,9 +295,36 @@ function saveTaskFromForm(formData) {
   renderApp();
 }
 
-// --- 5. RENDER VIEWS ---
+// --- 5. RENDER VIEWS & UI UPDATE ---
 
-// A. Header Navigation Display
+function updateAuthUI() {
+  const adminGroup = document.getElementById('adminActionGroup');
+  const guestGroup = document.getElementById('guestActionGroup');
+  const guestNotice = document.getElementById('guestNoticeBanner');
+  const btnQuickAdd = document.getElementById('btnQuickAddTaskDay');
+  const emptyHint = document.getElementById('emptyStateAdminHint');
+
+  if (state.isAdmin) {
+    adminGroup.classList.remove('hidden');
+    adminGroup.classList.add('flex');
+    guestGroup.classList.add('hidden');
+    guestGroup.classList.remove('flex');
+    guestNotice.classList.add('hidden');
+    btnQuickAdd.classList.remove('hidden');
+    btnQuickAdd.classList.add('flex');
+    if (emptyHint) emptyHint.textContent = 'Bấm "Thêm Task" ở góc trên để bắt đầu lên kế hoạch!';
+  } else {
+    adminGroup.classList.add('hidden');
+    adminGroup.classList.remove('flex');
+    guestGroup.classList.remove('hidden');
+    guestGroup.classList.add('flex');
+    guestNotice.classList.remove('hidden');
+    btnQuickAdd.classList.add('hidden');
+    btnQuickAdd.classList.remove('flex');
+    if (emptyHint) emptyHint.textContent = 'Đăng nhập Admin để bắt đầu lên kế hoạch!';
+  }
+}
+
 function updateHeaderDisplay() {
   const display = document.getElementById('currentDateDisplay');
   const d = state.currentDate;
@@ -231,7 +343,6 @@ function updateHeaderDisplay() {
     display.textContent = `Năm ${d.getFullYear()}`;
   }
 
-  // Cập nhật thanh tiến độ ngày hôm nay
   const todayTasks = state.tasks.filter(t => t.date === getTodayStr());
   const completedToday = todayTasks.filter(t => t.completed).length;
   const pct = todayTasks.length === 0 ? 0 : Math.round((completedToday / todayTasks.length) * 100);
@@ -257,61 +368,85 @@ function renderDayView() {
 
   emptyState.classList.add('hidden');
 
-  // Sắp xếp: chưa hoàn thành trước, sau đó theo mức độ ưu tiên
   const priorityScore = { high: 3, medium: 2, low: 1 };
   tasksForDay.sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1;
     return (priorityScore[b.priority] || 0) - (priorityScore[a.priority] || 0);
   });
 
+  const todayStr = getTodayStr();
+  const tomorrowStr = getTomorrowStr();
+  const nextWeekStr = getNextWeekStr();
+
   listContainer.innerHTML = tasksForDay.map(task => {
     const taskIsOverdue = isOverdue(task);
     const priorityBadge = {
-      high: '<span class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-red-50 text-red-600 border border-red-200">🔥 Ưu tiên cao</span>',
-      medium: '<span class="px-2 py-0.5 text-[10px] font-semibold rounded-md bg-slate-100 text-slate-600">Bình thường</span>',
-      low: '<span class="px-2 py-0.5 text-[10px] font-medium rounded-md bg-slate-50 text-slate-400">Thấp</span>'
+      high: '<span class="px-2 py-0.5 text-xs font-bold rounded-md bg-red-50 text-red-600 border border-red-200">🔥 Ưu tiên cao</span>',
+      medium: '<span class="px-2 py-0.5 text-xs font-semibold rounded-md bg-slate-100 text-slate-600">Bình thường</span>',
+      low: '<span class="px-2 py-0.5 text-xs font-medium rounded-md bg-slate-50 text-slate-400">Thấp</span>'
     }[task.priority] || '';
 
     const replanBadge = (task.replanCount && task.replanCount > 0)
-      ? `<span class="px-2 py-0.5 text-[10px] font-semibold rounded-md ${task.replanCount >= 3 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}" title="Đã bị dời ${task.replanCount} lần">
-          <i data-lucide="rotate-ccw" class="w-3 h-3 inline"></i> Đã dời ${task.replanCount} lần
+      ? `<span class="px-2.5 py-0.5 text-xs font-bold rounded-md ${task.replanCount >= 3 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}" title="Đã bị dời ${task.replanCount} lần">
+          <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 inline"></i> Đã dời ${task.replanCount} lần
         </span>`
       : '';
 
-    return `
-      <div class="bg-white rounded-xl p-4 border transition-all duration-200 hover:shadow-xs flex items-start justify-between gap-3 ${taskIsOverdue ? 'border-amber-400 bg-amber-50/20' : 'border-slate-200'} ${task.completed ? 'opacity-65' : ''}">
-        <div class="flex items-start gap-3 flex-1">
-          <!-- Checkbox -->
-          <button onclick="toggleTaskComplete('${task.id}')" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition ${task.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 hover:border-blue-500 bg-white'}">
-            ${task.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
+    const checkboxHtml = state.isAdmin
+      ? `<button onclick="toggleTaskComplete('${task.id}')" title="Bấm để đánh dấu hoàn thành" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border transition ${task.completed ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'border-slate-300 hover:border-blue-500 bg-white'}">
+          ${task.completed ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
+        </button>`
+      : `<div title="Chế độ chỉ xem" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border ${task.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-200 bg-slate-50'} cursor-not-allowed">
+          ${task.completed ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
+        </div>`;
+
+    const replanToolbar = (taskIsOverdue && state.isAdmin)
+      ? `<div class="pt-2.5 flex items-center gap-2 flex-wrap">
+          <span class="text-xs font-bold text-amber-700 flex items-center gap-1">
+            <i data-lucide="calendar-sync" class="w-4 h-4"></i> Dời lịch sang:
+          </span>
+          <button onclick="replanTask('${task.id}', '${todayStr}')" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-2xs">
+            Hôm nay
           </button>
+          <button onclick="replanTask('${task.id}', '${tomorrowStr}')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border">
+            Ngày mai
+          </button>
+          <button onclick="replanTask('${task.id}', '${nextWeekStr}')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border">
+            Tuần sau (+7d)
+          </button>
+          <input type="date" min="${todayStr}" onchange="replanTask('${task.id}', this.value)" title="Chọn ngày cụ thể khác" class="text-xs px-2 py-1 border border-slate-300 rounded-lg bg-white cursor-pointer hover:border-blue-400">
+        </div>`
+      : '';
+
+    const adminActionTools = state.isAdmin
+      ? `<div class="flex items-center gap-1.5 self-end sm:self-start">
+          <button onclick="openEditTaskModal('${task.id}')" title="Chỉnh sửa" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition">
+            <i data-lucide="edit-3" class="w-4 h-4"></i>
+          </button>
+          <button onclick="deleteTask('${task.id}')" title="Xóa" class="p-2 text-slate-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
+        </div>`
+      : '';
+
+    return `
+      <div class="bg-white rounded-2xl p-4 sm:p-5 border transition duration-200 hover:shadow-xs flex flex-col sm:flex-row sm:items-start justify-between gap-3.5 ${taskIsOverdue ? 'border-amber-400 bg-amber-50/25 ring-1 ring-amber-200' : 'border-slate-200'} ${task.completed ? 'opacity-60 bg-slate-50/60' : ''}">
+        <div class="flex items-start gap-3.5 flex-1">
+          ${checkboxHtml}
           
-          <!-- Content -->
-          <div class="space-y-1 flex-1">
+          <div class="space-y-1.5 flex-1">
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="text-sm font-semibold text-slate-800 ${task.completed ? 'line-through text-slate-400' : ''}">${escapeHtml(task.title)}</span>
+              <span class="text-base font-bold text-slate-800 ${task.completed ? 'line-through text-slate-400' : ''}">${escapeHtml(task.title)}</span>
               ${priorityBadge}
-              ${task.category ? `<span class="px-2 py-0.5 text-[10px] font-medium rounded-md bg-blue-50 text-blue-600 border border-blue-100">${escapeHtml(task.category)}</span>` : ''}
+              ${task.category ? `<span class="px-2.5 py-0.5 text-xs font-semibold rounded-md bg-blue-50 text-blue-600 border border-blue-100">${escapeHtml(task.category)}</span>` : ''}
               ${replanBadge}
             </div>
-            ${task.note ? `<p class="text-xs text-slate-500">${escapeHtml(task.note)}</p>` : ''}
+            ${task.note ? `<p class="text-xs sm:text-sm text-slate-500">${escapeHtml(task.note)}</p>` : ''}
+            ${replanToolbar}
           </div>
         </div>
 
-        <!-- Action tools -->
-        <div class="flex items-center gap-1">
-          ${taskIsOverdue ? `
-            <button onclick="replanTask('${task.id}', '${getTodayStr()}')" class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg flex items-center gap-1 shadow-xs">
-              <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i> Dời về hôm nay
-            </button>
-          ` : ''}
-          <button onclick="openEditTaskModal('${task.id}')" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
-            <i data-lucide="edit-3" class="w-4 h-4"></i>
-          </button>
-          <button onclick="deleteTask('${task.id}')" class="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50">
-            <i data-lucide="trash-2" class="w-4 h-4"></i>
-          </button>
-        </div>
+        ${adminActionTools}
       </div>
     `;
   }).join('');
@@ -319,7 +454,7 @@ function renderDayView() {
   lucide.createIcons();
 }
 
-// C. Render Week View
+// C. Render Week View (TO HƠN, RỘNG RÃI, DỄ THAO TÁC)
 function getMonday(d) {
   const date = new Date(d);
   const day = date.getDay();
@@ -338,7 +473,7 @@ function renderWeekView() {
     days.push(d);
   }
 
-  const dayNames = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+  const dayNames = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
 
   container.innerHTML = days.map((dayDate, idx) => {
     const dateStr = formatDate(dayDate);
@@ -346,34 +481,78 @@ function renderWeekView() {
     const tasks = state.tasks.filter(t => t.date === dateStr);
     const completedCount = tasks.filter(t => t.completed).length;
 
-    return `
-      <div class="bg-white rounded-xl border ${isToday ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200'} shadow-2xs flex flex-col min-h-[300px]">
-        <!-- Day Column Header -->
-        <div class="p-3 border-b border-slate-100 flex items-center justify-between ${isToday ? 'bg-blue-50/50' : 'bg-slate-50/50'}">
-          <div>
-            <span class="text-xs font-bold ${idx >= 5 ? 'text-red-500' : 'text-slate-600'}">${dayNames[idx]}</span>
-            <div class="text-sm font-extrabold text-slate-900">${dayDate.getDate()}/${dayDate.getMonth() + 1}</div>
-          </div>
-          <span class="text-[11px] font-semibold text-slate-400">${completedCount}/${tasks.length}</span>
-        </div>
-
-        <!-- Task List inside day -->
-        <div class="p-2 space-y-1.5 flex-1 overflow-y-auto max-h-[350px]">
-          ${tasks.length === 0 ? '<div class="text-[11px] text-slate-400 text-center py-6">Không có task</div>' : ''}
-          ${tasks.map(t => `
-            <div onclick="openDayFromGrid('${dateStr}')" class="p-2 rounded-lg text-xs border cursor-pointer hover:bg-slate-50 transition ${isOverdue(t) ? 'bg-amber-50/40 border-amber-300' : 'bg-white border-slate-200'} ${t.completed ? 'line-through text-slate-400' : 'text-slate-800'}">
-              <div class="font-medium truncate">${escapeHtml(t.title)}</div>
-              ${t.category ? `<span class="text-[9px] text-blue-600 font-medium">${escapeHtml(t.category)}</span>` : ''}
-            </div>
-          `).join('')}
-        </div>
-
-        <!-- Add Button for this day -->
-        <div class="p-2 border-t border-slate-100">
-          <button onclick="openAddTaskModalForDate('${dateStr}')" class="w-full py-1.5 text-xs text-slate-500 hover:text-blue-600 hover:bg-slate-50 rounded-lg flex items-center justify-center gap-1 transition">
-            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Thêm
+    const addBtnHtml = state.isAdmin
+      ? `<div class="p-3 border-t border-slate-100 mt-auto bg-slate-50/50 rounded-b-2xl">
+          <button onclick="openAddTaskModalForDate('${dateStr}')" class="w-full py-2.5 text-xs sm:text-sm font-bold text-slate-600 hover:text-blue-600 hover:bg-blue-50/80 border border-dashed border-slate-300 hover:border-blue-400 rounded-xl transition flex items-center justify-center gap-1.5 shadow-2xs">
+            <i data-lucide="plus" class="w-4 h-4"></i> Thêm nhiệm vụ
           </button>
+        </div>`
+      : '';
+
+    return `
+      <div class="bg-white rounded-2xl border ${isToday ? 'border-blue-500 ring-2 ring-blue-200 shadow-md' : 'border-slate-200 shadow-xs'} flex flex-col min-h-[520px] transition hover:shadow-md">
+        
+        <!-- Day Column Header (To, rõ ràng) -->
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between ${isToday ? 'bg-blue-50/70' : 'bg-slate-50/60'} rounded-t-2xl">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider ${idx >= 5 ? 'text-red-500' : 'text-slate-500'}">${dayNames[idx]}</span>
+            <div class="text-xl sm:text-2xl font-black text-slate-900 leading-tight">${dayDate.getDate()}/${dayDate.getMonth() + 1}</div>
+          </div>
+          <span class="text-xs font-extrabold px-2.5 py-1 rounded-full ${isToday ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'} shadow-2xs">
+            ${completedCount}/${tasks.length}
+          </span>
         </div>
+
+        <!-- Task List inside day (Cards to hơn, chữ không bị cắt ...) -->
+        <div class="p-3 space-y-2.5 flex-1 overflow-y-auto max-h-[500px]">
+          ${tasks.length === 0 ? `
+            <div class="text-xs text-slate-400 text-center py-16 flex flex-col items-center justify-center gap-1.5">
+              <i data-lucide="clipboard-check" class="w-8 h-8 text-slate-200"></i>
+              <span>Không có task</span>
+            </div>` : ''}
+          
+          ${tasks.map(t => {
+            const taskIsOverdue = isOverdue(t);
+            const priorityDot = {
+              high: '<span class="w-2 h-2 rounded-full bg-red-500 shrink-0" title="Ưu tiên cao"></span>',
+              medium: '<span class="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Bình thường"></span>',
+              low: '<span class="w-2 h-2 rounded-full bg-slate-300 shrink-0" title="Thấp"></span>'
+            }[t.priority] || '';
+
+            return `
+              <div onclick="openDayFromGrid('${dateStr}')" class="p-3 rounded-xl border transition-all duration-150 cursor-pointer hover:shadow-sm ${taskIsOverdue ? 'bg-amber-50/60 border-amber-300' : 'bg-white border-slate-200 hover:border-blue-300'} ${t.completed ? 'opacity-60 bg-slate-50/70' : ''}">
+                <div class="flex items-start gap-2.5">
+                  <!-- Checkbox trực tiếp trên thẻ tuần -->
+                  ${state.isAdmin ? `
+                    <button onclick="event.stopPropagation(); toggleTaskComplete('${t.id}')" title="Tích hoàn thành" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 ${t.completed ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 hover:border-blue-500 bg-white'}">
+                      ${t.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
+                    </button>
+                  ` : `
+                    <div class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${t.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-200 bg-slate-50'}">
+                      ${t.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
+                    </div>
+                  `}
+                  
+                  <!-- Nội dung task (Hiển thị đầy đủ chữ, xuống dòng tự nhiên) -->
+                  <div class="flex-1 min-w-0">
+                    <div class="text-xs sm:text-sm font-semibold text-slate-800 leading-snug break-words ${t.completed ? 'line-through text-slate-400' : ''}">
+                      ${escapeHtml(t.title)}
+                    </div>
+                    
+                    <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
+                      ${priorityDot}
+                      ${t.category ? `<span class="text-[10px] sm:text-xs px-2 py-0.5 font-medium rounded-md bg-blue-50 text-blue-600 border border-blue-100">${escapeHtml(t.category)}</span>` : ''}
+                      ${t.replanCount > 0 ? `<span class="text-[10px] px-1.5 py-0.5 font-semibold rounded bg-amber-100 text-amber-800">Dời ${t.replanCount} lần</span>` : ''}
+                      ${taskIsOverdue ? `<span class="text-[10px] font-bold text-amber-700">⚠️ Trễ hạn</span>` : ''}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        ${addBtnHtml}
       </div>
     `;
   }).join('');
@@ -409,28 +588,28 @@ function renderMonthView() {
       const overdueTasks = tasks.filter(t => isOverdue(t));
 
       html += `
-        <div onclick="openDayFromGrid('${dateStr}')" class="min-h-[90px] p-1.5 rounded-xl border cursor-pointer hover:border-blue-400 transition bg-white flex flex-col justify-between ${isToday ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200'}">
+        <div onclick="openDayFromGrid('${dateStr}')" class="min-h-[110px] p-2 sm:p-2.5 rounded-2xl border cursor-pointer hover:border-blue-400 transition bg-white flex flex-col justify-between ${isToday ? 'border-blue-500 ring-2 ring-blue-100 shadow-xs' : 'border-slate-200'}">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold ${isToday ? 'bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center' : 'text-slate-700'}">${dayNum}</span>
-            ${overdueTasks.length > 0 ? `<span class="w-2 h-2 rounded-full bg-amber-500" title="Có task trễ hạn"></span>` : ''}
+            <span class="text-xs sm:text-sm font-bold ${isToday ? 'bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center' : 'text-slate-700'}">${dayNum}</span>
+            ${overdueTasks.length > 0 ? `<span class="w-2.5 h-2.5 rounded-full bg-amber-500" title="Có task trễ hạn"></span>` : ''}
           </div>
           
-          <div class="space-y-1 my-1 overflow-hidden">
+          <div class="space-y-1 my-1.5 overflow-hidden">
             ${tasks.slice(0, 2).map(t => `
-              <div class="text-[10px] px-1.5 py-0.5 rounded truncate ${t.completed ? 'bg-slate-100 text-slate-400 line-through' : 'bg-blue-50 text-blue-700 font-medium'}">
+              <div class="text-[11px] px-2 py-0.5 rounded truncate ${t.completed ? 'bg-slate-100 text-slate-400 line-through' : 'bg-blue-50 text-blue-700 font-semibold'}">
                 ${escapeHtml(t.title)}
               </div>
             `).join('')}
-            ${tasks.length > 2 ? `<div class="text-[9px] text-slate-400 font-medium pl-1">+${tasks.length - 2} task khác</div>` : ''}
+            ${tasks.length > 2 ? `<div class="text-[10px] text-slate-400 font-medium pl-1">+${tasks.length - 2} task nữa</div>` : ''}
           </div>
 
-          <div class="text-[10px] text-slate-400 text-right">
+          <div class="text-[11px] text-slate-400 text-right font-medium">
             ${tasks.length > 0 ? `${tasks.filter(t => t.completed).length}/${tasks.length}` : ''}
           </div>
         </div>
       `;
     } else {
-      html += `<div class="min-h-[90px] p-2 bg-slate-50/50 rounded-xl border border-slate-100"></div>`;
+      html += `<div class="min-h-[110px] p-2 bg-slate-50/50 rounded-2xl border border-slate-100"></div>`;
     }
   }
 
@@ -442,7 +621,7 @@ function renderYearView() {
   const container = document.getElementById('yearHeatmapContainer');
   const year = state.currentDate.getFullYear();
 
-  let html = `<div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">`;
+  let html = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">`;
 
   for (let m = 0; m < 12; m++) {
     const monthDate = new Date(year, m, 1);
@@ -450,9 +629,9 @@ function renderYearView() {
     const daysInMonth = new Date(year, m + 1, 0).getDate();
 
     html += `
-      <div class="p-3 bg-slate-50/60 rounded-xl border border-slate-200">
-        <h4 class="text-xs font-bold text-slate-800 capitalize mb-2.5">${monthName}</h4>
-        <div class="grid grid-cols-7 gap-1">
+      <div class="p-4 bg-slate-50/70 rounded-2xl border border-slate-200">
+        <h4 class="text-xs sm:text-sm font-bold text-slate-800 capitalize mb-3">${monthName}</h4>
+        <div class="grid grid-cols-7 gap-1.5">
     `;
 
     for (let d = 1; d <= daysInMonth; d++) {
@@ -469,7 +648,7 @@ function renderYearView() {
       }
 
       html += `
-        <div onclick="openDayFromGrid('${dateStr}')" title="${dateStr}: ${completed}/${tasks.length} hoàn thành" class="w-4 h-4 sm:w-5 sm:h-5 rounded-xs border text-[9px] flex items-center justify-center cursor-pointer transition hover:scale-110 ${colorClass}">
+        <div onclick="openDayFromGrid('${dateStr}')" title="${dateStr}: ${completed}/${tasks.length} hoàn thành" class="w-5 h-5 sm:w-6 sm:h-6 rounded-md border text-[10px] flex items-center justify-center cursor-pointer transition hover:scale-115 ${colorClass}">
         </div>
       `;
     }
@@ -487,9 +666,9 @@ function switchView(viewName) {
 
   document.querySelectorAll('.view-btn').forEach(btn => {
     if (btn.getAttribute('data-view') === viewName) {
-      btn.className = 'view-btn px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition bg-white text-blue-600 shadow-xs';
+      btn.className = 'view-btn px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition bg-white text-blue-600 shadow-xs';
     } else {
-      btn.className = 'view-btn px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition text-slate-600 hover:text-slate-900';
+      btn.className = 'view-btn px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition text-slate-600 hover:text-slate-900';
     }
   });
 
@@ -524,8 +703,16 @@ function openDayFromGrid(dateStr) {
 const taskModal = document.getElementById('taskModal');
 const taskForm = document.getElementById('taskForm');
 const replanModal = document.getElementById('replanModal');
+const loginModal = document.getElementById('loginModal');
+const loginForm = document.getElementById('loginForm');
+const changePwModal = document.getElementById('changePwModal');
+const changePwForm = document.getElementById('changePwForm');
 
 function openAddTaskModal(initialDate = null) {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
   taskForm.reset();
   document.getElementById('taskId').value = '';
   document.getElementById('modalTitle').textContent = 'Thêm nhiệm vụ mới';
@@ -538,6 +725,7 @@ function openAddTaskModalForDate(dateStr) {
 }
 
 function openEditTaskModal(taskId) {
+  if (!state.isAdmin) return;
   const task = state.tasks.find(t => t.id === taskId);
   if (!task) return;
 
@@ -557,6 +745,10 @@ function closeTaskModal() {
 }
 
 function openReplanModal() {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
   renderReplanModalContent();
   replanModal.classList.remove('hidden');
 }
@@ -565,15 +757,37 @@ function closeReplanModal() {
   replanModal.classList.add('hidden');
 }
 
+function openLoginModal() {
+  loginForm.reset();
+  document.getElementById('loginErrorMsg').classList.add('hidden');
+  loginModal.classList.remove('hidden');
+  document.getElementById('loginPassword').focus();
+}
+
+function closeLoginModal() {
+  loginModal.classList.add('hidden');
+}
+
+function openChangePwModal() {
+  changePwForm.reset();
+  document.getElementById('changePwErrorMsg').classList.add('hidden');
+  changePwModal.classList.remove('hidden');
+  document.getElementById('userDropdown').classList.add('hidden');
+}
+
+function closeChangePwModal() {
+  changePwModal.classList.add('hidden');
+}
+
 function renderReplanModalContent() {
   const listContainer = document.getElementById('replanTaskList');
   const overdueTasks = getOverdueTasks();
 
   if (overdueTasks.length === 0) {
     listContainer.innerHTML = `
-      <div class="text-center py-10 text-slate-500">
-        <i data-lucide="check-circle-2" class="w-10 h-10 text-emerald-500 mx-auto mb-2"></i>
-        <p class="font-medium text-slate-700">Tuyệt vời! Bạn không còn nhiệm vụ nào bị quá hạn.</p>
+      <div class="text-center py-12 text-slate-500">
+        <i data-lucide="check-circle-2" class="w-12 h-12 text-emerald-500 mx-auto mb-2"></i>
+        <p class="font-bold text-slate-700 text-base">Tuyệt vời! Bạn không còn nhiệm vụ nào bị quá hạn.</p>
       </div>
     `;
     lucide.createIcons();
@@ -581,33 +795,37 @@ function renderReplanModalContent() {
   }
 
   const todayStr = getTodayStr();
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = formatDate(tomorrow);
+  const tomorrowStr = getTomorrowStr();
+  const nextWeekStr = getNextWeekStr();
 
   listContainer.innerHTML = overdueTasks.map(task => {
     return `
-      <div class="bg-amber-50/50 border border-amber-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div class="bg-amber-50/60 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
         <div>
-          <div class="flex items-center gap-2">
-            <span class="font-semibold text-slate-800 text-sm">${escapeHtml(task.title)}</span>
-            <span class="text-[10px] px-2 py-0.5 rounded bg-rose-100 text-rose-700 font-bold">Ngày cũ: ${task.date}</span>
-            ${task.replanCount > 0 ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-200 text-amber-800">Đã dời ${task.replanCount} lần</span>` : ''}
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-bold text-slate-800 text-sm sm:text-base">${escapeHtml(task.title)}</span>
+            <span class="text-xs px-2.5 py-0.5 rounded-md bg-rose-100 text-rose-700 font-bold">Ngày cũ: ${task.date}</span>
+            ${task.replanCount > 0 ? `<span class="text-xs px-2 py-0.5 rounded-md bg-amber-200 text-amber-800 font-semibold">Đã dời ${task.replanCount} lần</span>` : ''}
           </div>
-          ${task.note ? `<p class="text-xs text-slate-500 mt-0.5">${escapeHtml(task.note)}</p>` : ''}
+          ${task.note ? `<p class="text-xs sm:text-sm text-slate-500 mt-1">${escapeHtml(task.note)}</p>` : ''}
         </div>
 
-        <div class="flex items-center gap-1.5 self-end sm:self-center">
-          <button onclick="replanTask('${task.id}', '${todayStr}')" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition shadow-2xs">
+        <div class="flex items-center gap-2 flex-wrap self-end sm:self-center">
+          <button onclick="replanTask('${task.id}', '${todayStr}')" title="Dời về ngày hôm nay" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-2xs">
             Hôm nay
           </button>
-          <button onclick="replanTask('${task.id}', '${tomorrowStr}')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition border">
+          <button onclick="replanTask('${task.id}', '${tomorrowStr}')" title="Dời sang ngày mai" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition border">
             Ngày mai
           </button>
-          <button onclick="toggleTaskComplete('${task.id}')" title="Đánh dấu hoàn thành" class="p-1 hover:bg-emerald-100 text-emerald-600 rounded-lg">
+          <button onclick="replanTask('${task.id}', '${nextWeekStr}')" title="Dời sang 7 ngày tới" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition border">
+            Tuần sau (+7d)
+          </button>
+          <input type="date" min="${todayStr}" onchange="replanTask('${task.id}', this.value)" title="Chọn ngày bất kỳ" class="text-xs px-2.5 py-1 border border-slate-300 rounded-xl bg-white cursor-pointer hover:border-blue-400">
+          
+          <button onclick="toggleTaskComplete('${task.id}')" title="Đánh dấu đã hoàn thành" class="p-1.5 hover:bg-emerald-100 text-emerald-600 rounded-lg transition">
             <i data-lucide="check" class="w-4 h-4"></i>
           </button>
-          <button onclick="deleteTask('${task.id}')" title="Xóa bỏ" class="p-1 hover:bg-rose-100 text-rose-500 rounded-lg">
+          <button onclick="deleteTask('${task.id}')" title="Xóa bỏ task này" class="p-1.5 hover:bg-rose-100 text-rose-500 rounded-lg transition">
             <i data-lucide="trash-2" class="w-4 h-4"></i>
           </button>
         </div>
@@ -618,8 +836,9 @@ function renderReplanModalContent() {
   lucide.createIcons();
 }
 
-// --- 8. EXPORT & IMPORT ---
+// --- 8. EXPORT & IMPORT (Chỉ Admin) ---
 function exportData() {
+  if (!state.isAdmin) return;
   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.tasks, null, 2));
   const downloadAnchor = document.createElement('a');
   downloadAnchor.setAttribute("href", dataStr);
@@ -630,6 +849,7 @@ function exportData() {
 }
 
 function importData(file) {
+  if (!state.isAdmin) return;
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
@@ -651,7 +871,6 @@ function importData(file) {
   reader.readAsText(file);
 }
 
-// Utility Escape HTML
 function escapeHtml(text) {
   if (!text) return '';
   return text
@@ -664,6 +883,7 @@ function escapeHtml(text) {
 
 // --- 9. INITIALIZATION & EVENT LISTENERS ---
 function renderApp() {
+  updateAuthUI();
   updateHeaderDisplay();
   updateReplanAlerts();
 
@@ -674,6 +894,7 @@ function renderApp() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  checkAuthStatus();
   loadTasks();
 
   // Chuyển view
@@ -687,6 +908,63 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnToday').addEventListener('click', () => {
     state.currentDate = new Date();
     renderApp();
+  });
+
+  // Auth: Mở Login Modal
+  document.getElementById('btnOpenLoginModal').addEventListener('click', openLoginModal);
+  document.getElementById('btnBannerLogin').addEventListener('click', openLoginModal);
+  document.getElementById('btnCloseLoginModal').addEventListener('click', closeLoginModal);
+  document.getElementById('btnCancelLoginModal').addEventListener('click', closeLoginModal);
+
+  loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const pw = document.getElementById('loginPassword').value;
+    const remember = document.getElementById('rememberMe').checked;
+    if (loginAdmin(pw, remember)) {
+      closeLoginModal();
+      renderApp();
+    } else {
+      document.getElementById('loginErrorMsg').classList.remove('hidden');
+    }
+  });
+
+  // Admin User Dropdown Menu
+  const btnUserMenu = document.getElementById('btnUserMenu');
+  const userDropdown = document.getElementById('userDropdown');
+  btnUserMenu.addEventListener('click', (e) => {
+    e.stopPropagation();
+    userDropdown.classList.toggle('hidden');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!document.getElementById('userMenuContainer').contains(e.target)) {
+      userDropdown.classList.add('hidden');
+    }
+  });
+
+  document.getElementById('btnLogout').addEventListener('click', () => {
+    userDropdown.classList.add('hidden');
+    logoutAdmin();
+  });
+
+  // Đổi mật khẩu
+  document.getElementById('btnOpenChangePwModal').addEventListener('click', openChangePwModal);
+  document.getElementById('btnCloseChangePwModal').addEventListener('click', closeChangePwModal);
+  document.getElementById('btnCancelChangePwModal').addEventListener('click', closeChangePwModal);
+
+  changePwForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const curr = document.getElementById('currentPw').value;
+    const next = document.getElementById('newPw').value;
+    const res = changeAdminPassword(curr, next);
+    const errEl = document.getElementById('changePwErrorMsg');
+    if (res.success) {
+      alert(res.message);
+      closeChangePwModal();
+    } else {
+      errEl.textContent = res.message;
+      errEl.classList.remove('hidden');
+    }
   });
 
   // Modal thêm task
@@ -714,6 +992,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnBannerOpenReplan').addEventListener('click', openReplanModal);
   document.getElementById('btnCloseReplanModal').addEventListener('click', closeReplanModal);
   document.getElementById('btnReplanAllToToday').addEventListener('click', replanAllOverdueToToday);
+  document.getElementById('btnReplanAllToNextWeek').addEventListener('click', replanAllOverdueToNextWeek);
 
   // Export / Import
   document.getElementById('btnExport').addEventListener('click', exportData);
@@ -726,7 +1005,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Render đầu tiên
   renderApp();
   lucide.createIcons();
 });
