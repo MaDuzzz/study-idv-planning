@@ -256,6 +256,7 @@ function initSampleParentTasksIfEmpty() {
       {
         id: 'parent-1',
         title: 'Nghiên cứu & Học thuật',
+        tag: 'NCHT',
         color: 'blue',
         description: 'Mục tiêu nghiên cứu, đọc bài báo, và hoàn thành các môn học chính',
         createdAt: new Date().toISOString()
@@ -263,6 +264,7 @@ function initSampleParentTasksIfEmpty() {
       {
         id: 'parent-2',
         title: 'Ngoại ngữ & Kỹ năng (IELTS / TOEIC)',
+        tag: 'NNKN',
         color: 'emerald',
         description: 'Kế hoạch nâng cao phản xạ từ vựng, ngữ pháp và luyện thi',
         createdAt: new Date().toISOString()
@@ -270,6 +272,7 @@ function initSampleParentTasksIfEmpty() {
       {
         id: 'parent-3',
         title: 'Dự án Công nghệ & Website',
+        tag: 'CNTT',
         color: 'purple',
         description: 'Xây dựng các milestone sản phẩm, tính năng và tối ưu hóa hệ thống',
         createdAt: new Date().toISOString()
@@ -340,19 +343,64 @@ function getParentColorConfig(colorName) {
   return PARENT_COLOR_PALETTES[colorName] || PARENT_COLOR_PALETTES.blue;
 }
 
+// Bỏ dấu tiếng Việt phục vụ tạo mã tag viết tắt
+function removeVietnameseTones(str) {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+}
+
+/**
+ * Tự động sinh mã Tag viết tắt từ Tên Task tổng (tối đa 5 ký tự)
+ * - Nếu nhiều từ (>= 2): lấy chữ cái đầu mỗi từ (VD: "Vault associate" -> "VA", "Nghiên cứu & Học thuật" -> "NCHT")
+ * - Nếu 1 từ: lấy tối đa 5 chữ cái đầu (VD: "Vault" -> "VAULT", "Docker" -> "DOCKE")
+ * - Tối đa 5 ký tự, viết hoa
+ */
+function generateParentTaskTag(title) {
+  if (!title || !title.trim()) return '';
+  const cleanStr = removeVietnameseTones(title.trim());
+  const words = cleanStr
+    .split(/[\s\-_,.:;+&/\\()]+/)
+    .map(w => w.replace(/[^a-zA-Z0-9]/g, ''))
+    .filter(w => w.length > 0);
+
+  if (words.length === 0) return '';
+  if (words.length === 1) {
+    return words[0].slice(0, 5).toUpperCase();
+  }
+  const tag = words.map(w => w[0]).join('');
+  return tag.slice(0, 5).toUpperCase();
+}
+
+/**
+ * Lấy mã Tag của Task tổng (ưu tiên parent.tag, nếu chưa có thì tự động sinh từ parent.title)
+ */
+function getParentTag(parent) {
+  if (!parent) return '';
+  if (parent.tag && parent.tag.trim()) return parent.tag.trim().toUpperCase().slice(0, 5);
+  return generateParentTaskTag(parent.title || '');
+}
+
+/**
+ * Tạo badge hiển thị mã Tag viết tắt của Task tổng cho Subtask
+ */
 function getParentBadgeHtml(task) {
   if (task.parentId) {
     const parent = getParentTask(task.parentId);
     if (parent) {
       const palette = getParentColorConfig(parent.color);
-      return `<span class="px-2.5 py-0.5 text-xs font-bold rounded-md flex items-center gap-1.5 shrink-0 ${palette.badge}" title="Task tổng: ${escapeHtml(parent.title)}">
+      const tag = getParentTag(parent);
+      return `<span class="px-2 py-0.5 text-xs font-black font-mono tracking-wide rounded-md flex items-center gap-1 shrink-0 ${palette.badge}" title="Task tổng: ${escapeHtml(parent.title)}">
         <span class="w-1.5 h-1.5 rounded-full ${palette.dot} shrink-0"></span>
-        <span class="truncate max-w-[130px]">${escapeHtml(parent.title)}</span>
+        <span>${escapeHtml(tag)}</span>
       </span>`;
     }
   }
   if (task.category) {
-    return `<span class="px-2.5 py-0.5 text-xs font-semibold rounded-md bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700/80">${escapeHtml(task.category)}</span>`;
+    return `<span class="px-2 py-0.5 text-xs font-semibold rounded-md bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700/80">${escapeHtml(task.category)}</span>`;
   }
   return '';
 }
@@ -1236,6 +1284,7 @@ function renderMonthView() {
 
               const parent = t.parentId ? getParentTask(t.parentId) : null;
               const palette = parent ? getParentColorConfig(parent.color) : null;
+              const parentTag = parent ? getParentTag(parent) : '';
 
               if (t.completed) {
                 pillClasses = 'bg-slate-100 dark:bg-slate-700/90 text-slate-600 dark:text-slate-200 line-through border border-slate-200 dark:border-slate-600 font-medium';
@@ -1264,9 +1313,10 @@ function renderMonthView() {
                   ondragend="handleDragEnd(event)"
                   onclick="event.stopPropagation(); openTaskDetailModal('${t.id}')"
                   class="text-[11px] px-2 py-0.5 rounded-md truncate transition-colors flex items-center cursor-pointer hover:opacity-85 ${pillClasses}"
-                  title="${escapeHtml(t.title)} (Bấm để xem chi tiết & tài liệu)"
+                  title="${escapeHtml(t.title)}${parent ? ` [${escapeHtml(parent.title)}]` : ''} (Bấm để xem chi tiết & tài liệu)"
                 >
                   ${prefixIcon}
+                  ${parentTag ? `<span class="font-mono font-black mr-1 text-[10px] opacity-90 shrink-0">[${escapeHtml(parentTag)}]</span>` : ''}
                   <span class="truncate flex-1">${escapeHtml(t.title)}</span>
                   ${docIndicator}
                   ${linkIndicator}
@@ -1416,7 +1466,8 @@ function populateParentSelectOptions(selectEl, selectedParentId = '') {
   let html = `<option value="">(Không chọn - Task này sẽ là Task tổng mới)</option>`;
   state.parentTasks.forEach(p => {
     const isSelected = p.id === selectedParentId ? 'selected' : '';
-    html += `<option value="${p.id}" ${isSelected}>📁 ${escapeHtml(p.title)}</option>`;
+    const tag = getParentTag(p);
+    html += `<option value="${p.id}" ${isSelected}>📁 [${escapeHtml(tag)}] ${escapeHtml(p.title)}</option>`;
   });
   selectEl.innerHTML = html;
 }
@@ -1460,7 +1511,8 @@ function openAddTaskModal(initialDate = null) {
       state.parentTasks.forEach(parent => {
         const groupTasks = unscheduledTasks.filter(t => t.parentId === parent.id);
         if (groupTasks.length > 0) {
-          optHtml += `<optgroup label="📂 ${escapeHtml(parent.title)}">`;
+          const tag = getParentTag(parent);
+          optHtml += `<optgroup label="📂 [${escapeHtml(tag)}] ${escapeHtml(parent.title)}">`;
           groupTasks.forEach(t => {
             const pBadge = t.priority === 'high' ? '🔥 Cao' : (t.priority === 'low' ? 'Thấp' : 'Bình thường');
             optHtml += `<option value="${t.id}">${escapeHtml(t.title)} (${pBadge})</option>`;
@@ -1711,6 +1763,9 @@ function renderTaskManagerContent() {
             <div class="min-w-0">
               <div class="flex items-center gap-2.5 flex-wrap">
                 <h3 class="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-snug">${escapeHtml(parent.title)}</h3>
+                <span class="px-2.5 py-0.5 text-xs font-mono font-black rounded-md ${palette.badge}">
+                  #${escapeHtml(getParentTag(parent))}
+                </span>
                 <span class="px-2.5 py-0.5 text-xs font-extrabold rounded-md ${palette.badge}">
                   ${parentCompletedCount}/${allParentSubtasks.length} task (${parentPct}%)
                 </span>
@@ -1725,7 +1780,7 @@ function renderTaskManagerContent() {
               <i data-lucide="plus" class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400"></i>
               <span>Thêm task con</span>
             </button>
-            <button onclick="openEditParentTaskModal('${parent.id}')" title="Sửa tên hoặc màu Task tổng" class="p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 rounded-xl hover:bg-white/80 dark:hover:bg-slate-800 transition">
+            <button onclick="openEditParentTaskModal('${parent.id}')" title="Sửa tên, tag hoặc màu Task tổng" class="p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 rounded-xl hover:bg-white/80 dark:hover:bg-slate-800 transition">
               <i data-lucide="edit-3" class="w-4 h-4"></i>
             </button>
             <button onclick="deleteParentTask('${parent.id}')" title="Xóa Task tổng này" class="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition">
@@ -1823,6 +1878,7 @@ function renderTaskManagerSubtaskRow(task) {
             <span onclick="openTaskDetailModal('${task.id}')" class="text-sm font-bold cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 break-words ${task.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-slate-100'}">
               ${escapeHtml(task.title)}
             </span>
+            ${getParentBadgeHtml(task)}
             ${priorityBadge}
             ${docBadge}
             ${linksBadge}
@@ -1877,6 +1933,16 @@ function selectParentColor(colorKey) {
   renderParentColorPicker(colorKey);
 }
 
+let isParentTagManuallyEdited = false;
+
+function updateParentTagCharCount() {
+  const tagInput = document.getElementById('parentTaskTagInput');
+  const countEl = document.getElementById('parentTagCharCount');
+  if (tagInput && countEl) {
+    countEl.textContent = `${tagInput.value.length}/5`;
+  }
+}
+
 function openAddParentTaskModal() {
   if (!state.isAdmin) {
     openLoginModal();
@@ -1886,6 +1952,12 @@ function openAddParentTaskModal() {
   document.getElementById('parentTaskId').value = '';
   document.getElementById('parentTaskModalTitle').textContent = 'Thêm Task tổng mới';
   document.getElementById('selectedParentColor').value = 'blue';
+
+  const tagInput = document.getElementById('parentTaskTagInput');
+  if (tagInput) tagInput.value = '';
+  isParentTagManuallyEdited = false;
+  updateParentTagCharCount();
+
   renderParentColorPicker('blue');
   parentTaskModal.classList.remove('hidden');
   document.getElementById('parentTaskTitleInput').focus();
@@ -1904,6 +1976,13 @@ function openEditParentTaskModal(parentId) {
   document.getElementById('parentTaskDescInput').value = parent.description || '';
   document.getElementById('selectedParentColor').value = parent.color || 'blue';
   document.getElementById('parentTaskModalTitle').textContent = 'Chỉnh sửa Task tổng';
+
+  const tagInput = document.getElementById('parentTaskTagInput');
+  if (tagInput) {
+    tagInput.value = getParentTag(parent);
+    isParentTagManuallyEdited = true; // Giữ nguyên tag khi mở sửa, người dùng có thể bấm Tự sinh lại nếu muốn
+    updateParentTagCharCount();
+  }
   
   renderParentColorPicker(parent.color || 'blue');
   parentTaskModal.classList.remove('hidden');
@@ -1929,10 +2008,15 @@ async function handleSaveParentTask(e) {
     return;
   }
 
+  const tagInput = document.getElementById('parentTaskTagInput');
+  let tag = (tagInput ? tagInput.value.trim() : '') || generateParentTaskTag(title) || 'TASK';
+  tag = tag.toUpperCase().slice(0, 5);
+
   if (id) {
     const parent = state.parentTasks.find(p => p.id === id);
     if (parent) {
       parent.title = title;
+      parent.tag = tag;
       parent.color = color;
       parent.description = description;
       await saveSingleParentTask(parent);
@@ -1941,6 +2025,7 @@ async function handleSaveParentTask(e) {
     const newParent = {
       id: 'parent_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
       title,
+      tag,
       color,
       description,
       createdAt: new Date().toISOString()
@@ -2225,7 +2310,8 @@ function openTaskDetailModal(taskId) {
     const parent = getParentTask(task.parentId);
     if (parent) {
       const palette = getParentColorConfig(parent.color);
-      catEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${palette.dot}"></span> ${escapeHtml(parent.title)}`;
+      const tag = getParentTag(parent);
+      catEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${palette.dot}"></span> <span class="font-mono font-black mr-1">[${escapeHtml(tag)}]</span> ${escapeHtml(parent.title)}`;
       catEl.className = `text-xs px-2.5 py-1 rounded-md font-bold flex items-center gap-1.5 ${palette.badge}`;
       catEl.classList.remove('hidden');
     } else {
@@ -2428,6 +2514,38 @@ async function handleImportDocx(file) {
   }
 }
 
+function buildTaskDocxHtml(task, editorHtml) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(task.title)}</title>
+  <style>
+    body { font-family: 'Calibri', 'Arial', sans-serif; font-size: 11pt; line-height: 1.6; color: #1e293b; }
+    h1 { font-size: 20pt; color: #1e40af; margin-top: 18pt; margin-bottom: 6pt; }
+    h2 { font-size: 16pt; color: #1e3a8a; margin-top: 14pt; margin-bottom: 5pt; }
+    h3 { font-size: 13pt; color: #2563eb; margin-top: 10pt; margin-bottom: 4pt; }
+    p { margin-bottom: 8pt; }
+    ul, ol { margin-left: 24pt; margin-bottom: 8pt; }
+    table { border-collapse: collapse; width: 100%; margin: 12pt 0; }
+    th, td { border: 1px solid #94a3b8; padding: 6pt 10pt; text-align: left; }
+    th { background-color: #f1f5f9; font-weight: bold; }
+    blockquote { border-left: 3pt solid #3b82f6; padding-left: 10pt; margin: 10pt 0; color: #64748b; font-style: italic; }
+  </style>
+</head>
+<body>
+  <h1 style="color: #1e40af; border-bottom: 2pt solid #2563eb; padding-bottom: 4pt;">${escapeHtml(task.title)}</h1>
+  <p style="color: #64748b; font-size: 9pt;">
+    <strong>Kế hoạch:</strong> ${task.date || 'Chưa lên lịch'} &nbsp;|&nbsp; 
+    <strong>Danh mục / Task tổng:</strong> ${escapeHtml(task.category || 'Không')} &nbsp;|&nbsp; 
+    <strong>Mức độ:</strong> ${task.priority || 'Bình thường'}
+  </p>
+  <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 14pt;" />
+  ${editorHtml || '<p></p>'}
+</body>
+</html>`;
+}
+
 // Xuất file DOCX tải về máy qua html-docx-js và FileSaver
 function handleExportDocx() {
   if (!state.activeDetailTaskId) return;
@@ -2440,38 +2558,7 @@ function handleExportDocx() {
   if (!fileName.endsWith('.docx')) fileName += '.docx';
 
   const editorHtml = editor.innerHTML || '<p></p>';
-
-  const fullHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>${escapeHtml(task.title)}</title>
-      <style>
-        body { font-family: 'Calibri', 'Arial', sans-serif; font-size: 11pt; line-height: 1.6; color: #1e293b; }
-        h1 { font-size: 20pt; color: #1e40af; margin-top: 18pt; margin-bottom: 6pt; }
-        h2 { font-size: 16pt; color: #1e3a8a; margin-top: 14pt; margin-bottom: 5pt; }
-        h3 { font-size: 13pt; color: #2563eb; margin-top: 10pt; margin-bottom: 4pt; }
-        p { margin-bottom: 8pt; }
-        ul, ol { margin-left: 24pt; margin-bottom: 8pt; }
-        table { border-collapse: collapse; width: 100%; margin: 12pt 0; }
-        th, td { border: 1px solid #94a3b8; padding: 6pt 10pt; text-align: left; }
-        th { background-color: #f1f5f9; font-weight: bold; }
-        blockquote { border-left: 3pt solid #3b82f6; padding-left: 10pt; margin: 10pt 0; color: #64748b; font-style: italic; }
-      </style>
-    </head>
-    <body>
-      <h1 style="color: #1e40af; border-bottom: 2pt solid #2563eb; padding-bottom: 4pt;">${escapeHtml(task.title)}</h1>
-      <p style="color: #64748b; font-size: 9pt;">
-        <strong>Kế hoạch:</strong> ${task.date} &nbsp;|&nbsp; 
-        <strong>Danh mục:</strong> ${escapeHtml(task.category || 'Không')} &nbsp;|&nbsp; 
-        <strong>Mức độ:</strong> ${task.priority || 'Bình thường'}
-      </p>
-      <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 14pt;" />
-      ${editorHtml}
-    </body>
-    </html>
-  `;
+  const fullHtml = buildTaskDocxHtml(task, editorHtml);
 
   try {
     if (window.htmlDocx && window.saveAs) {
@@ -2520,7 +2607,7 @@ async function handleSaveToGoogleDrive() {
     if (!fileName.endsWith('.docx')) fileName += '.docx';
 
     const editorHtml = editor.innerHTML || '<p></p>';
-    const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(task.title)}</title></head><body><h2>${escapeHtml(task.title)}</h2><p>Ngày: ${task.date}</p><hr/>${editorHtml}</body></html>`;
+    const fullHtml = buildTaskDocxHtml(task, editorHtml);
 
     let contentBlob;
     if (window.htmlDocx) {
@@ -2562,9 +2649,10 @@ async function handleSaveToGoogleDrive() {
     if (!task.document) task.document = {};
     task.document.driveFileId = driveResult.fileId;
     task.document.driveWebViewLink = driveResult.webViewLink;
-    task.document.driveFolderId = driveResult.folderId;
+    task.document.driveFolderId = driveResult.folderId || null;
     task.document.fileName = fileName;
     task.document.contentHtml = editorHtml;
+    task.document.lastSaved = new Date().toISOString();
 
     await saveSingleTask(task);
 
@@ -2952,6 +3040,37 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnCloseParent) btnCloseParent.addEventListener('click', closeParentTaskModal);
   const btnCancelParent = document.getElementById('btnCancelParentTaskModal');
   if (btnCancelParent) btnCancelParent.addEventListener('click', closeParentTaskModal);
+
+  const parentTitleInput = document.getElementById('parentTaskTitleInput');
+  const parentTagInput = document.getElementById('parentTaskTagInput');
+  const btnRegenParentTag = document.getElementById('btnRegenParentTag');
+
+  if (parentTitleInput && parentTagInput) {
+    // Khi gõ tên Task tổng -> Tự động sinh mã Tag nếu chưa bị người dùng sửa tay
+    parentTitleInput.addEventListener('input', () => {
+      if (!isParentTagManuallyEdited || !parentTagInput.value.trim()) {
+        parentTagInput.value = generateParentTaskTag(parentTitleInput.value);
+        updateParentTagCharCount();
+      }
+    });
+
+    // Khi người dùng tự tay sửa mã Tag
+    parentTagInput.addEventListener('input', () => {
+      parentTagInput.value = parentTagInput.value.toUpperCase().slice(0, 5);
+      isParentTagManuallyEdited = true;
+      updateParentTagCharCount();
+    });
+  }
+
+  // Nút bấm Tự sinh lại (Gợi ý tự động)
+  if (btnRegenParentTag && parentTagInput && parentTitleInput) {
+    btnRegenParentTag.addEventListener('click', () => {
+      parentTagInput.value = generateParentTaskTag(parentTitleInput.value);
+      isParentTagManuallyEdited = false;
+      updateParentTagCharCount();
+      parentTagInput.focus();
+    });
+  }
 
   if (formParentTask) {
     formParentTask.addEventListener('submit', handleSaveParentTask);

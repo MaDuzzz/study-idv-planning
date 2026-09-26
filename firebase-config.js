@@ -167,13 +167,31 @@ function listenToUserTasks(userId, onUpdateCallback, onErrorCallback) {
 }
 
 /**
+ * Hàm làm sạch dữ liệu trước khi lưu Firestore (loại bỏ hoàn toàn các trường undefined tránh gây lỗi SDK)
+ */
+function sanitizeForFirestore(data) {
+  if (data === null || data === undefined) return null;
+  if (typeof data !== 'object') return data;
+  if (Array.isArray(data)) {
+    return data.map(sanitizeForFirestore);
+  }
+  const clean = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined) {
+      clean[key] = sanitizeForFirestore(value);
+    }
+  }
+  return clean;
+}
+
+/**
  * Lưu hoặc cập nhật một task lên Firestore của người dùng hiện tại
  */
 async function saveTaskToFirestore(userId, task) {
   if (!firebaseDb || !userId) return false;
 
   const taskRef = firebaseDb.collection('users').doc(userId).collection('tasks').doc(task.id);
-  const taskData = { ...task };
+  const taskData = sanitizeForFirestore(task);
   delete taskData.id; // ID đã nằm trong doc key
 
   await taskRef.set(taskData, { merge: true });
@@ -222,7 +240,7 @@ async function saveParentTaskToFirestore(userId, parentTask) {
   if (!firebaseDb || !userId) return false;
 
   const pRef = firebaseDb.collection('users').doc(userId).collection('parentTasks').doc(parentTask.id);
-  const pData = { ...parentTask };
+  const pData = sanitizeForFirestore(parentTask);
   delete pData.id;
 
   await pRef.set(pData, { merge: true });
@@ -335,34 +353,33 @@ async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/htm
     metadata.parents = [targetFolderId];
   }
 
-  // Sử dụng Multipart Upload của Drive API v3
+  // Sử dụng Multipart Upload chuẩn của Google Drive API v3 (RFC 2387)
   const boundary = '-------314159265358979323846';
-  const delimiter = `\r\n--${boundary}\r\n`;
-  const closeDelimiter = `\r\n--${boundary}--`;
 
-  let bodyData;
+  let fileBlob;
   if (content instanceof Blob) {
-    const arrayBuffer = await content.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    bodyData = binary;
+    fileBlob = content;
+  } else if (typeof content === 'string') {
+    fileBlob = new Blob([content], { type: mimeType });
   } else {
-    bodyData = content;
+    fileBlob = new Blob([content], { type: mimeType });
   }
 
-  const multipartRequestBody =
-    delimiter +
+  const metadataHeader = 
+    `--${boundary}\r\n` +
     'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
     JSON.stringify(metadata) +
-    delimiter +
-    `Content-Type: ${mimeType}\r\n` +
-    (content instanceof Blob ? 'Content-Transfer-Encoding: base64\r\n' : '') +
-    '\r\n' +
-    (content instanceof Blob ? btoa(bodyData) : bodyData) +
-    closeDelimiter;
+    `\r\n--${boundary}\r\n` +
+    `Content-Type: ${mimeType}\r\n\r\n`;
+
+  const closeFooter = `\r\n--${boundary}--`;
+
+  // Ghép các phần thành một Blob nhị phân nguyên bản (giữ nguyên cấu trúc file Word .docx / zip)
+  const multipartBlob = new Blob([
+    metadataHeader,
+    fileBlob,
+    closeFooter
+  ], { type: `multipart/related; boundary=${boundary}` });
 
   const url = existingFileId
     ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`
@@ -374,7 +391,7 @@ async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/htm
       Authorization: `Bearer ${token}`,
       'Content-Type': `multipart/related; boundary=${boundary}`
     },
-    body: multipartRequestBody
+    body: multipartBlob
   });
 
   if (!response.ok) {
@@ -387,7 +404,8 @@ async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/htm
     fileId: fileData.id,
     fileName: fileData.name,
     webViewLink: fileData.webViewLink,
-    modifiedTime: fileData.modifiedTime
+    modifiedTime: fileData.modifiedTime,
+    folderId: targetFolderId || null
   };
 }
 
