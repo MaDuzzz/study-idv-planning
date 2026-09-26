@@ -91,26 +91,47 @@
     .doc-editor {
       min-height: 480px;
       outline: none;
-      font-size: 15px;
-      line-height: 1.75;
+      font-family: 'Times New Roman', Times, Georgia, serif;
+      font-size: 17.33px; /* 13pt */
+      font-weight: 400; /* normal */
+      line-height: 1.6;
+    }
+    .doc-editor p, .doc-editor li {
+      font-family: 'Times New Roman', Times, Georgia, serif;
+      font-size: 17.33px;
+      font-weight: 400;
+      line-height: 1.6;
     }
     .doc-editor:empty:before {
       content: attr(data-placeholder);
       color: #94a3b8;
       pointer-events: none;
+      font-family: 'Times New Roman', Times, Georgia, serif;
+      font-style: italic;
     }
     html.dark .doc-editor:empty:before {
       color: #64748b;
     }
-    .doc-editor h1 { font-size: 1.65rem; font-weight: 800; margin-top: 1rem; margin-bottom: 0.5rem; line-height: 1.3; }
-    .doc-editor h2 { font-size: 1.35rem; font-weight: 700; margin-top: 0.85rem; margin-bottom: 0.4rem; line-height: 1.35; }
-    .doc-editor h3 { font-size: 1.15rem; font-weight: 600; margin-top: 0.75rem; margin-bottom: 0.35rem; line-height: 1.4; }
+    .doc-editor h1 { font-family: 'Times New Roman', Times, serif; font-size: 26.66px; font-weight: 700; margin-top: 1rem; margin-bottom: 0.5rem; line-height: 1.3; }
+    .doc-editor h2 { font-family: 'Times New Roman', Times, serif; font-size: 21.33px; font-weight: 700; margin-top: 0.85rem; margin-bottom: 0.4rem; line-height: 1.35; }
+    .doc-editor h3 { font-family: 'Times New Roman', Times, serif; font-size: 18.66px; font-weight: 600; margin-top: 0.75rem; margin-bottom: 0.35rem; line-height: 1.4; }
     .doc-editor p { margin-bottom: 0.65rem; line-height: 1.6; }
-    .doc-editor ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.65rem; }
-    .doc-editor ol { list-style-type: decimal; margin-left: 1.5rem; margin-bottom: 0.65rem; }
+    .doc-editor ul { list-style-type: disc; margin-left: 1.75rem; margin-bottom: 0.65rem; }
+    .doc-editor ol { list-style-type: decimal; margin-left: 1.75rem; margin-bottom: 0.65rem; }
+    .doc-editor ul[data-bullet="star"] { list-style-type: '★  '; }
+    .doc-editor ul[data-bullet="check"] { list-style-type: '✔  '; }
+    .doc-editor ul[data-bullet="arrow"] { list-style-type: '➔  '; }
+    .doc-editor ul[data-bullet="square"], .doc-editor ul[type="square"] { list-style-type: square; }
+    .doc-editor ul[data-bullet="circle"], .doc-editor ul[type="circle"] { list-style-type: circle; }
+    .doc-editor ol[type="a"] { list-style-type: lower-alpha; }
+    .doc-editor ol[type="A"] { list-style-type: upper-alpha; }
+    .doc-editor ol[type="i"] { list-style-type: lower-roman; }
+    .doc-editor ol[type="I"] { list-style-type: upper-roman; }
+    .doc-editor ol[type="1"] { list-style-type: decimal; }
+    .doc-editor li { margin-bottom: 0.25rem; }
     .doc-editor blockquote { border-left: 4px solid #3b82f6; padding-left: 1rem; margin: 0.75rem 0; font-style: italic; color: #475569; }
     html.dark .doc-editor blockquote { border-left-color: #60a5fa; color: #94a3b8; }
-    .doc-editor table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    .doc-editor table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: 'Times New Roman', Times, serif; font-size: 17.33px; }
     .doc-editor table th, .doc-editor table td { border: 1px solid #cbd5e1; padding: 8px 12px; }
     html.dark .doc-editor table th, html.dark .doc-editor table td { border-color: #475569; }
     .doc-editor table th { background: #f8fafc; font-weight: 700; }
@@ -998,13 +1019,78 @@
 
             <span class="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-0.5"></span>
 
-            <!-- Danh sách & Thụt lề nhiều cấp (Multi-level Indent) -->
-            <button type="button" data-cmd="insertUnorderedList" title="Danh sách gạch đầu dòng" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
-              <i data-lucide="list" class="w-4 h-4"></i>
-            </button>
-            <button type="button" data-cmd="insertOrderedList" title="Danh sách đánh số" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
-              <i data-lucide="list-ordered" class="w-4 h-4"></i>
-            </button>
+            <!-- Danh sách Bullet & Menu mở rộng (•, ★, ✔, ▪, ➔) -->
+            <div class="relative inline-flex items-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-750 transition" id="bulletGroupWrapper">
+              <button type="button" data-cmd="insertUnorderedList" title="Danh sách gạch đầu dòng (•)" class="p-1.5 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400">
+                <i data-lucide="list" class="w-4 h-4"></i>
+              </button>
+              <button type="button" id="btnToggleBulletMenu" title="Chọn kiểu ký hiệu đầu dòng (★, ✔, ▪, ➔...)" class="p-1 -ml-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
+                <i data-lucide="chevron-down" class="w-3 h-3"></i>
+              </button>
+
+              <!-- Dropdown Menu Bullet Styles -->
+              <div id="dropdownBulletMenu" class="hidden absolute left-0 top-full mt-1.5 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1.5 z-50 text-xs">
+                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition" data-bullet-type="disc">
+                  <span class="w-5 text-center font-bold text-base leading-none">•</span>
+                  <span>Chấm tròn (Disc)</span>
+                </button>
+                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition text-amber-500 font-bold" data-bullet-type="star">
+                  <span class="w-5 text-center font-bold text-base leading-none">★</span>
+                  <span class="text-slate-800 dark:text-slate-200 font-normal">Ngôi sao (Star bullet)</span>
+                </button>
+                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition text-emerald-600 dark:text-emerald-400 font-bold" data-bullet-type="check">
+                  <span class="w-5 text-center font-bold text-base leading-none">✔</span>
+                  <span class="text-slate-800 dark:text-slate-200 font-normal">Dấu kiểm (Checkmark)</span>
+                </button>
+                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition" data-bullet-type="square">
+                  <span class="w-5 text-center font-bold text-sm leading-none">▪</span>
+                  <span>Hình vuông (Square)</span>
+                </button>
+                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition text-blue-500 font-bold" data-bullet-type="arrow">
+                  <span class="w-5 text-center font-bold text-sm leading-none">➔</span>
+                  <span class="text-slate-800 dark:text-slate-200 font-normal">Mũi tên (Arrow)</span>
+                </button>
+                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition" data-bullet-type="circle">
+                  <span class="w-5 text-center font-bold text-sm leading-none">○</span>
+                  <span>Vòng tròn rỗng (Circle)</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Danh sách Đánh số & Menu mở rộng (1, 2, 3 / a, b, c / A, B, C / i, ii, iii...) -->
+            <div class="relative inline-flex items-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-750 transition" id="numberGroupWrapper">
+              <button type="button" data-cmd="insertOrderedList" title="Danh sách đánh số (1, 2, 3)" class="p-1.5 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400">
+                <i data-lucide="list-ordered" class="w-4 h-4"></i>
+              </button>
+              <button type="button" id="btnToggleNumberMenu" title="Chọn kiểu đánh số (1, 2, 3 / a, b, c / i, ii, iii...)" class="p-1 -ml-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
+                <i data-lucide="chevron-down" class="w-3 h-3"></i>
+              </button>
+
+              <!-- Dropdown Menu Number Styles -->
+              <div id="dropdownNumberMenu" class="hidden absolute left-0 top-full mt-1.5 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1.5 z-50 text-xs">
+                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition" data-number-type="1">
+                  <span class="w-6 font-bold text-slate-900 dark:text-white">1, 2, 3</span>
+                  <span>Số thập phân</span>
+                </button>
+                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition" data-number-type="a">
+                  <span class="w-6 font-bold text-blue-600 dark:text-blue-400">a, b, c</span>
+                  <span>Chữ cái thường</span>
+                </button>
+                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition" data-number-type="A">
+                  <span class="w-6 font-bold text-blue-600 dark:text-blue-400">A, B, C</span>
+                  <span>Chữ cái hoa</span>
+                </button>
+                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition" data-number-type="i">
+                  <span class="w-6 font-bold text-emerald-600 dark:text-emerald-400">i, ii, iii</span>
+                  <span>Số La Mã thường</span>
+                </button>
+                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition" data-number-type="I">
+                  <span class="w-6 font-bold text-emerald-600 dark:text-emerald-400">I, II, III</span>
+                  <span>Số La Mã hoa</span>
+                </button>
+              </div>
+            </div>
+
             <button type="button" data-cmd="outdent" title="Giảm thụt lề (Shift+Tab)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
               <i data-lucide="outdent" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
             </button>
@@ -1258,7 +1344,7 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=4.6"></script>
-  <script src="app.js?v=4.6"></script>
+  <script src="firebase-config.js?v=4.7"></script>
+  <script src="app.js?v=4.7"></script>
 </body>
 </html>

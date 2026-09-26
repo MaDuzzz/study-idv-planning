@@ -3040,23 +3040,35 @@ function buildTaskDocxHtml(task, editorHtml) {
   <meta charset="utf-8">
   <title>${escapeHtml(task.title)}</title>
   <style>
-    body { font-family: 'Calibri', 'Arial', sans-serif; font-size: 11pt; line-height: 1.6; color: #1e293b; padding: 10pt; }
-    h1 { font-size: 20pt; color: #1e40af; margin-top: 18pt; margin-bottom: 6pt; }
-    h2 { font-size: 16pt; color: #1e3a8a; margin-top: 14pt; margin-bottom: 5pt; }
-    h3 { font-size: 13pt; color: #2563eb; margin-top: 10pt; margin-bottom: 4pt; }
-    p { margin-bottom: 8pt; line-height: 1.6; }
+    body { font-family: 'Times New Roman', Times, serif; font-size: 13pt; font-weight: normal; line-height: 1.5; color: #1e293b; padding: 12pt; }
+    p, li, td, th, div, span { font-family: 'Times New Roman', Times, serif; font-size: 13pt; font-weight: normal; line-height: 1.5; }
+    h1 { font-family: 'Times New Roman', Times, serif; font-size: 20pt; font-weight: bold; color: #1e40af; margin-top: 18pt; margin-bottom: 6pt; }
+    h2 { font-family: 'Times New Roman', Times, serif; font-size: 16pt; font-weight: bold; color: #1e3a8a; margin-top: 14pt; margin-bottom: 5pt; }
+    h3 { font-family: 'Times New Roman', Times, serif; font-size: 14pt; font-weight: bold; color: #2563eb; margin-top: 10pt; margin-bottom: 4pt; }
+    p { margin-bottom: 8pt; line-height: 1.5; }
     ul, ol { margin-left: 24pt; margin-bottom: 8pt; }
-    table { border-collapse: collapse; width: 100%; margin: 12pt 0; }
+    li { margin-bottom: 4pt; }
+    ul[data-bullet="star"], .list-star { list-style-type: '★  '; }
+    ul[data-bullet="check"], .list-check { list-style-type: '✔  '; }
+    ul[data-bullet="arrow"], .list-arrow { list-style-type: '➔  '; }
+    ul[type="square"], .list-square { list-style-type: square; }
+    ul[type="circle"], .list-circle { list-style-type: circle; }
+    ol[type="a"] { list-style-type: lower-alpha; }
+    ol[type="A"] { list-style-type: upper-alpha; }
+    ol[type="i"] { list-style-type: lower-roman; }
+    ol[type="I"] { list-style-type: upper-roman; }
+    ol[type="1"] { list-style-type: decimal; }
+    table { border-collapse: collapse; width: 100%; margin: 12pt 0; font-family: 'Times New Roman', Times, serif; font-size: 13pt; }
     th, td { border: 1px solid #94a3b8; padding: 6pt 10pt; text-align: left; }
     th { background-color: #f1f5f9; font-weight: bold; }
     blockquote { border-left: 3pt solid #3b82f6; padding-left: 10pt; margin: 10pt 0; color: #64748b; font-style: italic; }
     img { max-width: 100% !important; height: auto !important; display: block; margin: 12pt auto; border-radius: 4pt; }
-    pre, code { font-family: 'Consolas', 'Courier New', monospace; background-color: #f1f5f9; padding: 2pt 4pt; border-radius: 3pt; font-size: 10pt; }
+    pre, code { font-family: 'Consolas', 'Courier New', monospace; background-color: #f1f5f9; padding: 2pt 4pt; border-radius: 3pt; font-size: 10.5pt; }
   </style>
 </head>
 <body>
-  <h1 style="color: #1e40af; border-bottom: 2pt solid #2563eb; padding-bottom: 4pt;">${escapeHtml(task.title)}</h1>
-  <p style="color: #64748b; font-size: 9pt;">
+  <h1 style="color: #1e40af; border-bottom: 2pt solid #2563eb; padding-bottom: 4pt; font-family: 'Times New Roman', Times, serif;">${escapeHtml(task.title)}</h1>
+  <p style="color: #64748b; font-size: 10pt; font-family: 'Times New Roman', Times, serif;">
     <strong>Kế hoạch:</strong> ${task.date || 'Chưa lên lịch'} &nbsp;|&nbsp; 
     <strong>Parent Task:</strong> ${escapeHtml(parentTitle)} &nbsp;|&nbsp; 
     <strong>Mức độ:</strong> ${task.priority === 'high' ? '🔥 Ưu tiên cao' : (task.priority === 'low' ? 'Thấp' : 'Bình thường')}
@@ -4246,6 +4258,147 @@ document.addEventListener('DOMContentLoaded', () => {
       const cmd = btn.getAttribute('data-cmd');
       document.execCommand(cmd, false, null);
       triggerDocAutoSave();
+    });
+  });
+
+  // --- XỬ LÝ ĐA DẠNG KIỂU DANH SÁCH (STAR, CHECKMARK, SQUARE, ARROW, A-B-C, I-II-III) ---
+  function applyBulletStyle(styleType) {
+    const editor = document.getElementById('taskDocEditor');
+    editor.focus();
+
+    const sel = window.getSelection();
+    let listEl = null;
+    if (sel && sel.anchorNode) {
+      let node = sel.anchorNode;
+      if (node.nodeType === 3) node = node.parentNode;
+      listEl = node.closest('ul');
+    }
+
+    if (!listEl) {
+      document.execCommand('insertUnorderedList', false, null);
+      const newSel = window.getSelection();
+      if (newSel && newSel.anchorNode) {
+        let node = newSel.anchorNode;
+        if (node.nodeType === 3) node = node.parentNode;
+        listEl = node.closest('ul');
+      }
+    }
+
+    if (listEl) {
+      listEl.removeAttribute('data-bullet');
+      listEl.removeAttribute('type');
+
+      if (styleType === 'star') {
+        listEl.setAttribute('data-bullet', 'star');
+        listEl.style.listStyleType = "'★  '";
+      } else if (styleType === 'check') {
+        listEl.setAttribute('data-bullet', 'check');
+        listEl.style.listStyleType = "'✔  '";
+      } else if (styleType === 'arrow') {
+        listEl.setAttribute('data-bullet', 'arrow');
+        listEl.style.listStyleType = "'➔  '";
+      } else if (styleType === 'square') {
+        listEl.setAttribute('type', 'square');
+        listEl.setAttribute('data-bullet', 'square');
+        listEl.style.listStyleType = 'square';
+      } else if (styleType === 'circle') {
+        listEl.setAttribute('type', 'circle');
+        listEl.setAttribute('data-bullet', 'circle');
+        listEl.style.listStyleType = 'circle';
+      } else {
+        listEl.setAttribute('type', 'disc');
+        listEl.style.listStyleType = 'disc';
+      }
+      triggerDocAutoSave();
+    }
+  }
+
+  function applyNumberStyle(numberType) {
+    const editor = document.getElementById('taskDocEditor');
+    editor.focus();
+
+    const sel = window.getSelection();
+    let listEl = null;
+    if (sel && sel.anchorNode) {
+      let node = sel.anchorNode;
+      if (node.nodeType === 3) node = node.parentNode;
+      listEl = node.closest('ol');
+    }
+
+    if (!listEl) {
+      document.execCommand('insertOrderedList', false, null);
+      const newSel = window.getSelection();
+      if (newSel && newSel.anchorNode) {
+        let node = newSel.anchorNode;
+        if (node.nodeType === 3) node = node.parentNode;
+        listEl = node.closest('ol');
+      }
+    }
+
+    if (listEl) {
+      listEl.setAttribute('type', numberType);
+      const styleMap = {
+        '1': 'decimal',
+        'a': 'lower-alpha',
+        'A': 'upper-alpha',
+        'i': 'lower-roman',
+        'I': 'upper-roman'
+      };
+      listEl.style.listStyleType = styleMap[numberType] || 'decimal';
+      triggerDocAutoSave();
+    }
+  }
+
+  // Toggle dropdown Bullet Styles
+  const btnToggleBullet = document.getElementById('btnToggleBulletMenu');
+  const dropdownBullet = document.getElementById('dropdownBulletMenu');
+  if (btnToggleBullet && dropdownBullet) {
+    btnToggleBullet.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isHidden = dropdownBullet.classList.contains('hidden');
+      closeAllEditorListDropdowns();
+      if (isHidden) dropdownBullet.classList.remove('hidden');
+    });
+  }
+
+  // Toggle dropdown Number Styles
+  const btnToggleNumber = document.getElementById('btnToggleNumberMenu');
+  const dropdownNumber = document.getElementById('dropdownNumberMenu');
+  if (btnToggleNumber && dropdownNumber) {
+    btnToggleNumber.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isHidden = dropdownNumber.classList.contains('hidden');
+      closeAllEditorListDropdowns();
+      if (isHidden) dropdownNumber.classList.remove('hidden');
+    });
+  }
+
+  function closeAllEditorListDropdowns() {
+    if (dropdownBullet) dropdownBullet.classList.add('hidden');
+    if (dropdownNumber) dropdownNumber.classList.add('hidden');
+  }
+
+  document.addEventListener('click', () => {
+    closeAllEditorListDropdowns();
+  });
+
+  // Xử lý click chọn kiểu Bullet (Disc, Star, Checkmark, Square, Arrow, Circle)
+  document.querySelectorAll('#dropdownBulletMenu [data-bullet-type]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const bType = btn.getAttribute('data-bullet-type');
+      applyBulletStyle(bType);
+      closeAllEditorListDropdowns();
+    });
+  });
+
+  // Xử lý click chọn kiểu Number (1, 2, 3 / a, b, c / A, B, C / i, ii, iii / I, II, III)
+  document.querySelectorAll('#dropdownNumberMenu [data-number-type]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const nType = btn.getAttribute('data-number-type');
+      applyNumberStyle(nType);
+      closeAllEditorListDropdowns();
     });
   });
 
