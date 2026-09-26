@@ -5,9 +5,77 @@
 
 // --- 1. STATE, AUTH, THEME & STORAGE MANAGEMENT ---
 const STORAGE_KEY = 'study_planner_tasks_v1';
+const PARENT_STORAGE_KEY = 'study_planner_parent_tasks_v1';
 const AUTH_TOKEN_KEY = 'study_planner_auth_session';
 const ADMIN_PW_KEY = 'study_planner_admin_password';
 const THEME_KEY = 'study_planner_theme';
+
+const PARENT_COLOR_PALETTES = {
+  blue: {
+    name: 'Xanh dương',
+    dot: 'bg-blue-500',
+    badge: 'bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700/80',
+    cardHeader: 'bg-blue-50/90 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800/80',
+    btnBg: 'bg-blue-600',
+    ring: 'ring-blue-400'
+  },
+  emerald: {
+    name: 'Xanh ngọc',
+    dot: 'bg-emerald-500',
+    badge: 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700/80',
+    cardHeader: 'bg-emerald-50/90 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800/80',
+    btnBg: 'bg-emerald-600',
+    ring: 'ring-emerald-400'
+  },
+  purple: {
+    name: 'Tím violet',
+    dot: 'bg-purple-500',
+    badge: 'bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-700/80',
+    cardHeader: 'bg-purple-50/90 dark:bg-purple-950/50 border-purple-200 dark:border-purple-800/80',
+    btnBg: 'bg-purple-600',
+    ring: 'ring-purple-400'
+  },
+  amber: {
+    name: 'Vàng cam',
+    dot: 'bg-amber-500',
+    badge: 'bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-700/80',
+    cardHeader: 'bg-amber-50/90 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800/80',
+    btnBg: 'bg-amber-500',
+    ring: 'ring-amber-400'
+  },
+  rose: {
+    name: 'Đỏ hồng',
+    dot: 'bg-rose-500',
+    badge: 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-700/80',
+    cardHeader: 'bg-rose-50/90 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800/80',
+    btnBg: 'bg-rose-600',
+    ring: 'ring-rose-400'
+  },
+  indigo: {
+    name: 'Chàm indigo',
+    dot: 'bg-indigo-500',
+    badge: 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-700/80',
+    cardHeader: 'bg-indigo-50/90 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-800/80',
+    btnBg: 'bg-indigo-600',
+    ring: 'ring-indigo-400'
+  },
+  cyan: {
+    name: 'Xanh lơ cyan',
+    dot: 'bg-cyan-500',
+    badge: 'bg-cyan-100 dark:bg-cyan-950/80 text-cyan-800 dark:text-cyan-200 border border-cyan-200 dark:border-cyan-700/80',
+    cardHeader: 'bg-cyan-50/90 dark:bg-cyan-950/50 border-cyan-200 dark:border-cyan-800/80',
+    btnBg: 'bg-cyan-600',
+    ring: 'ring-cyan-400'
+  },
+  pink: {
+    name: 'Hồng sen',
+    dot: 'bg-pink-500',
+    badge: 'bg-pink-100 dark:bg-pink-950/80 text-pink-800 dark:text-pink-200 border border-pink-200 dark:border-pink-700/80',
+    cardHeader: 'bg-pink-50/90 dark:bg-pink-950/50 border-pink-200 dark:border-pink-800/80',
+    btnBg: 'bg-pink-600',
+    ring: 'ring-pink-400'
+  }
+};
 
 let state = {
   isAdmin: false,
@@ -16,8 +84,12 @@ let state = {
   currentView: 'week',         // Mặc định mở view Tuần
   currentDate: new Date(),     // Ngày đang xem
   tasks: [],
+  parentTasks: [],             // Danh sách các Task tổng { id, title, color, description, createdAt }
+  taskManagerFilter: 'all',    // Bộ lọc kho task: 'all' | 'unscheduled' | 'scheduled' | 'completed'
+  taskManagerSearch: '',       // Chuỗi tìm kiếm trong kho task
   activeDetailTaskId: null,    // ID của task đang mở chi tiết & editor
-  firestoreUnsubscribe: null   // Hàm hủy lắng nghe realtime Firestore
+  firestoreUnsubscribe: null,  // Hàm hủy lắng nghe realtime Firestore Tasks
+  firestoreParentUnsubscribe: null // Hàm hủy lắng nghe realtime Firestore Parent Tasks
 };
 
 // Quản lý Dark Mode
@@ -79,12 +151,18 @@ async function logoutAdmin() {
     state.firestoreUnsubscribe = null;
   }
 
+  if (state.firestoreParentUnsubscribe) {
+    state.firestoreParentUnsubscribe();
+    state.firestoreParentUnsubscribe = null;
+  }
+
   state.currentUser = null;
   state.isCloudSync = false;
   state.isAdmin = false;
   
   // Nạp lại danh sách task local hoặc mẫu
   loadTasks();
+  loadParentTasks();
   renderApp();
 }
 
@@ -113,6 +191,11 @@ window.handleAuthStateChange = (user) => {
     // Hủy đăng ký listener cũ nếu có
     if (state.firestoreUnsubscribe) {
       state.firestoreUnsubscribe();
+      state.firestoreUnsubscribe = null;
+    }
+    if (state.firestoreParentUnsubscribe) {
+      state.firestoreParentUnsubscribe();
+      state.firestoreParentUnsubscribe = null;
     }
 
     // Đăng ký lắng nghe Firestore của riêng user này: users/{uid}/tasks
@@ -123,9 +206,29 @@ window.handleAuthStateChange = (user) => {
         state.tasks = cloudTasks || [];
         saveTasksToStorage(state.tasks); // Cache lại local
         renderApp();
+        if (!document.getElementById('taskManagerModal').classList.contains('hidden')) {
+          renderTaskManagerContent();
+        }
       },
       (err) => {
         console.warn('Lỗi kết nối Firestore, sử dụng dữ liệu cục bộ:', err);
+      }
+    );
+
+    // Đăng ký lắng nghe Firestore parent tasks: users/{uid}/parentTasks
+    state.firestoreParentUnsubscribe = window.StudyPlannerFirebase.listenToUserParentTasks(
+      user.uid,
+      (cloudParents) => {
+        console.log(`Đã đồng bộ ${cloudParents.length} task tổng từ Firestore của ${user.email}`);
+        state.parentTasks = cloudParents || [];
+        saveParentTasksToStorage(state.parentTasks);
+        renderApp();
+        if (!document.getElementById('taskManagerModal').classList.contains('hidden')) {
+          renderTaskManagerContent();
+        }
+      },
+      (err) => {
+        console.warn('Lỗi kết nối Firestore Parent Tasks, sử dụng dữ liệu cục bộ:', err);
       }
     );
   } else {
@@ -135,10 +238,124 @@ window.handleAuthStateChange = (user) => {
       state.firestoreUnsubscribe();
       state.firestoreUnsubscribe = null;
     }
+    if (state.firestoreParentUnsubscribe) {
+      state.firestoreParentUnsubscribe();
+      state.firestoreParentUnsubscribe = null;
+    }
     checkAuthStatus();
+    loadParentTasks();
     renderApp();
   }
 };
+
+// Khởi tạo dữ liệu mẫu Task tổng (Parent Tasks) nếu lần đầu truy cập
+function initSampleParentTasksIfEmpty() {
+  const existing = localStorage.getItem(PARENT_STORAGE_KEY);
+  if (!existing) {
+    const sampleParents = [
+      {
+        id: 'parent-1',
+        title: 'Nghiên cứu & Học thuật',
+        color: 'blue',
+        description: 'Mục tiêu nghiên cứu, đọc bài báo, và hoàn thành các môn học chính',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'parent-2',
+        title: 'Ngoại ngữ & Kỹ năng (IELTS / TOEIC)',
+        color: 'emerald',
+        description: 'Kế hoạch nâng cao phản xạ từ vựng, ngữ pháp và luyện thi',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'parent-3',
+        title: 'Dự án Công nghệ & Website',
+        color: 'purple',
+        description: 'Xây dựng các milestone sản phẩm, tính năng và tối ưu hóa hệ thống',
+        createdAt: new Date().toISOString()
+      }
+    ];
+    saveParentTasksToStorage(sampleParents);
+    return sampleParents;
+  }
+  try {
+    return JSON.parse(existing) || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function loadParentTasks() {
+  state.parentTasks = initSampleParentTasksIfEmpty();
+}
+
+function saveParentTasksToStorage(parentTasks) {
+  try {
+    localStorage.setItem(PARENT_STORAGE_KEY, JSON.stringify(parentTasks));
+  } catch (e) {
+    console.warn('LocalStorage không thể lưu Parent Tasks:', e);
+  }
+}
+
+async function saveSingleParentTask(parentTask) {
+  const idx = state.parentTasks.findIndex(p => p.id === parentTask.id);
+  if (idx >= 0) {
+    state.parentTasks[idx] = parentTask;
+  } else {
+    state.parentTasks.push(parentTask);
+  }
+  saveParentTasksToStorage(state.parentTasks);
+  if (state.currentUser && window.StudyPlannerFirebase) {
+    await window.StudyPlannerFirebase.saveParentTaskToFirestore(state.currentUser.uid, parentTask);
+  }
+}
+
+async function deleteSingleParentTask(parentTaskId) {
+  state.parentTasks = state.parentTasks.filter(p => p.id !== parentTaskId);
+  saveParentTasksToStorage(state.parentTasks);
+
+  // Gỡ liên kết parentId của các sub-task thuộc parent này
+  let updatedAny = false;
+  state.tasks.forEach(t => {
+    if (t.parentId === parentTaskId) {
+      t.parentId = null;
+      updatedAny = true;
+    }
+  });
+  if (updatedAny) {
+    saveTasksToStorage(state.tasks);
+  }
+
+  if (state.currentUser && window.StudyPlannerFirebase) {
+    await window.StudyPlannerFirebase.deleteParentTaskFromFirestore(state.currentUser.uid, parentTaskId);
+  }
+}
+
+function getParentTask(parentId) {
+  if (!parentId) return null;
+  return state.parentTasks.find(p => p.id === parentId) || null;
+}
+
+function getParentColorConfig(colorName) {
+  return PARENT_COLOR_PALETTES[colorName] || PARENT_COLOR_PALETTES.blue;
+}
+
+function getParentBadgeHtml(task) {
+  if (task.parentId) {
+    const parent = getParentTask(task.parentId);
+    if (parent) {
+      const palette = getParentColorConfig(parent.color);
+      return `<span class="px-2.5 py-0.5 text-xs font-bold rounded-md flex items-center gap-1.5 shrink-0 ${palette.badge}" title="Task tổng: ${escapeHtml(parent.title)}">
+        <span class="w-1.5 h-1.5 rounded-full ${palette.dot} shrink-0"></span>
+        <span class="truncate max-w-[130px]">${escapeHtml(parent.title)}</span>
+      </span>`;
+    }
+  }
+  if (task.category) {
+    return `<span class="px-2.5 py-0.5 text-xs font-semibold rounded-md bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700/80">${escapeHtml(task.category)}</span>`;
+  }
+  return '';
+}
 
 // Khởi tạo dữ liệu mẫu nếu lần đầu truy cập
 function initSampleDataIfEmpty() {
@@ -156,6 +373,7 @@ function initSampleDataIfEmpty() {
         title: 'Đọc 1 bài báo nghiên cứu / Chapter 1',
         date: formatDate(yesterday),
         priority: 'high',
+        parentId: 'parent-1',
         category: 'Học tập',
         note: 'Task này bị trễ hạn từ hôm qua để test thông báo chuông & tính năng Replan!',
         completed: false,
@@ -167,6 +385,7 @@ function initSampleDataIfEmpty() {
         title: 'Luyện 30 từ vựng chuyên ngành',
         date: formatDate(today),
         priority: 'high',
+        parentId: 'parent-2',
         category: 'Ngoại ngữ',
         note: 'Dùng Anki hoặc Quizlet 20 phút',
         completed: false,
@@ -178,6 +397,7 @@ function initSampleDataIfEmpty() {
         title: 'Lập dàn ý bài luận / Dự án mới',
         date: formatDate(today),
         priority: 'medium',
+        parentId: 'parent-3',
         category: 'Dự án',
         note: 'Xác định các milestone chính',
         completed: true,
@@ -189,8 +409,21 @@ function initSampleDataIfEmpty() {
         title: 'Tổng kết tuần & lên lịch tuần mới',
         date: formatDate(tomorrow),
         priority: 'medium',
+        parentId: 'parent-1',
         category: 'Kế hoạch',
         note: '',
+        completed: false,
+        replanCount: 0,
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'sample-5',
+        title: 'Luyện đề thi thử IELTS Reading Section 2',
+        date: '',
+        priority: 'high',
+        parentId: 'parent-2',
+        category: 'Ngoại ngữ',
+        note: 'Nhiệm vụ này nằm trong Kho (chờ xếp lịch) để bạn dễ dàng chọn và xếp vào lịch!',
         completed: false,
         replanCount: 0,
         createdAt: new Date().toISOString()
@@ -271,6 +504,7 @@ function parseDateStr(str) {
 }
 
 function isOverdue(task) {
+  if (!task.date || !task.date.trim()) return false;
   return task.date < getTodayStr() && !task.completed;
 }
 
@@ -538,29 +772,48 @@ function deleteTask(taskId) {
   }
 }
 
-function saveTaskFromForm(formData) {
+async function saveTaskFromForm(formData) {
   if (!state.isAdmin) {
     openLoginModal();
     return;
   }
-  const { id, title, date, priority, category, note } = formData;
+  const { id, title, date, priority, parentId: initialParentId, note } = formData;
   let targetTask = null;
+  let parentId = initialParentId;
+
+  // Nếu là tạo mới và người dùng không chọn task parent:
+  // Theo quy tắc nghiệp vụ: mặc định task tổng sẽ là tên task người dùng vừa nhập và task con sẽ thuộc task tổng đó
+  if (!id && !parentId) {
+    const availableColors = Object.keys(PARENT_COLOR_PALETTES);
+    const colorKey = availableColors[state.parentTasks.length % availableColors.length];
+    const newParent = {
+      id: 'parent_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      title: title,
+      color: colorKey,
+      description: 'Mục tiêu được tạo tự động từ nhiệm vụ',
+      createdAt: new Date().toISOString()
+    };
+    await saveSingleParentTask(newParent);
+    parentId = newParent.id;
+  }
+
   if (id) {
     targetTask = state.tasks.find(t => t.id === id);
     if (targetTask) {
       targetTask.title = title;
-      targetTask.date = date;
+      targetTask.date = date || '';
       targetTask.priority = priority;
-      targetTask.category = category;
+      targetTask.parentId = parentId || null;
       targetTask.note = note;
     }
   } else {
     targetTask = {
       id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
       title,
-      date,
+      date: date || '',
       priority,
-      category,
+      parentId: parentId || null,
+      category: '',
       note,
       completed: false,
       replanCount: 0,
@@ -568,12 +821,16 @@ function saveTaskFromForm(formData) {
     };
     state.tasks.push(targetTask);
   }
+
   if (targetTask) {
-    saveSingleTask(targetTask);
+    await saveSingleTask(targetTask);
   } else {
-    saveCurrentTasks();
+    await saveCurrentTasks();
   }
   renderApp();
+  if (!document.getElementById('taskManagerModal').classList.contains('hidden')) {
+    renderTaskManagerContent();
+  }
 }
 
 // --- 6. RENDER VIEWS & UI UPDATE ---
@@ -776,7 +1033,7 @@ function renderDayView() {
             <div class="flex items-center gap-2 flex-wrap">
               <span class="text-base font-bold ${task.completed ? 'line-through text-slate-500 dark:text-slate-300' : 'text-slate-900 dark:text-white'}">${escapeHtml(task.title)}</span>
               ${priorityBadge}
-              ${task.category ? `<span class="px-2.5 py-0.5 text-xs font-semibold rounded-md bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700/80">${escapeHtml(task.category)}</span>` : ''}
+              ${getParentBadgeHtml(task)}
               ${replanBadge}
               ${docBadge}
               ${linkBadge}
@@ -895,7 +1152,7 @@ function renderWeekView() {
                     
                     <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
                       ${priorityDot}
-                      ${t.category ? `<span class="text-[10px] sm:text-xs px-2 py-0.5 font-semibold rounded-md bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700/80">${escapeHtml(t.category)}</span>` : ''}
+                      ${getParentBadgeHtml(t)}
                       ${t.replanCount > 0 ? `<span class="text-[10px] px-1.5 py-0.5 font-bold rounded bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-700/80">Dời ${t.replanCount} lần</span>` : ''}
                       ${t.document && t.document.contentHtml ? `<span class="text-[10px] px-1.5 py-0.5 font-bold rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700/80 flex items-center gap-0.5"><i data-lucide="file-text" class="w-3 h-3"></i> DOCX</span>` : ''}
                       ${t.links && t.links.length > 0 ? `<span class="text-[10px] px-1.5 py-0.5 font-bold rounded bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-700/80 flex items-center gap-0.5"><i data-lucide="link" class="w-3 h-3"></i> ${t.links.length}</span>` : ''}
@@ -977,12 +1234,18 @@ function renderMonthView() {
               let pillClasses = '';
               let prefixIcon = '';
 
+              const parent = t.parentId ? getParentTask(t.parentId) : null;
+              const palette = parent ? getParentColorConfig(parent.color) : null;
+
               if (t.completed) {
                 pillClasses = 'bg-slate-100 dark:bg-slate-700/90 text-slate-600 dark:text-slate-200 line-through border border-slate-200 dark:border-slate-600 font-medium';
                 prefixIcon = '<i data-lucide="check" class="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0 mr-1 inline-block"></i>';
               } else if (isOverdue(t)) {
                 pillClasses = 'bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-100 font-bold border border-amber-300 dark:border-amber-600/90 shadow-2xs';
                 prefixIcon = '<span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mr-1 inline-block"></span>';
+              } else if (palette) {
+                pillClasses = `${palette.badge} font-bold shadow-2xs`;
+                prefixIcon = `<span class="w-1.5 h-1.5 rounded-full ${palette.dot} shrink-0 mr-1 inline-block"></span>`;
               } else if (t.priority === 'high') {
                 pillClasses = 'bg-rose-100 dark:bg-rose-950 text-rose-950 dark:text-rose-100 font-bold border border-rose-300 dark:border-rose-600/90 shadow-2xs';
                 prefixIcon = '<span class="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 mr-1 inline-block"></span>';
@@ -1119,16 +1382,123 @@ const loginForm = document.getElementById('loginForm');
 const changePwModal = document.getElementById('changePwModal');
 const changePwForm = document.getElementById('changePwForm');
 
+const formAddDefinedTask = document.getElementById('formAddDefinedTask');
+const taskManagerModal = document.getElementById('taskManagerModal');
+const parentTaskModal = document.getElementById('parentTaskModal');
+const formParentTask = document.getElementById('formParentTask');
+const quickScheduleModal = document.getElementById('quickScheduleModal');
+const formQuickSchedule = document.getElementById('formQuickSchedule');
+
+let currentAddTaskTab = 'defined'; // 'defined' | 'others'
+
+function switchAddTaskTypeTab(tabName) {
+  currentAddTaskTab = tabName;
+  const tabBtnDefined = document.getElementById('tabBtnAddDefined');
+  const tabBtnOthers = document.getElementById('tabBtnAddOthers');
+  const formDefined = document.getElementById('formAddDefinedTask');
+  const formOthers = document.getElementById('taskForm');
+
+  if (tabName === 'defined') {
+    if (tabBtnDefined) tabBtnDefined.className = 'flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-2xs';
+    if (tabBtnOthers) tabBtnOthers.className = 'flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white';
+    if (formDefined) formDefined.classList.remove('hidden');
+    if (formOthers) formOthers.classList.add('hidden');
+  } else {
+    if (tabBtnOthers) tabBtnOthers.className = 'flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-2xs';
+    if (tabBtnDefined) tabBtnDefined.className = 'flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white';
+    if (formOthers) formOthers.classList.remove('hidden');
+    if (formDefined) formDefined.classList.add('hidden');
+  }
+  lucide.createIcons();
+}
+
+function populateParentSelectOptions(selectEl, selectedParentId = '') {
+  let html = `<option value="">(Không chọn - Task này sẽ là Task tổng mới)</option>`;
+  state.parentTasks.forEach(p => {
+    const isSelected = p.id === selectedParentId ? 'selected' : '';
+    html += `<option value="${p.id}" ${isSelected}>📁 ${escapeHtml(p.title)}</option>`;
+  });
+  selectEl.innerHTML = html;
+}
+
 function openAddTaskModal(initialDate = null) {
   if (!state.isAdmin) {
     openLoginModal();
     return;
   }
+
+  const targetDate = initialDate || formatDate(state.currentDate);
+
+  // Hiển thị thanh tabs
+  const tabsContainer = document.getElementById('addTaskTypeTabs');
+  if (tabsContainer) tabsContainer.classList.remove('hidden');
+
+  // Chuẩn bị Form 1: Defined Tasks (chưa có ngày)
+  const unscheduledTasks = state.tasks.filter(t => !t.date || !t.date.trim());
+  const selectDefined = document.getElementById('selectDefinedTaskId');
+  const emptyHint = document.getElementById('emptyDefinedHint');
+  const dateInputDefined = document.getElementById('definedTaskDate');
+  const btnSubmitDefined = document.getElementById('btnSubmitDefined');
+
+  if (dateInputDefined) dateInputDefined.value = targetDate;
+
+  if (unscheduledTasks.length === 0) {
+    if (emptyHint) emptyHint.classList.remove('hidden');
+    if (selectDefined) {
+      selectDefined.innerHTML = '<option value="" disabled selected>-- Kho task hiện không có task chờ xếp lịch --</option>';
+      selectDefined.disabled = true;
+    }
+    if (btnSubmitDefined) btnSubmitDefined.disabled = true;
+    switchAddTaskTypeTab('others');
+  } else {
+    if (emptyHint) emptyHint.classList.add('hidden');
+    if (selectDefined) {
+      selectDefined.disabled = false;
+      let optHtml = '';
+      
+      // Nhóm theo Parent Task
+      state.parentTasks.forEach(parent => {
+        const groupTasks = unscheduledTasks.filter(t => t.parentId === parent.id);
+        if (groupTasks.length > 0) {
+          optHtml += `<optgroup label="📂 ${escapeHtml(parent.title)}">`;
+          groupTasks.forEach(t => {
+            const pBadge = t.priority === 'high' ? '🔥 Cao' : (t.priority === 'low' ? 'Thấp' : 'Bình thường');
+            optHtml += `<option value="${t.id}">${escapeHtml(t.title)} (${pBadge})</option>`;
+          });
+          optHtml += `</optgroup>`;
+        }
+      });
+
+      // Các task độc lập / Chưa gán Parent
+      const unassigned = unscheduledTasks.filter(t => !t.parentId || !getParentTask(t.parentId));
+      if (unassigned.length > 0) {
+        optHtml += `<optgroup label="📋 Chưa phân loại / Độc lập">`;
+        unassigned.forEach(t => {
+          const pBadge = t.priority === 'high' ? '🔥 Cao' : (t.priority === 'low' ? 'Thấp' : 'Bình thường');
+          optHtml += `<option value="${t.id}">${escapeHtml(t.title)} (${pBadge})</option>`;
+        });
+        optHtml += `</optgroup>`;
+      }
+
+      selectDefined.innerHTML = optHtml;
+    }
+    if (btnSubmitDefined) btnSubmitDefined.disabled = false;
+    switchAddTaskTypeTab('defined');
+  }
+
+  // Chuẩn bị Form 2: Others
   taskForm.reset();
   document.getElementById('taskId').value = '';
-  document.getElementById('modalTitle').textContent = 'Thêm nhiệm vụ mới';
-  document.getElementById('taskDate').value = initialDate || formatDate(state.currentDate);
+  document.getElementById('taskDate').value = targetDate;
+  document.getElementById('taskPriority').value = 'medium';
+  document.getElementById('taskNote').value = '';
+  document.getElementById('modalTitle').textContent = 'Thêm nhiệm vụ vào lịch';
+  
+  const parentSelect = document.getElementById('taskParentSelect');
+  if (parentSelect) populateParentSelectOptions(parentSelect);
+
   taskModal.classList.remove('hidden');
+  lucide.createIcons();
 }
 
 function openAddTaskModalForDate(dateStr) {
@@ -1139,6 +1509,23 @@ function openAddTaskModalForDate(dateStr) {
   openAddTaskModal(dateStr);
 }
 
+function openAddTaskModalForParent(parentId) {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+  openAddTaskModal();
+  switchAddTaskTypeTab('others');
+  const parentSelect = document.getElementById('taskParentSelect');
+  if (parentSelect) {
+    populateParentSelectOptions(parentSelect, parentId);
+    parentSelect.value = parentId;
+  }
+  // Để trống ngày để task mới lưu thẳng vào Kho (chờ xếp lịch)
+  document.getElementById('taskDate').value = '';
+  document.getElementById('taskTitle').focus();
+}
+
 function openEditTaskModal(taskId) {
   if (!state.isAdmin) {
     openLoginModal();
@@ -1147,19 +1534,481 @@ function openEditTaskModal(taskId) {
   const task = state.tasks.find(t => t.id === taskId);
   if (!task) return;
 
+  // Ẩn tabs chọn defined (vì đang edit trực tiếp task này)
+  const tabsContainer = document.getElementById('addTaskTypeTabs');
+  if (tabsContainer) tabsContainer.classList.add('hidden');
+  
+  document.getElementById('formAddDefinedTask').classList.add('hidden');
+  taskForm.classList.remove('hidden');
+
   document.getElementById('taskId').value = task.id;
   document.getElementById('taskTitle').value = task.title;
-  document.getElementById('taskDate').value = task.date;
+  document.getElementById('taskDate').value = task.date || '';
   document.getElementById('taskPriority').value = task.priority || 'medium';
-  document.getElementById('taskCategory').value = task.category || '';
   document.getElementById('taskNote').value = task.note || '';
   document.getElementById('modalTitle').textContent = 'Chỉnh sửa nhiệm vụ';
 
+  const parentSelect = document.getElementById('taskParentSelect');
+  if (parentSelect) {
+    populateParentSelectOptions(parentSelect, task.parentId || '');
+    parentSelect.value = task.parentId || '';
+  }
+
   taskModal.classList.remove('hidden');
+  lucide.createIcons();
 }
 
 function closeTaskModal() {
   taskModal.classList.add('hidden');
+}
+
+// Xử lý nộp Form 1: Chọn Task có sẵn từ kho để xếp vào ngày
+async function handleAddDefinedTaskSubmit(e) {
+  e.preventDefault();
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+  const selectDefined = document.getElementById('selectDefinedTaskId');
+  const dateInput = document.getElementById('definedTaskDate');
+  const selectedTaskId = selectDefined ? selectDefined.value : null;
+  const targetDate = dateInput ? dateInput.value : null;
+
+  if (!selectedTaskId || !targetDate) {
+    alert('Vui lòng chọn nhiệm vụ từ kho và ngày cần xếp lịch!');
+    return;
+  }
+
+  const task = state.tasks.find(t => t.id === selectedTaskId);
+  if (task) {
+    task.date = targetDate;
+    await saveSingleTask(task);
+    closeTaskModal();
+    renderApp();
+    if (!taskManagerModal.classList.contains('hidden')) {
+      renderTaskManagerContent();
+    }
+  }
+}
+
+// --- 8.1. TASK MANAGER HUB (KHO NHIỆM VỤ & QUẢN LÝ TASK TỔNG) ---
+function openTaskManagerModal() {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+  state.taskManagerFilter = 'all';
+  state.taskManagerSearch = '';
+  const searchInput = document.getElementById('searchTaskManagerInput');
+  if (searchInput) searchInput.value = '';
+  updateTaskManagerFilterButtons();
+  renderTaskManagerContent();
+  taskManagerModal.classList.remove('hidden');
+  document.getElementById('userDropdown').classList.add('hidden');
+  lucide.createIcons();
+}
+
+function closeTaskManagerModal() {
+  taskManagerModal.classList.add('hidden');
+}
+
+function setTaskManagerFilter(filter) {
+  state.taskManagerFilter = filter;
+  updateTaskManagerFilterButtons();
+  renderTaskManagerContent();
+}
+
+function updateTaskManagerFilterButtons() {
+  document.querySelectorAll('.tm-filter-btn').forEach(btn => {
+    const f = btn.getAttribute('data-filter');
+    if (f === state.taskManagerFilter) {
+      btn.className = 'tm-filter-btn px-3 py-1.5 rounded-lg font-bold bg-blue-600 text-white shadow-2xs transition';
+    } else {
+      btn.className = 'tm-filter-btn px-3 py-1.5 rounded-lg font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/60 transition';
+    }
+  });
+}
+
+function renderTaskManagerContent() {
+  const container = document.getElementById('taskManagerCardsContainer');
+  if (!container) return;
+
+  // Thống kê toàn kho
+  const totalParents = state.parentTasks.length;
+  const totalSubtasks = state.tasks.length;
+  const unscheduledSubtasks = state.tasks.filter(t => !t.date || !t.date.trim()).length;
+  const completedSubtasks = state.tasks.filter(t => t.completed).length;
+  const pctDone = totalSubtasks > 0 ? Math.round((completedSubtasks / totalSubtasks) * 100) : 0;
+
+  const statParentsEl = document.getElementById('statTotalParents');
+  const statSubtasksEl = document.getElementById('statTotalSubtasks');
+  const statUnscheduledEl = document.getElementById('statUnscheduledSubtasks');
+  const statCompletedEl = document.getElementById('statCompletedSubtasks');
+
+  if (statParentsEl) statParentsEl.textContent = totalParents;
+  if (statSubtasksEl) statSubtasksEl.textContent = totalSubtasks;
+  if (statUnscheduledEl) statUnscheduledEl.textContent = unscheduledSubtasks;
+  if (statCompletedEl) statCompletedEl.textContent = `${pctDone}% (${completedSubtasks}/${totalSubtasks})`;
+
+  // Lọc nhiệm vụ
+  const query = (state.taskManagerSearch || '').toLowerCase().trim();
+  let filteredTasks = state.tasks.filter(t => {
+    // Lọc theo trạng thái
+    if (state.taskManagerFilter === 'unscheduled') {
+      if (t.date && t.date.trim() !== '') return false;
+    } else if (state.taskManagerFilter === 'scheduled') {
+      if (!t.date || !t.date.trim()) return false;
+    } else if (state.taskManagerFilter === 'completed') {
+      if (!t.completed) return false;
+    }
+
+    // Lọc theo tìm kiếm từ khóa
+    if (query) {
+      const matchTitle = (t.title || '').toLowerCase().includes(query);
+      const matchNote = (t.note || '').toLowerCase().includes(query);
+      const parent = t.parentId ? getParentTask(t.parentId) : null;
+      const matchParent = parent && (parent.title || '').toLowerCase().includes(query);
+      return matchTitle || matchNote || matchParent;
+    }
+
+    return true;
+  });
+
+  // Render cards
+  if (state.parentTasks.length === 0 && state.tasks.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-16 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-8">
+        <i data-lucide="layers" class="w-12 h-12 text-blue-500 mx-auto mb-3 opacity-80"></i>
+        <h3 class="text-base font-bold text-slate-800 dark:text-slate-100">Kho nhiệm vụ đang trống</h3>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+          Tạo các Task tổng (mục tiêu lớn trong năm) và phân rã các nhiệm vụ con (sub-tasks) để chuẩn bị xếp vào lịch học tập & công việc.
+        </p>
+        <button onclick="openAddParentTaskModal()" class="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition inline-flex items-center gap-2">
+          <i data-lucide="plus" class="w-4 h-4"></i> Thêm Task tổng đầu tiên
+        </button>
+      </div>
+    `;
+    lucide.createIcons();
+    return;
+  }
+
+  let html = '';
+
+  // Render từng Parent Task
+  state.parentTasks.forEach(parent => {
+    const parentSubtasks = filteredTasks.filter(t => t.parentId === parent.id);
+    const allParentSubtasks = state.tasks.filter(t => t.parentId === parent.id);
+    const parentCompletedCount = allParentSubtasks.filter(t => t.completed).length;
+    const parentPct = allParentSubtasks.length > 0 ? Math.round((parentCompletedCount / allParentSubtasks.length) * 100) : 0;
+    const palette = getParentColorConfig(parent.color);
+
+    html += `
+      <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden transition-all">
+        <!-- Parent Card Header -->
+        <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${palette.cardHeader}">
+          <div class="flex items-start gap-3 min-w-0">
+            <span class="w-3.5 h-3.5 rounded-full ${palette.dot} mt-1 shrink-0 shadow-xs"></span>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2.5 flex-wrap">
+                <h3 class="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-snug">${escapeHtml(parent.title)}</h3>
+                <span class="px-2.5 py-0.5 text-xs font-extrabold rounded-md ${palette.badge}">
+                  ${parentCompletedCount}/${allParentSubtasks.length} task (${parentPct}%)
+                </span>
+              </div>
+              ${parent.description ? `<p class="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">${escapeHtml(parent.description)}</p>` : ''}
+            </div>
+          </div>
+
+          <!-- Parent Action Buttons -->
+          <div class="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+            <button onclick="openAddTaskModalForParent('${parent.id}')" title="Thêm task con cho mục tiêu này" class="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs">
+              <i data-lucide="plus" class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400"></i>
+              <span>Thêm task con</span>
+            </button>
+            <button onclick="openEditParentTaskModal('${parent.id}')" title="Sửa tên hoặc màu Task tổng" class="p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 rounded-xl hover:bg-white/80 dark:hover:bg-slate-800 transition">
+              <i data-lucide="edit-3" class="w-4 h-4"></i>
+            </button>
+            <button onclick="deleteParentTask('${parent.id}')" title="Xóa Task tổng này" class="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Subtasks List Container -->
+        <div class="divide-y divide-slate-100 dark:divide-slate-800">
+          ${parentSubtasks.length === 0 ? `
+            <div class="p-6 text-center text-xs text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-1.5">
+              ${allParentSubtasks.length === 0 ? `
+                <p>Chưa có nhiệm vụ con nào thuộc mục tiêu này.</p>
+                <button onclick="openAddTaskModalForParent('${parent.id}')" class="text-blue-600 dark:text-blue-400 font-bold hover:underline">
+                  + Thêm nhiệm vụ con ngay
+                </button>
+              ` : `
+                <p>Không có nhiệm vụ con nào thỏa mãn bộ lọc hiện tại.</p>
+              `}
+            </div>
+          ` : parentSubtasks.map(task => renderTaskManagerSubtaskRow(task)).join('')}
+        </div>
+      </div>
+    `;
+  });
+
+  // Nhiệm vụ độc lập / Chưa phân loại parent
+  const unassignedSubtasks = filteredTasks.filter(t => !t.parentId || !getParentTask(t.parentId));
+  if (unassignedSubtasks.length > 0) {
+    html += `
+      <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden transition-all">
+        <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-100/70 dark:bg-slate-800/60">
+          <div class="flex items-center gap-2.5">
+            <span class="w-3 h-3 rounded-full bg-slate-400 shrink-0"></span>
+            <div>
+              <h3 class="text-base font-bold text-slate-800 dark:text-slate-100">Nhiệm vụ độc lập (Chưa gán Task tổng)</h3>
+              <p class="text-xs text-slate-500 dark:text-slate-400">${unassignedSubtasks.length} nhiệm vụ</p>
+            </div>
+          </div>
+        </div>
+        <div class="divide-y divide-slate-100 dark:divide-slate-800">
+          ${unassignedSubtasks.map(task => renderTaskManagerSubtaskRow(task)).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  container.innerHTML = html;
+  lucide.createIcons();
+}
+
+function renderTaskManagerSubtaskRow(task) {
+  const isTaskOverdue = isOverdue(task);
+  const priorityBadge = {
+    high: '<span class="px-2 py-0.5 text-[10px] sm:text-xs font-bold rounded-md bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-700 shrink-0">🔥 Cao</span>',
+    medium: '<span class="px-2 py-0.5 text-[10px] sm:text-xs font-semibold rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shrink-0">Bình thường</span>',
+    low: '<span class="px-2 py-0.5 text-[10px] sm:text-xs font-medium rounded-md bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 shrink-0">Thấp</span>'
+  }[task.priority] || '';
+
+  const scheduleBadge = task.date && task.date.trim() !== ''
+    ? `<span class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 shrink-0">
+        <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i> ${task.date}
+      </span>`
+    : `<div class="flex items-center gap-1.5 shrink-0">
+        <span class="px-2 py-1 text-xs font-bold rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-700/80 flex items-center gap-1">
+          <i data-lucide="clock" class="w-3.5 h-3.5"></i> Chờ lên lịch
+        </span>
+        <button onclick="openQuickScheduleModal('${task.id}')" title="Xếp nhiệm vụ này vào lịch" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
+          <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i> Xếp vào lịch
+        </button>
+      </div>`;
+
+  const docBadge = (task.document && task.document.contentHtml)
+    ? `<span class="px-2 py-0.5 text-xs font-semibold rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700 flex items-center gap-1 shrink-0" title="Có tài liệu soạn thảo">
+        <i data-lucide="file-text" class="w-3 h-3"></i> DOCX
+      </span>`
+    : '';
+
+  const linksBadge = (task.links && task.links.length > 0)
+    ? `<span class="px-2 py-0.5 text-xs font-semibold rounded-md bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-700 flex items-center gap-1 shrink-0">
+        <i data-lucide="link" class="w-3 h-3"></i> ${task.links.length}
+      </span>`
+    : '';
+
+  return `
+    <div class="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition ${task.completed ? 'bg-slate-50/40 dark:bg-slate-850/40' : ''}">
+      <div class="flex items-start gap-3 flex-1 min-w-0">
+        <button onclick="toggleTaskComplete('${task.id}')" title="Đánh dấu hoàn thành" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 ${task.completed ? 'bg-blue-600 border-blue-600 text-white shadow-2xs' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:border-blue-500'}">
+          ${task.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
+        </button>
+
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span onclick="openTaskDetailModal('${task.id}')" class="text-sm font-bold cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 break-words ${task.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-slate-100'}">
+              ${escapeHtml(task.title)}
+            </span>
+            ${priorityBadge}
+            ${docBadge}
+            ${linksBadge}
+            ${isTaskOverdue ? '<span class="text-[10px] font-bold text-rose-600 dark:text-rose-400">⚠️ Trễ hạn</span>' : ''}
+          </div>
+          ${task.note ? `<p class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">${escapeHtml(task.note)}</p>` : ''}
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2.5 self-end sm:self-center shrink-0">
+        ${scheduleBadge}
+        <button onclick="openEditTaskModal('${task.id}')" title="Chỉnh sửa nhiệm vụ" class="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          <i data-lucide="edit-3" class="w-4 h-4"></i>
+        </button>
+        <button onclick="deleteTask('${task.id}')" title="Xóa nhiệm vụ" class="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// --- 8.2. PARENT TASK ADD / EDIT MODAL ---
+function renderParentColorPicker(selectedColor = 'blue') {
+  const container = document.getElementById('parentColorPicker');
+  if (!container) return;
+
+  const colors = Object.keys(PARENT_COLOR_PALETTES);
+  container.innerHTML = colors.map(cKey => {
+    const c = PARENT_COLOR_PALETTES[cKey];
+    const isSelected = cKey === selectedColor;
+    return `
+      <button 
+        type="button" 
+        onclick="selectParentColor('${cKey}')"
+        class="flex items-center gap-2 p-2 rounded-xl border text-xs font-bold transition ${
+          isSelected 
+            ? 'border-blue-600 ring-2 ring-blue-300 dark:ring-blue-800 bg-blue-50/50 dark:bg-blue-950/40 shadow-xs' 
+            : 'border-slate-200 dark:border-slate-700 hover:border-slate-400 bg-white dark:bg-slate-800'
+        }"
+      >
+        <span class="w-3.5 h-3.5 rounded-full ${c.dot} shrink-0"></span>
+        <span class="text-slate-800 dark:text-slate-200 truncate">${c.name}</span>
+      </button>
+    `;
+  }).join('');
+}
+
+function selectParentColor(colorKey) {
+  const hiddenInput = document.getElementById('selectedParentColor');
+  if (hiddenInput) hiddenInput.value = colorKey;
+  renderParentColorPicker(colorKey);
+}
+
+function openAddParentTaskModal() {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+  formParentTask.reset();
+  document.getElementById('parentTaskId').value = '';
+  document.getElementById('parentTaskModalTitle').textContent = 'Thêm Task tổng mới';
+  document.getElementById('selectedParentColor').value = 'blue';
+  renderParentColorPicker('blue');
+  parentTaskModal.classList.remove('hidden');
+  document.getElementById('parentTaskTitleInput').focus();
+}
+
+function openEditParentTaskModal(parentId) {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+  const parent = state.parentTasks.find(p => p.id === parentId);
+  if (!parent) return;
+
+  document.getElementById('parentTaskId').value = parent.id;
+  document.getElementById('parentTaskTitleInput').value = parent.title;
+  document.getElementById('parentTaskDescInput').value = parent.description || '';
+  document.getElementById('selectedParentColor').value = parent.color || 'blue';
+  document.getElementById('parentTaskModalTitle').textContent = 'Chỉnh sửa Task tổng';
+  
+  renderParentColorPicker(parent.color || 'blue');
+  parentTaskModal.classList.remove('hidden');
+}
+
+function closeParentTaskModal() {
+  parentTaskModal.classList.add('hidden');
+}
+
+async function handleSaveParentTask(e) {
+  e.preventDefault();
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+  const id = document.getElementById('parentTaskId').value;
+  const title = document.getElementById('parentTaskTitleInput').value.trim();
+  const color = document.getElementById('selectedParentColor').value || 'blue';
+  const description = document.getElementById('parentTaskDescInput').value.trim();
+
+  if (!title) {
+    alert('Vui lòng nhập tên Task tổng!');
+    return;
+  }
+
+  if (id) {
+    const parent = state.parentTasks.find(p => p.id === id);
+    if (parent) {
+      parent.title = title;
+      parent.color = color;
+      parent.description = description;
+      await saveSingleParentTask(parent);
+    }
+  } else {
+    const newParent = {
+      id: 'parent_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      title,
+      color,
+      description,
+      createdAt: new Date().toISOString()
+    };
+    await saveSingleParentTask(newParent);
+  }
+
+  closeParentTaskModal();
+  renderApp();
+  renderTaskManagerContent();
+}
+
+async function deleteParentTask(parentId) {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+  const parent = state.parentTasks.find(p => p.id === parentId);
+  if (!parent) return;
+
+  if (confirm(`Bạn có chắc chắn muốn xóa Task tổng "${parent.title}"?\nCác nhiệm vụ con sẽ không bị xóa mà được chuyển sang nhóm "Nhiệm vụ độc lập".`)) {
+    await deleteSingleParentTask(parentId);
+    renderApp();
+    renderTaskManagerContent();
+  }
+}
+
+// --- 8.3. QUICK SCHEDULE MODAL ---
+function openQuickScheduleModal(taskId) {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  document.getElementById('quickScheduleTaskId').value = task.id;
+  document.getElementById('quickScheduleTaskTitle').textContent = task.title;
+  document.getElementById('quickScheduleDateInput').value = formatDate(state.currentDate);
+  quickScheduleModal.classList.remove('hidden');
+}
+
+function closeQuickScheduleModal() {
+  quickScheduleModal.classList.add('hidden');
+}
+
+async function handleQuickScheduleSubmit(e) {
+  e.preventDefault();
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+  const taskId = document.getElementById('quickScheduleTaskId').value;
+  const date = document.getElementById('quickScheduleDateInput').value;
+
+  if (!taskId || !date) {
+    alert('Vui lòng chọn ngày thực hiện!');
+    return;
+  }
+
+  const task = state.tasks.find(t => t.id === taskId);
+  if (task) {
+    task.date = date;
+    await saveSingleTask(task);
+    closeQuickScheduleModal();
+    renderApp();
+    renderTaskManagerContent();
+  }
 }
 
 function openReplanModal() {
@@ -1260,7 +2109,13 @@ function exportData() {
     openLoginModal();
     return;
   }
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.tasks, null, 2));
+  const payload = {
+    version: '3.2',
+    exportedAt: new Date().toISOString(),
+    parentTasks: state.parentTasks,
+    tasks: state.tasks
+  };
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload, null, 2));
   const downloadAnchor = document.createElement('a');
   downloadAnchor.setAttribute("href", dataStr);
   downloadAnchor.setAttribute("download", `study-planner-backup-${getTodayStr()}.json`);
@@ -1275,18 +2130,39 @@ function importData(file) {
     return;
   }
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
       const imported = JSON.parse(e.target.result);
       if (Array.isArray(imported)) {
-        if (confirm(`Tìm thấy ${imported.length} nhiệm vụ từ file sao lưu. Bạn có muốn nhập và ghi đè danh sách hiện tại không?`)) {
+        if (confirm(`Tìm thấy ${imported.length} nhiệm vụ từ file sao lưu. Bạn có muốn nhập danh sách này không?`)) {
           state.tasks = imported;
-          saveCurrentTasks();
+          await saveCurrentTasks();
           renderApp();
           alert('Nhập dữ liệu thành công!');
         }
+      } else if (imported && typeof imported === 'object' && Array.isArray(imported.tasks)) {
+        const pCount = imported.parentTasks ? imported.parentTasks.length : 0;
+        const tCount = imported.tasks.length;
+        if (confirm(`Tìm thấy ${pCount} Task tổng và ${tCount} nhiệm vụ con từ file sao lưu. Bạn có muốn nhập dữ liệu này không?`)) {
+          if (imported.parentTasks) {
+            state.parentTasks = imported.parentTasks;
+            saveParentTasksToStorage(state.parentTasks);
+            if (state.currentUser && window.StudyPlannerFirebase) {
+              for (const p of state.parentTasks) {
+                await window.StudyPlannerFirebase.saveParentTaskToFirestore(state.currentUser.uid, p);
+              }
+            }
+          }
+          state.tasks = imported.tasks;
+          await saveCurrentTasks();
+          renderApp();
+          if (!taskManagerModal.classList.contains('hidden')) {
+            renderTaskManagerContent();
+          }
+          alert('Nhập dữ liệu thành công!');
+        }
       } else {
-        alert('File JSON không đúng định dạng danh sách task!');
+        alert('File JSON không đúng định dạng sao lưu của ứng dụng!');
       }
     } catch (err) {
       alert('Lỗi đọc file: ' + err.message);
@@ -1330,7 +2206,9 @@ function openTaskDetailModal(taskId) {
 
   // Header data
   document.getElementById('detailTaskTitle').textContent = task.title;
-  document.getElementById('detailTaskDate').innerHTML = `<i data-lucide="calendar" class="w-3.5 h-3.5 inline"></i> ${task.date}`;
+  document.getElementById('detailTaskDate').innerHTML = task.date 
+    ? `<i data-lucide="calendar" class="w-3.5 h-3.5 inline"></i> ${task.date}`
+    : `<span class="text-amber-600 dark:text-amber-400 font-bold">⏳ Chưa lên lịch (Kho Backlog)</span>`;
 
   const priorityEl = document.getElementById('detailPriorityBadge');
   const pMap = {
@@ -1343,8 +2221,19 @@ function openTaskDetailModal(taskId) {
   priorityEl.className = `text-xs px-2.5 py-1 rounded-md font-bold ${pInfo.cls}`;
 
   const catEl = document.getElementById('detailCategoryBadge');
-  if (task.category) {
+  if (task.parentId) {
+    const parent = getParentTask(task.parentId);
+    if (parent) {
+      const palette = getParentColorConfig(parent.color);
+      catEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${palette.dot}"></span> ${escapeHtml(parent.title)}`;
+      catEl.className = `text-xs px-2.5 py-1 rounded-md font-bold flex items-center gap-1.5 ${palette.badge}`;
+      catEl.classList.remove('hidden');
+    } else {
+      catEl.classList.add('hidden');
+    }
+  } else if (task.category) {
     catEl.textContent = task.category;
+    catEl.className = 'text-xs px-2.5 py-1 rounded-md font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700/80';
     catEl.classList.remove('hidden');
   } else {
     catEl.classList.add('hidden');
@@ -1848,6 +2737,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   checkAuthStatus();
   loadTasks();
+  loadParentTasks();
 
   // Nút chuyển Dark / Light Mode
   document.getElementById('btnThemeToggle').addEventListener('click', toggleTheme);
@@ -1914,10 +2804,26 @@ document.addEventListener('DOMContentLoaded', () => {
     logoutAdmin();
   });
 
-  // Đổi mật khẩu Local
-  document.getElementById('btnOpenChangePwModal').addEventListener('click', openChangePwModal);
-  document.getElementById('btnCloseChangePwModal').addEventListener('click', closeChangePwModal);
-  document.getElementById('btnCancelChangePwModal').addEventListener('click', closeChangePwModal);
+  // Nút mở Quản lý nhiệm vụ tổng
+  const btnTaskMgr = document.getElementById('btnOpenTaskManager');
+  if (btnTaskMgr) {
+    btnTaskMgr.addEventListener('click', () => {
+      userDropdown.classList.add('hidden');
+      if (typeof openTaskManagerModal === 'function') {
+        openTaskManagerModal();
+      } else {
+        console.log('Mở trung tâm Quản lý nhiệm vụ');
+      }
+    });
+  }
+
+  // Đổi mật khẩu Local (Nếu có trong DOM)
+  const btnChangePw = document.getElementById('btnOpenChangePwModal');
+  if (btnChangePw) btnChangePw.addEventListener('click', openChangePwModal);
+  const btnCloseChangePw = document.getElementById('btnCloseChangePwModal');
+  if (btnCloseChangePw) btnCloseChangePw.addEventListener('click', closeChangePwModal);
+  const btnCancelChangePw = document.getElementById('btnCancelChangePwModal');
+  if (btnCancelChangePw) btnCancelChangePw.addEventListener('click', closeChangePwModal);
 
   changePwForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1934,25 +2840,87 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Modal thêm task
-  document.getElementById('btnOpenAddModal').addEventListener('click', () => openAddTaskModal());
-  document.getElementById('btnQuickAddTaskDay').addEventListener('click', () => openAddTaskModal());
-  document.getElementById('btnCloseModal').addEventListener('click', closeTaskModal);
-  document.getElementById('btnCancelModal').addEventListener('click', closeTaskModal);
+  // Modal thêm task (Hỗ trợ 2 tab: Defined và Others)
+  const btnOpenAdd = document.getElementById('btnOpenAddModal');
+  if (btnOpenAdd) btnOpenAdd.addEventListener('click', () => openAddTaskModal());
+  const btnQuickAddDay = document.getElementById('btnQuickAddTaskDay');
+  if (btnQuickAddDay) btnQuickAddDay.addEventListener('click', () => openAddTaskModal());
+  const btnCloseModal = document.getElementById('btnCloseModal');
+  if (btnCloseModal) btnCloseModal.addEventListener('click', closeTaskModal);
+  const btnCancelModal = document.getElementById('btnCancelModal');
+  if (btnCancelModal) btnCancelModal.addEventListener('click', closeTaskModal);
 
-  // Form submit task
-  taskForm.addEventListener('submit', (e) => {
+  // Tab switching trong Task Modal
+  const tabBtnDef = document.getElementById('tabBtnAddDefined');
+  if (tabBtnDef) tabBtnDef.addEventListener('click', () => switchAddTaskTypeTab('defined'));
+  const tabBtnOth = document.getElementById('tabBtnAddOthers');
+  if (tabBtnOth) tabBtnOth.addEventListener('click', () => switchAddTaskTypeTab('others'));
+
+  // Form 1: Thêm Defined Task từ kho vào ngày
+  if (formAddDefinedTask) {
+    formAddDefinedTask.addEventListener('submit', handleAddDefinedTaskSubmit);
+  }
+  const btnCancelDef = document.getElementById('btnCancelDefinedModal');
+  if (btnCancelDef) btnCancelDef.addEventListener('click', closeTaskModal);
+
+  // Form 2: Thêm mới trực tiếp / Chỉnh sửa task
+  taskForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    saveTaskFromForm({
+    const parentSel = document.getElementById('taskParentSelect');
+    await saveTaskFromForm({
       id: document.getElementById('taskId').value,
       title: document.getElementById('taskTitle').value.trim(),
       date: document.getElementById('taskDate').value,
       priority: document.getElementById('taskPriority').value,
-      category: document.getElementById('taskCategory').value.trim(),
+      parentId: parentSel ? parentSel.value : '',
       note: document.getElementById('taskNote').value.trim()
     });
     closeTaskModal();
   });
+
+  // --- TASK MANAGER MODAL LISTENERS ---
+  const btnOpenAddParent = document.getElementById('btnOpenAddParentModal');
+  if (btnOpenAddParent) btnOpenAddParent.addEventListener('click', openAddParentTaskModal);
+
+  const btnCloseTaskMgr = document.getElementById('btnCloseTaskManagerModal');
+  if (btnCloseTaskMgr) btnCloseTaskMgr.addEventListener('click', closeTaskManagerModal);
+
+  const btnCloseTaskMgrBtm = document.getElementById('btnCloseTaskManagerModalBtm');
+  if (btnCloseTaskMgrBtm) btnCloseTaskMgrBtm.addEventListener('click', closeTaskManagerModal);
+
+  document.querySelectorAll('.tm-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setTaskManagerFilter(btn.getAttribute('data-filter'));
+    });
+  });
+
+  const searchInput = document.getElementById('searchTaskManagerInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      state.taskManagerSearch = e.target.value;
+      renderTaskManagerContent();
+    });
+  }
+
+  // --- PARENT TASK MODAL LISTENERS ---
+  const btnCloseParent = document.getElementById('btnCloseParentTaskModal');
+  if (btnCloseParent) btnCloseParent.addEventListener('click', closeParentTaskModal);
+  const btnCancelParent = document.getElementById('btnCancelParentTaskModal');
+  if (btnCancelParent) btnCancelParent.addEventListener('click', closeParentTaskModal);
+
+  if (formParentTask) {
+    formParentTask.addEventListener('submit', handleSaveParentTask);
+  }
+
+  // --- QUICK SCHEDULE MODAL LISTENERS ---
+  const btnCloseQuickSch = document.getElementById('btnCloseQuickScheduleModal');
+  if (btnCloseQuickSch) btnCloseQuickSch.addEventListener('click', closeQuickScheduleModal);
+  const btnCancelQuickSch = document.getElementById('btnCancelQuickSchedule');
+  if (btnCancelQuickSch) btnCancelQuickSch.addEventListener('click', closeQuickScheduleModal);
+
+  if (formQuickSchedule) {
+    formQuickSchedule.addEventListener('submit', handleQuickScheduleSubmit);
+  }
 
   // Replan Center Modal
   document.getElementById('btnCloseReplanModal').addEventListener('click', closeReplanModal);

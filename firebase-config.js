@@ -189,6 +189,55 @@ async function deleteTaskFromFirestore(userId, taskId) {
   return true;
 }
 
+/**
+ * Lắng nghe danh sách Task tổng (Parent Tasks) của người dùng theo thời gian thực
+ * Đường dẫn: users/{uid}/parentTasks
+ */
+function listenToUserParentTasks(userId, onUpdateCallback, onErrorCallback) {
+  if (!firebaseDb || !userId) return () => {};
+
+  return firebaseDb
+    .collection('users')
+    .doc(userId)
+    .collection('parentTasks')
+    .onSnapshot(
+      (snapshot) => {
+        const pTasks = [];
+        snapshot.forEach((doc) => {
+          pTasks.push({ id: doc.id, ...doc.data() });
+        });
+        onUpdateCallback(pTasks);
+      },
+      (error) => {
+        console.error('Lỗi khi lắng nghe Parent Tasks từ Firestore:', error);
+        if (onErrorCallback) onErrorCallback(error);
+      }
+    );
+}
+
+/**
+ * Lưu hoặc cập nhật một Task tổng lên Firestore
+ */
+async function saveParentTaskToFirestore(userId, parentTask) {
+  if (!firebaseDb || !userId) return false;
+
+  const pRef = firebaseDb.collection('users').doc(userId).collection('parentTasks').doc(parentTask.id);
+  const pData = { ...parentTask };
+  delete pData.id;
+
+  await pRef.set(pData, { merge: true });
+  return true;
+}
+
+/**
+ * Xóa một Task tổng khỏi Firestore
+ */
+async function deleteParentTaskFromFirestore(userId, parentTaskId) {
+  if (!firebaseDb || !userId) return false;
+  await firebaseDb.collection('users').doc(userId).collection('parentTasks').doc(parentTaskId).delete();
+  return true;
+}
+
 // --- GOOGLE DRIVE API INTEGRATION ---
 
 const GOOGLE_DRIVE_FOLDER_NAME = 'Study-Planner-Documents';
@@ -317,5 +366,8 @@ window.StudyPlannerFirebase = {
   listenToUserTasks,
   saveTaskToFirestore,
   deleteTaskFromFirestore,
+  listenToUserParentTasks,
+  saveParentTaskToFirestore,
+  deleteParentTaskFromFirestore,
   uploadFileToGoogleDrive
 };
