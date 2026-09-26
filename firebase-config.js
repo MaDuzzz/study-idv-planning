@@ -3,14 +3,30 @@
  * Hỗ trợ: Multi-tenant Firestore, Google Authentication (Scope: drive.file), và Google Drive API
  */
 
-// Cấu hình Firebase mặc định (Người dùng có thể ghi đè qua Modal Cài đặt hoặc lưu trong localStorage)
+// Cấu hình Firebase mặc định (Lưu trong localStorage của trình duyệt)
 const DEFAULT_FIREBASE_CONFIG_KEY = 'study_planner_firebase_config_v1';
+
+// Cấu hình Firebase nhúng sẵn của hệ thống (Admin cấu hình 1 lần ở đây để TẤT CẢ người dùng truy cập web đều tự động dùng chung)
+const BUILTIN_FIREBASE_CONFIG = {
+  // Điền cấu hình Firebase của project ở đây (nếu muốn nhúng vĩnh viễn vào web)
+  apiKey: "AIzaSyDny5JhUubqG4Y27cn5Jt05o4_N4emb_tU",
+  authDomain: "study-idv-planning.firebaseapp.com",
+  projectId: "study-idv-planning",
+  storageBucket: "study-idv-planning.firebasestorage.app",
+  messagingSenderId: "232038577340",
+  appId: "1:232038577340:web:b7e2b4389339b9b62e0cb9",
+  measurementId: "G-ZXP3MVFH3Y"
+};
 
 // Lấy cấu hình Firebase đã lưu hoặc trả về null nếu chưa cấu hình
 function getStoredFirebaseConfig() {
   try {
     const raw = localStorage.getItem(DEFAULT_FIREBASE_CONFIG_KEY);
-    return raw ? JSON.parse(raw) : null;
+    if (raw) return JSON.parse(raw);
+    if (BUILTIN_FIREBASE_CONFIG && BUILTIN_FIREBASE_CONFIG.apiKey && BUILTIN_FIREBASE_CONFIG.projectId) {
+      return BUILTIN_FIREBASE_CONFIG;
+    }
+    return null;
   } catch (e) {
     console.error('Lỗi khi đọc cấu hình Firebase:', e);
     return null;
@@ -83,7 +99,7 @@ async function signInWithGoogle() {
   try {
     const result = await firebaseAuth.signInWithPopup(provider);
     currentUser = result.user;
-    
+
     // Lưu OAuth access token để gọi Google Drive API
     if (result.credential) {
       googleAccessToken = result.credential.accessToken;
@@ -129,7 +145,7 @@ function getGoogleAccessToken() {
  * Đường dẫn: users/{uid}/tasks
  */
 function listenToUserTasks(userId, onUpdateCallback, onErrorCallback) {
-  if (!firebaseDb || !userId) return () => {};
+  if (!firebaseDb || !userId) return () => { };
 
   return firebaseDb
     .collection('users')
