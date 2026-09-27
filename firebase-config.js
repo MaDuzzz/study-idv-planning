@@ -489,8 +489,9 @@ async function deleteSubtaskDriveFolder({ folderId = null, folderPath = [] }) {
  * @param {string} mimeType - Kiểu MIME
  * @param {string|null} existingFileId - ID file nếu cập nhật
  * @param {Array<string>} folderPath - Mảng chuỗi phân cấp thư mục
+ * @param {string} [orientation='portrait'] - Khổ giấy ('portrait' | 'landscape')
  */
-async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/html', existingFileId = null, folderPath = [] }) {
+async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/html', existingFileId = null, folderPath = [], orientation = 'portrait' }) {
   let token = await ensureValidGoogleAccessToken();
   if (!token) {
     throw new Error('Bạn cần đăng nhập Google để lưu file vào Google Drive.');
@@ -623,6 +624,41 @@ async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/htm
     const fileData = await response.json();
     const finalFileId = fileData.id;
     const docEditLink = `https://docs.google.com/document/d/${finalFileId}/edit`;
+
+    // Cấu hình lề mặc định chuẩn 1 inch (72pt / 2.54cm) và kích thước trang (A4 dọc / ngang) qua Google Docs API
+    try {
+      const isLandscape = orientation === 'landscape';
+      // Khổ A4 theo đơn vị PT: Chiều rộng 595.28pt, Chiều cao 841.89pt
+      const docWidth = isLandscape ? 841.89 : 595.28;
+      const docHeight = isLandscape ? 595.28 : 841.89;
+
+      await fetch(`https://docs.googleapis.com/v1/documents/${finalFileId}:batchUpdate`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          requests: [{
+            updateDocumentStyle: {
+              documentStyle: {
+                marginTop: { magnitude: 72, unit: 'PT' },
+                marginBottom: { magnitude: 72, unit: 'PT' },
+                marginLeft: { magnitude: 72, unit: 'PT' },
+                marginRight: { magnitude: 72, unit: 'PT' },
+                pageSize: {
+                  width: { magnitude: docWidth, unit: 'PT' },
+                  height: { magnitude: docHeight, unit: 'PT' }
+                }
+              },
+              fields: 'marginTop,marginBottom,marginLeft,marginRight,pageSize'
+            }
+          }]
+        })
+      });
+    } catch (e) {
+      console.warn('Cập nhật cấu hình lề và kích thước qua Docs API (bỏ qua):', e);
+    }
 
     return {
       fileId: finalFileId,

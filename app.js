@@ -2760,9 +2760,13 @@ function openTaskDetailModal(taskId) {
     btnOpenDocs.classList.remove('flex');
   }
 
+  // Khôi phục khổ giấy dọc / ngang đã lưu
+  currentDocOrientation = task.document?.orientation || 'portrait';
+  applyDocOrientation(currentDocOrientation);
+
   updateDocCounts();
 
-  // Khởi tạo snapshot để kiểm tra thay đổi cho Drive Auto-Sync (2 phút/lần)
+  // Khởi tạo snapshot để kiểm tra thay đổi cho Drive Auto-Sync (5 phút/lần)
   lastDriveSyncedHtml = task.document?.contentHtml || '';
   let initialDocName = task.document?.fileName || '';
   if (initialDocName && !initialDocName.endsWith('.docx')) initialDocName += '.docx';
@@ -2784,26 +2788,119 @@ function openTaskDetailModal(taskId) {
 }
 
 let isDetailFullscreen = false;
+let currentDocOrientation = 'portrait'; // 'portrait' | 'landscape'
+
+function applyDocOrientation(orientation) {
+  currentDocOrientation = orientation || 'portrait';
+  const paper = document.getElementById('docPaperSheet');
+  const rulerContainer = document.getElementById('docRulerContainer');
+  const btnPortrait = document.getElementById('btnPagePortrait');
+  const btnLandscape = document.getElementById('btnPageLandscape');
+  const rulerInch8 = document.getElementById('rulerInch8');
+  const rulerInch9 = document.getElementById('rulerInch9');
+  const rulerInch10 = document.getElementById('rulerInch10');
+
+  const isLandscape = currentDocOrientation === 'landscape';
+
+  if (paper) {
+    if (isLandscape) {
+      paper.style.width = '1123px';
+      paper.style.minHeight = '794px';
+    } else {
+      paper.style.width = '794px';
+      paper.style.minHeight = '1123px';
+    }
+  }
+
+  if (rulerContainer) {
+    rulerContainer.style.width = isLandscape ? '1123px' : '794px';
+  }
+
+  if (rulerInch8) rulerInch8.classList.toggle('hidden', !isLandscape);
+  if (rulerInch9) rulerInch9.classList.toggle('hidden', !isLandscape);
+  if (rulerInch10) rulerInch10.classList.toggle('hidden', !isLandscape);
+
+  if (btnPortrait && btnLandscape) {
+    if (isLandscape) {
+      btnLandscape.className = 'px-2 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-2xs';
+      btnPortrait.className = 'px-2 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 text-slate-600 dark:text-slate-300 hover:text-blue-600';
+    } else {
+      btnPortrait.className = 'px-2 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-2xs';
+      btnLandscape.className = 'px-2 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 text-slate-600 dark:text-slate-300 hover:text-blue-600';
+    }
+  }
+
+  if (state.activeDetailTaskId) {
+    const task = state.tasks.find(t => t.id === state.activeDetailTaskId);
+    if (task) {
+      if (!task.document) task.document = {};
+      task.document.orientation = currentDocOrientation;
+    }
+  }
+
+  updateDocCounts();
+}
+
+function insertPageBreakIntoEditor() {
+  const editor = document.getElementById('taskDocEditor');
+  if (!editor) return;
+  editor.focus();
+
+  const pageBreakHtml = 
+    `<div class="doc-page-break" contenteditable="false">` +
+      `<div class="doc-page-break-gap"></div>` +
+      `<div class="doc-page-break-bar">` +
+        `<span class="doc-page-break-badge">📄 Trang mới (Page Break)</span>` +
+      `</div>` +
+    `</div>` +
+    `<p><br></p>`;
+
+  document.execCommand('insertHTML', false, pageBreakHtml);
+  updateDocCounts();
+  triggerDocAutoSave();
+}
 
 function toggleDetailFullscreen() {
   const modalDialog = document.getElementById('taskDetailDialog');
   const modalBackdrop = document.getElementById('taskDetailModal');
+  const modalHeader = document.getElementById('taskDetailModalHeader');
+  const tabsBar = document.getElementById('taskDetailTabsBar');
   const iconFs = document.getElementById('iconFullscreen');
+  const btnExitFs = document.getElementById('btnExitFullscreen');
   isDetailFullscreen = !isDetailFullscreen;
 
   if (isDetailFullscreen) {
-    modalBackdrop.className = 'fixed inset-0 bg-slate-950 z-[75] modal-layer-detail flex p-0';
-    modalDialog.className = 'bg-white dark:bg-slate-900 w-full h-full rounded-none flex flex-col transition-all duration-150 overflow-hidden';
+    modalBackdrop.className = 'fixed inset-0 bg-slate-950 z-[100] modal-layer-system flex p-0';
+    modalDialog.className = 'bg-slate-100 dark:bg-slate-950 w-full h-full rounded-none flex flex-col transition-all duration-150 overflow-hidden';
+    
+    // Hình 2: Ẩn phần header task và tabs bar khi full screen, chỉ giữ toolbar và editor
+    if (modalHeader) modalHeader.classList.add('hidden');
+    if (tabsBar) tabsBar.classList.add('hidden');
+    if (btnExitFs) {
+      btnExitFs.classList.remove('hidden');
+      btnExitFs.classList.add('flex');
+    }
     if (iconFs) iconFs.setAttribute('data-lucide', 'minimize-2');
   } else {
     modalBackdrop.className = 'fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[75] modal-layer-detail flex items-center justify-center p-1 sm:p-2.5 2xl:p-4';
     modalDialog.className = 'bg-white dark:bg-slate-900 rounded-2xl w-full h-[96vh] 2xl:h-[97vh] max-w-[98vw] 2xl:max-w-[1950px] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 transition-all duration-200 overflow-hidden modal-dialog-animated';
+    
+    // Khôi phục header task và tabs bar
+    if (modalHeader) modalHeader.classList.remove('hidden');
+    if (tabsBar) tabsBar.classList.remove('hidden');
+    if (btnExitFs) {
+      btnExitFs.classList.remove('flex');
+      btnExitFs.classList.add('hidden');
+    }
     if (iconFs) iconFs.setAttribute('data-lucide', 'maximize-2');
   }
   lucide.createIcons();
 }
 
 function closeTaskDetailModal() {
+  if (isDetailFullscreen) {
+    toggleDetailFullscreen();
+  }
   stopDriveAutoSyncTimer();
   if (state.activeDetailTaskId) {
     const closingTaskId = state.activeDetailTaskId;
@@ -2865,10 +2962,21 @@ function updateDocCounts() {
   const charCount = text.length;
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
 
+  // Đếm số trang (dựa vào số lượng page breaks + chiều cao thực tế)
+  const pageBreaks = editor.querySelectorAll('.doc-page-break').length;
+  const isLandscape = currentDocOrientation === 'landscape';
+  const pageHeight = isLandscape ? 794 : 1123;
+  // Chiều cao có thể chứa nội dung mỗi trang (trừ lề trên dưới 144px)
+  const contentPageHeight = Math.max(400, pageHeight - 144);
+  const heightBasedPages = Math.ceil(editor.scrollHeight / contentPageHeight);
+  const totalPages = Math.max(1, pageBreaks + 1, heightBasedPages);
+
   const charEl = document.getElementById('editorCharCount');
   const wordEl = document.getElementById('editorWordCount');
+  const pageEl = document.getElementById('editorPageCount');
   if (charEl) charEl.textContent = `${charCount} ký tự`;
   if (wordEl) wordEl.textContent = `${wordCount} từ`;
+  if (pageEl) pageEl.textContent = `Trang 1 / ${totalPages}`;
 }
 
 function flushSaveTaskDoc(taskId) {
@@ -2885,6 +2993,7 @@ function flushSaveTaskDoc(taskId) {
   let fname = fileNameInput.value.trim();
   if (fname && !fname.endsWith('.docx')) fname += '.docx';
   task.document.fileName = fname || 'Tai_lieu.docx';
+  task.document.orientation = currentDocOrientation || 'portrait';
   task.document.lastSaved = new Date().toISOString();
 
   saveSingleTask(task);
@@ -2920,8 +3029,8 @@ function triggerDocAutoSave() {
         if (driveSyncStatus) {
           driveSyncStatus.classList.remove('hidden');
           driveSyncStatus.classList.add('flex');
-          driveSyncStatus.innerHTML = '<i data-lucide="clock" class="w-3.5 h-3.5 text-amber-500 animate-pulse"></i> <span class="text-amber-600 dark:text-amber-400 text-[11px]">Chưa sync Drive (tự động sau 2p)</span>';
-          driveSyncStatus.title = 'Có thay đổi mới chưa lưu lên Drive. Hệ thống sẽ tự động đồng bộ sau 2 phút hoặc bấm "Lưu vào Drive" để lưu ngay.';
+          driveSyncStatus.innerHTML = '<i data-lucide="clock" class="w-3.5 h-3.5 text-amber-500 animate-pulse"></i> <span class="text-amber-600 dark:text-amber-400 text-[11px]">Chưa sync Drive (tự động sau 5p)</span>';
+          driveSyncStatus.title = 'Có thay đổi mới chưa lưu lên Drive. Hệ thống sẽ tự động đồng bộ sau 5 phút hoặc bấm "Lưu vào Drive" để lưu ngay.';
           lucide.createIcons();
         }
       }
@@ -3062,6 +3171,8 @@ function buildTaskDocxHtml(task, editorHtml) {
   const parent = task.parentId ? getParentTask(task.parentId) : null;
   const parentTitle = parent ? parent.title : (task.category || 'Không');
   const safeEditorHtml = normalizeDocImagesForGoogleDrive(editorHtml || '<p></p>');
+  const orientation = (task.document && task.document.orientation) || currentDocOrientation || 'portrait';
+  const isLandscape = orientation === 'landscape';
 
   return `<!DOCTYPE html>
 <html>
@@ -3069,7 +3180,19 @@ function buildTaskDocxHtml(task, editorHtml) {
   <meta charset="utf-8">
   <title>${escapeHtml(task.title)}</title>
   <style>
-    body { font-family: 'Times New Roman', Times, serif; font-size: 13pt; font-weight: normal; line-height: 1.5; color: #1e293b; padding: 12pt; }
+    @page {
+      size: A4 ${isLandscape ? 'landscape' : 'portrait'};
+      margin: 1in;
+    }
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 13pt;
+      font-weight: normal;
+      line-height: 1.5;
+      color: #1e293b;
+      margin: 0;
+      padding: 0;
+    }
     p, li, td, th, div, span { font-family: 'Times New Roman', Times, serif; font-size: 13pt; font-weight: normal; line-height: 1.5; }
     h1 { font-family: 'Times New Roman', Times, serif; font-size: 20pt; font-weight: bold; color: #1e40af; margin-top: 18pt; margin-bottom: 6pt; }
     h2 { font-family: 'Times New Roman', Times, serif; font-size: 16pt; font-weight: bold; color: #1e3a8a; margin-top: 14pt; margin-bottom: 5pt; }
@@ -3093,6 +3216,17 @@ function buildTaskDocxHtml(task, editorHtml) {
     blockquote { border-left: 3pt solid #3b82f6; padding-left: 10pt; margin: 10pt 0; color: #64748b; font-style: italic; }
     img { max-width: 100% !important; height: auto !important; display: block; margin: 12pt auto; border-radius: 4pt; }
     pre, code { font-family: 'Consolas', 'Courier New', monospace; background-color: #f1f5f9; padding: 2pt 4pt; border-radius: 3pt; font-size: 10.5pt; }
+    .doc-page-break {
+      page-break-before: always !important;
+      break-before: page !important;
+      height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+    }
+    .doc-page-break * {
+      display: none !important;
+    }
   </style>
 </head>
 <body>
@@ -3328,7 +3462,8 @@ async function performGoogleDriveUpload(options = {}) {
       content: fullHtml,
       mimeType: 'text/html',
       existingFileId: task.document?.driveFileId || null,
-      folderPath: folderPath
+      folderPath: folderPath,
+      orientation: (task.document && task.document.orientation) || currentDocOrientation || 'portrait'
     });
 
     if (!task.document) task.document = {};
@@ -4236,6 +4371,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnToggleFs = document.getElementById('btnToggleDetailFullscreen');
   if (btnToggleFs) btnToggleFs.addEventListener('click', toggleDetailFullscreen);
+  const btnExitFs = document.getElementById('btnExitFullscreen');
+  if (btnExitFs) btnExitFs.addEventListener('click', toggleDetailFullscreen);
+
+  // Điều khiển khổ giấy (A4 Dọc / A4 Ngang) & Thước đo (Ruler)
+  const btnPortrait = document.getElementById('btnPagePortrait');
+  if (btnPortrait) btnPortrait.addEventListener('click', () => applyDocOrientation('portrait'));
+  const btnLandscape = document.getElementById('btnPageLandscape');
+  if (btnLandscape) btnLandscape.addEventListener('click', () => applyDocOrientation('landscape'));
+
+  const btnToggleRuler = document.getElementById('btnToggleRuler');
+  if (btnToggleRuler) {
+    btnToggleRuler.addEventListener('click', () => {
+      const ruler = document.getElementById('docRulerContainer');
+      if (ruler) {
+        ruler.classList.toggle('hidden');
+        btnToggleRuler.classList.toggle('text-blue-600', !ruler.classList.contains('hidden'));
+        btnToggleRuler.classList.toggle('text-slate-400', ruler.classList.contains('hidden'));
+      }
+    });
+  }
+
+  // Nút chèn ngắt trang
+  const btnPageBreak = document.getElementById('btnInsertPageBreak');
+  if (btnPageBreak) {
+    btnPageBreak.addEventListener('mousedown', (e) => e.preventDefault());
+    btnPageBreak.addEventListener('click', insertPageBreakIntoEditor);
+  }
 
   // Tabs
   const tabDoc = document.getElementById('tabBtnDocument');
@@ -4564,7 +4726,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Multi-level Indent với phím Tab và Shift+Tab
+    // Phím tắt: Multi-level Indent với Tab / Shift+Tab và Ngắt trang với Ctrl+Enter / Cmd+Enter
     docEditor.addEventListener('keydown', (e) => {
       if (e.key === 'Tab') {
         e.preventDefault();
@@ -4574,6 +4736,18 @@ document.addEventListener('DOMContentLoaded', () => {
           document.execCommand('indent', false, null);
         }
         triggerDocAutoSave();
+      } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        insertPageBreakIntoEditor();
+      }
+    });
+
+    // Thoát chế độ toàn màn hình (Full Screen) khi nhấn phím Esc
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isDetailFullscreen) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleDetailFullscreen();
       }
     });
 

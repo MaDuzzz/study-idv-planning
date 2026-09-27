@@ -87,9 +87,66 @@
       box-shadow: inset 0 0 0 2px #2563eb;
     }
 
-    /* Định dạng khung soạn thảo tài liệu chuẩn Word (.docx WYSIWYG) */
+    /* Định dạng khung soạn thảo tài liệu chuẩn Google Docs & Word (.docx WYSIWYG) */
+    .doc-paper {
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.06);
+      border-radius: 2px;
+      transition: width 0.25s ease, min-height 0.25s ease;
+    }
+    html.dark .doc-paper {
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    }
+
+    /* Phân cách trang / Ngắt trang (Google Docs Page Break & Visual Multi-Page) */
+    .doc-page-break {
+      margin-left: -72px;
+      margin-right: -72px;
+      margin-top: 36px;
+      margin-bottom: 36px;
+      position: relative;
+      user-select: none;
+      cursor: default;
+    }
+    .doc-page-break-gap {
+      height: 28px;
+      background: #e2e8f0;
+      border-top: 1px solid #cbd5e1;
+      border-bottom: 1px solid #cbd5e1;
+      box-shadow: inset 0 3px 6px -1px rgba(0,0,0,0.08), inset 0 -3px 6px -1px rgba(0,0,0,0.08);
+    }
+    html.dark .doc-page-break-gap {
+      background: #020617;
+      border-top-color: #1e293b;
+      border-bottom-color: #1e293b;
+      box-shadow: inset 0 3px 6px -1px rgba(0,0,0,0.6), inset 0 -3px 6px -1px rgba(0,0,0,0.6);
+    }
+    .doc-page-break-bar {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .doc-page-break-badge {
+      background: #ffffff;
+      border: 1px dashed #94a3b8;
+      border-radius: 9999px;
+      padding: 2px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    html.dark .doc-page-break-badge {
+      background: #1e293b;
+      border-color: #475569;
+      color: #94a3b8;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+
     .doc-editor {
-      min-height: 480px;
+      min-height: 980px;
       outline: none;
       font-family: 'Times New Roman', Times, Georgia, serif;
       font-size: 17.33px; /* 13pt */
@@ -1040,7 +1097,7 @@
     <div id="taskDetailDialog" class="bg-white dark:bg-slate-900 rounded-2xl w-full h-[96vh] 2xl:h-[97vh] max-w-[98vw] 2xl:max-w-[1950px] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 transition-all duration-200 overflow-hidden modal-dialog-animated">
       
       <!-- Modal Header -->
-      <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between gap-3 bg-slate-50/70 dark:bg-slate-850 shrink-0">
+      <div id="taskDetailModalHeader" class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between gap-3 bg-slate-50/70 dark:bg-slate-850 shrink-0">
         <div class="flex items-start gap-3 flex-1 min-w-0">
           <button id="btnDetailToggleComplete" title="Đánh dấu hoàn thành" class="mt-1 w-6 h-6 rounded-lg flex items-center justify-center border transition shrink-0 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-blue-500 shadow-2xs">
             <i data-lucide="check" class="w-4 h-4 text-emerald-500 hidden" id="detailCompleteCheckIcon"></i>
@@ -1076,7 +1133,7 @@
       </div>
 
       <!-- Navigation Tabs bên trong Task Detail -->
-      <div class="px-5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-4 text-xs sm:text-sm font-bold bg-white dark:bg-slate-900">
+      <div id="taskDetailTabsBar" class="px-5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-4 text-xs sm:text-sm font-bold bg-white dark:bg-slate-900">
         <button id="tabBtnDocument" class="py-3 border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 flex items-center gap-1.5 transition">
           <i data-lucide="file-text" class="w-4 h-4"></i> Soạn thảo Tài liệu (.docx)
         </button>
@@ -1092,7 +1149,7 @@
         <div id="tabContentDocument" class="space-y-3.5">
           
           <!-- Thanh công cụ quản lý file (File Bar: Nhập / Xuất / Google Drive) -->
-          <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div id="taskDocFileBar" class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div class="flex items-center gap-2 flex-1 min-w-0">
               <i data-lucide="file-type-2" class="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0"></i>
               <input type="text" id="docFileNameInput" placeholder="Tên_tai_lieu.docx" value="Tai_lieu_hoc_tap.docx" class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white bg-white dark:bg-slate-700 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-hidden max-w-xs w-full">
@@ -1127,12 +1184,37 @@
                 <i data-lucide="external-link" class="w-4 h-4"></i>
                 <span>Google Docs</span>
               </a>
+
+              <!-- Nút Thu nhỏ / Thoát Fullscreen (chỉ hiện khi đang bật chế độ Fullscreen) -->
+              <button id="btnExitFullscreen" title="Thu nhỏ / Thoát toàn màn hình (Esc)" class="hidden px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition items-center gap-1.5 shadow-2xs">
+                <i data-lucide="minimize-2" class="w-4 h-4"></i>
+                <span>Thu nhỏ (Esc)</span>
+              </button>
             </div>
           </div>
 
-          <!-- Thanh định dạng soạn thảo WYSIWYG chuẩn Word (Sticky Format Toolbar) -->
-          <div class="sticky top-0 z-20 p-2 bg-white/95 dark:bg-slate-850/95 backdrop-blur-md rounded-xl border border-slate-200 dark:border-slate-700/80 flex items-center gap-1 flex-wrap text-xs shadow-md transition-shadow">
+          <!-- Thanh định dạng soạn thảo WYSIWYG chuẩn Word & Google Docs (Sticky Format Toolbar) -->
+          <div id="taskDocToolbar" class="sticky top-0 z-20 p-2 bg-white/95 dark:bg-slate-850/95 backdrop-blur-md rounded-xl border border-slate-200 dark:border-slate-700/80 flex items-center gap-1 flex-wrap text-xs shadow-md transition-shadow">
             
+            <!-- Chọn khổ giấy: A4 Dọc / A4 Ngang -->
+            <div class="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-0.5" id="pageOrientationGroup" title="Chọn khổ giấy (A4 Dọc / A4 Ngang)">
+              <button type="button" id="btnPagePortrait" title="Khổ dọc (A4 Portrait: 210 × 297 mm)" class="px-2 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-2xs">
+                <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                <span class="hidden sm:inline">Khổ dọc</span>
+              </button>
+              <button type="button" id="btnPageLandscape" title="Khổ ngang (A4 Landscape: 297 × 210 mm)" class="px-2 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 text-slate-600 dark:text-slate-300 hover:text-blue-600">
+                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+                <span class="hidden sm:inline">Khổ ngang</span>
+              </button>
+            </div>
+
+            <!-- Nút Ẩn/Hiện thước đo Ruler -->
+            <button type="button" id="btnToggleRuler" title="Bật/Tắt Thước đo căn lề (Google Docs Ruler)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-750 text-blue-600 dark:text-blue-400 transition">
+              <i data-lucide="ruler" class="w-4 h-4"></i>
+            </button>
+
+            <span class="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-0.5"></span>
+
             <!-- Định dạng khối văn bản (Heading / Paragraph / Code) -->
             <select id="editorFormatBlock" title="Định dạng đoạn văn" class="px-2.5 py-1 bg-slate-50 dark:bg-slate-750 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white font-semibold cursor-pointer">
               <option value="p">Văn bản thường</option>
@@ -1286,6 +1368,10 @@
             <button type="button" data-cmd="insertHorizontalRule" title="Chèn đường kẻ ngang" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
               <i data-lucide="minus" class="w-4 h-4"></i>
             </button>
+            <button type="button" id="btnInsertPageBreak" title="Ngắt trang mới (Ctrl + Enter)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-1">
+              <i data-lucide="scissors" class="w-4 h-4 text-indigo-500"></i>
+              <span class="hidden 2xl:inline text-[11px] font-semibold">Ngắt trang</span>
+            </button>
             <button type="button" id="btnInsertLinkDoc" title="Chèn liên kết" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
               <i data-lucide="link-2" class="w-4 h-4"></i>
             </button>
@@ -1310,22 +1396,69 @@
             </button>
           </div>
 
-          <!-- Khung soạn thảo văn bản mô phỏng trang giấy Word rộng rãi (Elastic Canvas) -->
-          <div class="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 2xl:p-12 shadow-xs min-h-[520px] 2xl:min-h-[640px] flex flex-col">
-            <div 
-              id="taskDocEditor" 
-              contenteditable="true" 
-              class="doc-editor flex-1 text-slate-800 dark:text-slate-100 text-sm sm:text-base leading-relaxed" 
-              data-placeholder="Bắt đầu soạn thảo tài liệu, ghi chú hoặc nội dung học tập... Bạn cũng có thể bấm 'Mở .docx' để đọc file Word từ máy tính."
-            ></div>
+          <!-- KHU VỰC SOẠN THẢO TRANG GIẤY GOOGLE DOCS (PAGE WORKSPACE CANVAS) -->
+          <div id="docPageWorkspace" class="bg-slate-100/90 dark:bg-slate-950 p-4 sm:p-6 lg:p-8 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex flex-col items-center overflow-x-auto min-h-[650px] transition-all">
+            
+            <!-- THƯỚC ĐO LỀ GOOGLE DOCS (RULER) -->
+            <div id="docRulerContainer" class="mb-3 w-[794px] max-w-full overflow-hidden select-none transition-all duration-200">
+              <div class="relative h-6 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-t flex items-center text-[10px] font-mono text-slate-500 dark:text-slate-400 shadow-2xs">
+                <!-- Vùng lề trái màu xám (1 inch = 72px) -->
+                <div id="rulerLeftMargin" class="h-full bg-slate-200/70 dark:bg-slate-700/70 border-r border-slate-300 dark:border-slate-600 relative shrink-0" style="width: 72px;">
+                  <!-- Con trỏ căn lề thụt đầu dòng (First line indent & left indent - Blue marker) -->
+                  <div class="absolute right-0 top-0 bottom-0 flex flex-col items-center justify-between z-10 translate-x-1/2 cursor-default" title="Căn lề trái: 1 inch (2.54cm)">
+                    <div class="w-3 h-1 bg-blue-600 rounded-xs shadow-xs"></div>
+                    <div class="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[5px] border-t-blue-600"></div>
+                  </div>
+                </div>
+
+                <!-- Vùng nội dung trang văn bản với các vạch inch 1..7 (hoặc 1..10) -->
+                <div id="rulerBody" class="flex-1 h-full relative flex items-center overflow-hidden">
+                  <div class="absolute inset-0 flex justify-between px-2 items-center text-[9px] text-slate-400 dark:text-slate-500 font-semibold pointer-events-none">
+                    <span class="w-12 text-center border-l border-slate-300 dark:border-slate-600 h-2 flex items-end justify-center">1</span>
+                    <span class="w-12 text-center border-l border-slate-300 dark:border-slate-600 h-2 flex items-end justify-center">2</span>
+                    <span class="w-12 text-center border-l border-slate-300 dark:border-slate-600 h-2 flex items-end justify-center">3</span>
+                    <span class="w-12 text-center border-l border-slate-300 dark:border-slate-600 h-2 flex items-end justify-center">4</span>
+                    <span class="w-12 text-center border-l border-slate-300 dark:border-slate-600 h-2 flex items-end justify-center">5</span>
+                    <span class="w-12 text-center border-l border-slate-300 dark:border-slate-600 h-2 flex items-end justify-center">6</span>
+                    <span class="w-12 text-center border-l border-slate-300 dark:border-slate-600 h-2 flex items-end justify-center">7</span>
+                    <span id="rulerInch8" class="w-12 text-center border-l border-slate-300 dark:border-slate-600 h-2 hidden items-end justify-center">8</span>
+                    <span id="rulerInch9" class="w-12 text-center border-l border-slate-300 dark:border-slate-600 h-2 hidden items-end justify-center">9</span>
+                    <span id="rulerInch10" class="w-12 text-center border-l border-slate-300 dark:border-slate-600 h-2 hidden items-end justify-center">10</span>
+                  </div>
+                </div>
+
+                <!-- Vùng lề phải màu xám (1 inch = 72px) -->
+                <div id="rulerRightMargin" class="h-full bg-slate-200/70 dark:bg-slate-700/70 border-l border-slate-300 dark:border-slate-600 relative shrink-0" style="width: 72px;">
+                  <!-- Con trỏ căn lề phải (Right indent - Blue downward triangle) -->
+                  <div class="absolute left-0 top-0 bottom-0 flex flex-col items-center justify-start z-10 -translate-x-1/2 cursor-default pt-0.5" title="Căn lề phải: 1 inch (2.54cm)">
+                    <div class="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[6px] border-t-blue-600"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- TRANG GIẤY CHUẨN GOOGLE DOCS (THE PAPER SHEET) -->
+            <div id="docPaperSheet" class="doc-paper bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700/80 shadow-2xl transition-all duration-200 relative flex flex-col max-w-full" style="width: 794px; min-height: 1123px; padding: 72px 72px;">
+              <div 
+                id="taskDocEditor" 
+                contenteditable="true" 
+                class="doc-editor flex-1 text-slate-800 dark:text-slate-100 text-sm sm:text-base leading-relaxed focus:outline-hidden" 
+                data-placeholder="Bắt đầu soạn thảo tài liệu, ghi chú hoặc nội dung học tập... Bạn cũng có thể bấm 'Mở .docx' để đọc file Word từ máy tính."
+              ></div>
+            </div>
+
           </div>
 
           <!-- Footer thanh trạng thái Editor -->
           <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-2 font-medium">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2.5 flex-wrap">
+              <span id="editorPageCount" class="font-bold text-blue-600 dark:text-blue-400">Trang 1 / 1</span>
+              <span>•</span>
               <span id="editorWordCount">0 từ</span>
               <span>•</span>
               <span id="editorCharCount">0 ký tự</span>
+              <span>•</span>
+              <span class="text-slate-400 dark:text-slate-500 hidden sm:inline">Lề: 1 inch (2.54cm)</span>
             </div>
             <div id="editorSaveStatus" class="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
               <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Đã tự động lưu
@@ -1513,7 +1646,7 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=4.9"></script>
-  <script src="app.js?v=4.9"></script>
+  <script src="firebase-config.js?v=5.0"></script>
+  <script src="app.js?v=5.0"></script>
 </body>
 </html>
