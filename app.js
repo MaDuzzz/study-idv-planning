@@ -1117,10 +1117,13 @@ function updateAuthUI() {
 
   const isAuthenticated = Boolean(state.isAdmin || state.currentUser);
 
+  const mobileNav = document.getElementById('mobileBottomNav');
+
   if (isAuthenticated) {
     if (topNav) topNav.classList.remove('hidden');
     if (authView) authView.classList.remove('hidden');
     if (guestPortal) guestPortal.classList.add('hidden');
+    if (mobileNav) mobileNav.classList.remove('hidden');
 
     adminGroup.classList.remove('hidden');
     adminGroup.classList.add('flex');
@@ -1170,6 +1173,7 @@ function updateAuthUI() {
     if (topNav) topNav.classList.add('hidden');
     if (authView) authView.classList.add('hidden');
     if (guestPortal) guestPortal.classList.remove('hidden');
+    if (mobileNav) mobileNav.classList.add('hidden');
 
     adminGroup.classList.add('hidden');
     adminGroup.classList.remove('flex');
@@ -1424,9 +1428,9 @@ function renderWeekView() {
           : 'bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-800 dark:text-slate-100 font-bold');
 
     return `
-      <!-- Cột ngày Elastic & Cố định chiều cao đồng đều 530px (2K: 610px), cuộn thanh slide mượt khi > 4 task -->
+      <!-- Cột ngày Elastic & Cố định chiều cao đồng đều 530px (2K: 610px), snap-center trên mobile iPhone -->
       <div 
-        class="day-dropzone rounded-2xl border transition-all duration-200 flex flex-col h-[530px] 2xl:h-[610px] ${dayCardClasses}"
+        class="day-dropzone rounded-2xl border transition-all duration-200 flex flex-col h-[530px] 2xl:h-[610px] snap-center shrink-0 ${dayCardClasses}"
         data-is-past="${isPast ? 'true' : 'false'}"
         data-is-today="${isToday ? 'true' : 'false'}"
         ${isPast ? '' : `
@@ -1523,6 +1527,16 @@ function renderWeekView() {
   }).join('');
 
   lucide.createIcons();
+
+  // Tự động cuộn mượt đến thẻ của ngày hôm nay trên mobile nếu có
+  if (window.innerWidth < 768) {
+    setTimeout(() => {
+      const todayCard = container.querySelector('[data-is-today="true"]');
+      if (todayCard && todayCard.scrollIntoView) {
+        todayCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }, 80);
+  }
 }
 
 // D. Render Month View (Dark Mode High Contrast & Elastic)
@@ -1558,7 +1572,7 @@ function renderMonthView() {
 
       html += `
         <div 
-          class="day-dropzone min-h-[115px] 2xl:min-h-[140px] p-2.5 rounded-2xl border cursor-pointer transition-all duration-150 flex flex-col justify-between ${
+          class="day-dropzone min-h-[75px] sm:min-h-[115px] 2xl:min-h-[140px] p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl border cursor-pointer transition-all duration-150 flex flex-col justify-between ${
             isToday 
               ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40 shadow-sm' 
               : isPast
@@ -1768,6 +1782,16 @@ function switchView(viewName) {
     }
   });
 
+  // Đồng bộ trạng thái active trên Mobile Bottom Nav Dock
+  document.querySelectorAll('.mobile-dock-btn').forEach(btn => {
+    const isTarget = btn.getAttribute('data-mobile-view') === viewName;
+    if (isTarget) {
+      btn.className = 'mobile-dock-btn flex-1 py-1 flex flex-col items-center justify-center text-blue-600 dark:text-blue-400 font-bold transition';
+    } else {
+      btn.className = 'mobile-dock-btn flex-1 py-1 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 font-medium hover:text-slate-800 dark:hover:text-slate-200 transition';
+    }
+  });
+
   document.getElementById('viewDay').classList.toggle('hidden', viewName !== 'day');
   document.getElementById('viewWeek').classList.toggle('hidden', viewName !== 'week');
   document.getElementById('viewMonth').classList.toggle('hidden', viewName !== 'month');
@@ -1835,6 +1859,68 @@ function goToToday() {
 function openDayFromGrid(dateStr) {
   state.currentDate = parseDateStr(dateStr);
   switchView('day');
+}
+
+// E. Nhận diện cử chỉ vuốt chạm màn hình (Swipe Gestures) trên iPhone & Mobile
+function initMobileTouchGestures() {
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+
+  const targetArea = document.getElementById('authenticatedMainView');
+  const dateNavArea = document.getElementById('topNavigationBar');
+
+  function handleTouchStart(e) {
+    if (e.touches.length !== 1) return;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    touchStartTime = Date.now();
+  }
+
+  function handleTouchEnd(e) {
+    if (!touchStartX || !touchStartY) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+    const duration = Date.now() - touchStartTime;
+
+    touchStartX = 0;
+    touchStartY = 0;
+
+    // Chỉ nhận diện swipe dứt khoát (< 450ms) và theo phương ngang rõ rệt
+    if (duration > 450) return;
+    if (Math.abs(deltaX) < 55 || Math.abs(deltaX) < Math.abs(deltaY) * 1.5) return;
+
+    // Không kích hoạt nếu đang mở bất kỳ modal nào
+    const anyModalOpen = Array.from(document.querySelectorAll('.fixed.inset-0:not(#toastNotificationContainer)'))
+      .some(m => !m.classList.contains('hidden'));
+    if (anyModalOpen) return;
+
+    // Ở chế độ Tuần, người dùng vuốt trên các thẻ ngày để cuộn ngang (snap cards).
+    // Do đó trong Week view chỉ nhận diện swipe chuyển tuần khi vuốt trên thanh điều hướng ngày trên cùng (dateNavArea)
+    const isOverWeekScroll = e.target.closest('#weekScrollContainer');
+    if (state.currentView === 'week' && isOverWeekScroll) {
+      return;
+    }
+
+    // DeltaX < 0: Vuốt sang trái -> Xem kế tiếp (Next)
+    // DeltaX > 0: Vuốt sang phải -> Xem trước đó (Prev)
+    if (deltaX < 0) {
+      navigateDate(1);
+    } else {
+      navigateDate(-1);
+    }
+  }
+
+  if (targetArea) {
+    targetArea.addEventListener('touchstart', handleTouchStart, { passive: true });
+    targetArea.addEventListener('touchend', handleTouchEnd, { passive: true });
+  }
+  if (dateNavArea) {
+    dateNavArea.addEventListener('touchstart', handleTouchStart, { passive: true });
+    dateNavArea.addEventListener('touchend', handleTouchEnd, { passive: true });
+  }
 }
 
 // --- 8. MODALS ---
@@ -4809,10 +4895,27 @@ document.addEventListener('DOMContentLoaded', () => {
   // Nút chuyển Dark / Light Mode
   document.getElementById('btnThemeToggle').addEventListener('click', toggleTheme);
 
-  // Chuyển view
+  // Chuyển view (Desktop & Tablet)
   document.querySelectorAll('.view-btn').forEach(btn => {
     btn.addEventListener('click', () => switchView(btn.getAttribute('data-view')));
   });
+
+  // Chuyển view từ thanh Mobile Bottom Nav Dock (Dành cho iPhone & Mobile)
+  document.querySelectorAll('.mobile-dock-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const view = btn.getAttribute('data-mobile-view');
+      if (view) switchView(view);
+    });
+  });
+
+  // Nút Thêm nhanh Task ở giữa thanh Mobile Bottom Dock
+  const btnMobileAdd = document.getElementById('btnMobileQuickAdd');
+  if (btnMobileAdd) {
+    btnMobileAdd.addEventListener('click', () => openAddTaskModal());
+  }
+
+  // Khởi tạo cử chỉ vuốt chạm iPhone & Mobile
+  initMobileTouchGestures();
 
   // Điều hướng ngày
   document.getElementById('btnPrevDate').addEventListener('click', () => navigateDate(-1));
@@ -5133,10 +5236,30 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnReplanAllToNextWeek').addEventListener('click', replanAllOverdueToNextWeek);
 
   // Export / Import JSON
-  document.getElementById('btnExport').addEventListener('click', exportData);
-  document.getElementById('btnImportTrigger').addEventListener('click', () => {
-    document.getElementById('importFileInput').click();
-  });
+  const btnExport = document.getElementById('btnExport');
+  if (btnExport) btnExport.addEventListener('click', exportData);
+  const btnImportTrigger = document.getElementById('btnImportTrigger');
+  if (btnImportTrigger) {
+    btnImportTrigger.addEventListener('click', () => {
+      document.getElementById('importFileInput').click();
+    });
+  }
+  const btnDropdownExport = document.getElementById('btnDropdownExport');
+  if (btnDropdownExport) {
+    btnDropdownExport.addEventListener('click', () => {
+      const userDropdown = document.getElementById('userDropdown');
+      if (userDropdown) userDropdown.classList.add('hidden');
+      exportData();
+    });
+  }
+  const btnDropdownImport = document.getElementById('btnDropdownImport');
+  if (btnDropdownImport) {
+    btnDropdownImport.addEventListener('click', () => {
+      const userDropdown = document.getElementById('userDropdown');
+      if (userDropdown) userDropdown.classList.add('hidden');
+      document.getElementById('importFileInput').click();
+    });
+  }
   document.getElementById('importFileInput').addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
       importData(e.target.files[0]);
