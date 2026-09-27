@@ -2,10 +2,14 @@ name: Daily Task Reminder (7h Sáng & 18h Tối)
 
 on:
   schedule:
-    # 7:00 AM Vietnam Time (UTC+7) -> 00:00 UTC
-    - cron: '0 0 * * *'
-    # 18:00 (6:00 PM) Vietnam Time (UTC+7) -> 11:00 UTC
-    - cron: '0 11 * * *'
+    # 🧪 MỐC TEST TỐI NAY: 20:25 & 20:30 Vietnam (UTC+7) -> 13:25 & 13:30 UTC
+    - cron: '25 13 * * *'
+    - cron: '30 13 * * *'
+    # Lịch cố định hàng ngày
+    # 7:05 AM Vietnam Time (UTC+7) -> 00:05 UTC (Lệch 5 phút tránh nghẽn hàng đợi phút 00 của GitHub)
+    - cron: '5 0 * * *'
+    # 18:05 (6:05 PM) Vietnam Time (UTC+7) -> 11:05 UTC (Lệch 5 phút tránh nghẽn hàng đợi phút 00 của GitHub)
+    - cron: '5 11 * * *'
 
   # Cho phép bấm nút "Run workflow" thủ công trên GitHub Actions bất kỳ lúc nào để test
   workflow_dispatch:
