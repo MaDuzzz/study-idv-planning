@@ -119,11 +119,7 @@ function createEmailTransporter() {
     // Google App Password chuẩn chỉ gồm 16 chữ cái tiếng Anh viết thường
     const cleanPass = gmailAppPw.replace(/[^a-zA-Z]/g, '').toLowerCase();
 
-    const maskedUser = gmailUser.length > 6
-      ? `${gmailUser.slice(0, 3)}***@${gmailUser.split('@')[1]}`
-      : '***';
-
-    console.log(`📧 Cấu hình Gmail SMTP: ${maskedUser}`);
+    console.log(`📧 Cấu hình Gmail SMTP: ${gmailUser}`);
     console.log(`🔑 Kiểm tra Mật khẩu ứng dụng: Độ dài: ${cleanPass.length} ký tự (chuẩn của Google là đúng 16 chữ cái)`);
 
     if (cleanPass.length !== 16) {
