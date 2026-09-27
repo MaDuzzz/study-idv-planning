@@ -506,13 +506,6 @@ async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/htm
     }
 
     const cleanDocName = (fileName || 'Tai_lieu').replace(/\.docx$/i, '');
-    const metadata = {
-      name: cleanDocName,
-      mimeType: 'application/vnd.google-apps.document'
-    };
-    if (targetFolderId) {
-      metadata.parents = [targetFolderId];
-    }
 
     // Chuẩn bị nội dung HTML text UTF-8
     let htmlString = '';
@@ -528,53 +521,82 @@ async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/htm
     // Tự động chuyển đổi HTML thành tài liệu Google Docs nguyên bản (hiển thị đầy đủ chữ, bảng, định dạng)
     const boundary = '-------314159265358979323846';
 
-    const metadataHeader = 
-      `--${boundary}\r\n` +
-      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-      JSON.stringify(metadata) +
-      `\r\n--${boundary}\r\n` +
-      'Content-Type: text/html; charset=UTF-8\r\n\r\n';
+    const buildMultipartBlob = (metaObj) => {
+      const metadataHeader = 
+        `--${boundary}\r\n` +
+        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+        JSON.stringify(metaObj) +
+        `\r\n--${boundary}\r\n` +
+        'Content-Type: text/html; charset=UTF-8\r\n\r\n';
 
-    const closeFooter = `\r\n--${boundary}--`;
+      const closeFooter = `\r\n--${boundary}--`;
 
-    const multipartBlob = new Blob([
-      metadataHeader,
-      htmlString,
-      closeFooter
-    ], { type: `multipart/related; boundary=${boundary}` });
+      return new Blob([
+        metadataHeader,
+        htmlString,
+        closeFooter
+      ], { type: `multipart/related; boundary=${boundary}` });
+    };
 
-    // Cập nhật trực tiếp file cũ bằng PATCH (nếu đã có existingFileId) hoặc tạo mới (POST)
-    // Giữ nguyên fileId, không xóa file cũ và không tạo file rác trùng lặp
-    let uploadUrl = '';
-    let httpMethod = 'POST';
+    // Metadata khi tạo mới (POST): bao gồm mimeType và parents
+    const createMetadata = {
+      name: cleanDocName,
+      mimeType: 'application/vnd.google-apps.document'
+    };
+    if (targetFolderId) {
+      createMetadata.parents = [targetFolderId];
+    }
 
-    if (existingFileId) {
-      uploadUrl = `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`;
-      httpMethod = 'PATCH';
+    // Metadata khi cập nhật file cũ (PATCH): tuyệt đối KHÔNG chứa 'parents' hoặc 'mimeType'
+    // vì Drive API v3 nghiêm cấm trường parents trong body request PATCH (gây lỗi 400 Bad Request)
+    const updateMetadata = {
+      name: cleanDocName
+    };
+
+    let response;
+    const isUpdate = Boolean(existingFileId);
+
+    if (isUpdate) {
+      const updateUrl = `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`;
+      response = await fetch(updateUrl, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': `multipart/related; boundary=${boundary}`
+        },
+        body: buildMultipartBlob(updateMetadata)
+      });
+
+      if (response.status === 401) {
+        const authErr = new Error('Request had invalid authentication credentials. Expected OAuth 2 access token');
+        authErr.status = 401;
+        authErr.code = 'UNAUTHENTICATED';
+        throw authErr;
+      }
+
+      // Nếu cập nhật file cũ thất bại (404: file đã bị xóa trên Drive, hoặc 400: file cũ lỗi không cập nhật được)
+      // Tự động tạo file mới thay thế để người dùng không bị mất dữ liệu và không bị gián đoạn công việc
+      if (!response.ok && (response.status === 404 || response.status === 400)) {
+        console.warn(`Cập nhật file Drive cũ (${existingFileId}) thất bại (HTTP ${response.status}), tự động tạo file mới thay thế...`);
+        const createUrl = `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`;
+        response = await fetch(createUrl, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+            'Content-Type': `multipart/related; boundary=${boundary}`
+          },
+          body: buildMultipartBlob(createMetadata)
+        });
+
+        if (response.status === 401) {
+          const authErr = new Error('Request had invalid authentication credentials. Expected OAuth 2 access token');
+          authErr.status = 401;
+          authErr.code = 'UNAUTHENTICATED';
+          throw authErr;
+        }
+      }
     } else {
-      uploadUrl = `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`;
-      httpMethod = 'POST';
-    }
-
-    let response = await fetch(uploadUrl, {
-      method: httpMethod,
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        'Content-Type': `multipart/related; boundary=${boundary}`
-      },
-      body: multipartBlob
-    });
-
-    if (response.status === 401) {
-      const authErr = new Error('Request had invalid authentication credentials. Expected OAuth 2 access token');
-      authErr.status = 401;
-      authErr.code = 'UNAUTHENTICATED';
-      throw authErr;
-    }
-
-    // Nếu cập nhật file cũ bị 404 (file đã bị người dùng xóa trên Drive), fallback tạo mới
-    if (httpMethod === 'PATCH' && response.status === 404) {
-      console.warn('File cũ không tồn tại trên Drive (404), tiến hành tạo file mới...');
+      // Tạo mới tài liệu lần đầu
       const createUrl = `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`;
       response = await fetch(createUrl, {
         method: 'POST',
@@ -582,8 +604,9 @@ async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/htm
           Authorization: `Bearer ${authToken}`,
           'Content-Type': `multipart/related; boundary=${boundary}`
         },
-        body: multipartBlob
+        body: buildMultipartBlob(createMetadata)
       });
+
       if (response.status === 401) {
         const authErr = new Error('Request had invalid authentication credentials. Expected OAuth 2 access token');
         authErr.status = 401;
