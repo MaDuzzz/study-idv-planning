@@ -543,15 +543,21 @@ async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/htm
       closeFooter
     ], { type: `multipart/related; boundary=${boundary}` });
 
-    // LƯU Ý KỸ THUẬT QUAN TRỌNG: Google Drive API v3 KHÔNG hỗ trợ cập nhật nội dung văn bản
-    // cho định dạng Google Doc (application/vnd.google-apps.document) qua lệnh PATCH. 
-    // Request PATCH sẽ chỉ cập nhật metadata và âm thầm bỏ qua body, khiến tài liệu trên Google Docs giữ nguyên nội dung cũ.
-    // Do đó, ta luôn thực hiện POST để tạo tài liệu Google Docs mới chứa 100% nội dung HTML cập nhật nhất,
-    // sau đó xóa file cũ (existingFileId) để đảm bảo không bị file rác/trùng lặp trong thư mục.
-    const createUrl = `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`;
+    // Cập nhật trực tiếp file cũ bằng PATCH (nếu đã có existingFileId) hoặc tạo mới (POST)
+    // Giữ nguyên fileId, không xóa file cũ và không tạo file rác trùng lặp
+    let uploadUrl = '';
+    let httpMethod = 'POST';
 
-    const response = await fetch(createUrl, {
-      method: 'POST',
+    if (existingFileId) {
+      uploadUrl = `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`;
+      httpMethod = 'PATCH';
+    } else {
+      uploadUrl = `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`;
+      httpMethod = 'POST';
+    }
+
+    let response = await fetch(uploadUrl, {
+      method: httpMethod,
       headers: {
         Authorization: `Bearer ${authToken}`,
         'Content-Type': `multipart/related; boundary=${boundary}`
@@ -566,50 +572,37 @@ async function uploadFileToGoogleDrive({ fileName, content, mimeType = 'text/htm
       throw authErr;
     }
 
+    // Nếu cập nhật file cũ bị 404 (file đã bị người dùng xóa trên Drive), fallback tạo mới
+    if (httpMethod === 'PATCH' && response.status === 404) {
+      console.warn('File cũ không tồn tại trên Drive (404), tiến hành tạo file mới...');
+      const createUrl = `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink,modifiedTime`;
+      response = await fetch(createUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': `multipart/related; boundary=${boundary}`
+        },
+        body: multipartBlob
+      });
+      if (response.status === 401) {
+        const authErr = new Error('Request had invalid authentication credentials. Expected OAuth 2 access token');
+        authErr.status = 401;
+        authErr.code = 'UNAUTHENTICATED';
+        throw authErr;
+      }
+    }
+
     if (!response.ok) {
       const errJson = await response.json().catch(() => ({}));
       throw new Error(errJson.error?.message || `Lỗi khi upload lên Google Drive (HTTP ${response.status}).`);
     }
 
     const fileData = await response.json();
-    const newFileId = fileData.id;
+    const finalFileId = fileData.id;
+    const docEditLink = `https://docs.google.com/document/d/${finalFileId}/edit`;
 
-    // 2. Dọn dẹp file cũ trên Google Drive:
-    if (existingFileId && existingFileId !== newFileId) {
-      try {
-        await fetch(`https://www.googleapis.com/drive/v3/files/${existingFileId}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${authToken}` }
-        });
-      } catch (delErr) {
-        console.warn('Không thể xóa file cũ trên Google Drive:', delErr);
-      }
-    }
-
-    if (targetFolderId) {
-      // Dọn dẹp bất kỳ bản sao cũ trùng tên nào khác trong thư mục để thư mục luôn gọn gàng
-      const safeName = cleanDocName.replace(/'/g, "\\'");
-      const oldQuery = `name='${safeName}' and '${targetFolderId}' in parents and id != '${newFileId}' and trashed = false`;
-      fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(oldQuery)}&fields=files(id)`, {
-        headers: { Authorization: `Bearer ${authToken}` }
-      })
-      .then(res => res.ok ? res.json() : null)
-      .then(searchData => {
-        if (searchData && searchData.files && searchData.files.length > 0) {
-          for (const oldFile of searchData.files) {
-            fetch(`https://www.googleapis.com/drive/v3/files/${oldFile.id}`, {
-              method: 'DELETE',
-              headers: { Authorization: `Bearer ${authToken}` }
-            }).catch(() => {});
-          }
-        }
-      })
-      .catch(e => console.warn('Lỗi khi quét dọn file cũ trùng tên:', e));
-    }
-
-    const docEditLink = `https://docs.google.com/document/d/${newFileId}/edit`;
     return {
-      fileId: newFileId,
+      fileId: finalFileId,
       fileName: fileData.name,
       webViewLink: fileData.webViewLink || docEditLink,
       googleDocsUrl: docEditLink,

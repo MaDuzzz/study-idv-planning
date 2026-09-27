@@ -1037,6 +1037,10 @@ function updateAuthUI() {
   const emptyHint = document.getElementById('emptyStateAdminHint');
   const dragDropTip = document.getElementById('dragDropTip');
 
+  const topNav = document.getElementById('topNavigationBar');
+  const authView = document.getElementById('authenticatedMainView');
+  const guestPortal = document.getElementById('guestLandingPortal');
+
   const userAvatarImg = document.getElementById('userAvatarImg');
   const userFallbackIcon = document.getElementById('userFallbackIcon');
   const userNameLabel = document.getElementById('userNameLabel');
@@ -1044,7 +1048,13 @@ function updateAuthUI() {
   const userDropdownEmail = document.getElementById('userDropdownEmail');
   const userCloudTag = document.getElementById('userCloudTag');
 
-  if (state.isAdmin) {
+  const isAuthenticated = Boolean(state.isAdmin || state.currentUser);
+
+  if (isAuthenticated) {
+    if (topNav) topNav.classList.remove('hidden');
+    if (authView) authView.classList.remove('hidden');
+    if (guestPortal) guestPortal.classList.add('hidden');
+
     adminGroup.classList.remove('hidden');
     adminGroup.classList.add('flex');
     guestGroup.classList.add('hidden');
@@ -1089,6 +1099,11 @@ function updateAuthUI() {
       }
     }
   } else {
+    // Khách chưa đăng nhập: Ẩn thanh chọn ngày & các view task cá nhân; Hiển thị Portal giới thiệu
+    if (topNav) topNav.classList.add('hidden');
+    if (authView) authView.classList.add('hidden');
+    if (guestPortal) guestPortal.classList.remove('hidden');
+
     adminGroup.classList.add('hidden');
     adminGroup.classList.remove('flex');
     guestGroup.classList.remove('hidden');
@@ -2794,12 +2809,26 @@ function closeTaskDetailModal() {
     const closingTaskId = state.activeDetailTaskId;
     flushSaveTaskDoc(closingTaskId);
 
-    // Nếu còn thay đổi chưa được sync lên Drive, tự động sync ngầm khi người dùng đóng modal
+    // Sync thủ công khi người dùng bấm vào button "Xong" hoặc "X" để tắt modal live editor
     const task = state.tasks.find(t => t.id === closingTaskId);
     const editor = document.getElementById('taskDocEditor');
-    const curHtml = editor ? (editor.innerHTML || '') : '';
-    if (task && task.document?.driveFileId && curHtml !== lastDriveSyncedHtml && state.currentUser && window.StudyPlannerFirebase) {
-      performGoogleDriveUpload({ silent: true }).catch(e => console.warn('Lỗi auto-sync khi đóng modal:', e));
+    const fileNameInput = document.getElementById('docFileNameInput');
+    const curHtml = editor ? (editor.innerHTML || '') : (task?.document?.contentHtml || '');
+    let curFileName = (fileNameInput ? fileNameInput.value.trim() : '') || task?.document?.fileName || 'Tai_lieu.docx';
+    if (!curFileName.endsWith('.docx')) curFileName += '.docx';
+
+    const hasChanges = (curHtml !== lastDriveSyncedHtml || curFileName !== lastDriveSyncedFileName);
+    const plainText = curHtml.replace(/<[^>]*>/g, '').trim();
+    const hasContent = plainText.length > 0 || task?.document?.driveFileId;
+
+    if (hasChanges && hasContent && state.currentUser && window.StudyPlannerFirebase) {
+      console.log('Tự động sync Google Drive khi tắt modal live editor ("Xong" hoặc "X")...');
+      performGoogleDriveUpload({
+        silent: true,
+        taskId: closingTaskId,
+        contentHtml: curHtml,
+        fileName: curFileName
+      }).catch(e => console.warn('Lỗi sync Drive khi đóng modal:', e));
     }
 
     state.activeDetailTaskId = null;
@@ -3120,7 +3149,7 @@ function handleExportDocx() {
 }
 
 // --- QUẢN LÝ ĐỒNG BỘ GOOGLE DRIVE & AUTO-SYNC ---
-const DRIVE_AUTO_SYNC_INTERVAL_MS = 2 * 60 * 1000; // Tự động đồng bộ vào Google Drive 2 phút/lần
+const DRIVE_AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000; // Tự động đồng bộ vào Google Drive 5 phút/lần
 let isDriveSyncing = false;
 let driveAutoSyncInterval = null;
 let lastDriveSyncedHtml = '';
@@ -3146,7 +3175,7 @@ function stopDriveAutoSyncTimer() {
   }
 }
 
-// Hàm kích hoạt tự động đồng bộ ngầm định kỳ
+// Hàm kích hoạt tự động đồng bộ ngầm định kỳ (5 phút/lần)
 async function handleAutoSyncToGoogleDrive() {
   if (isDriveSyncing) return;
   if (!state.activeDetailTaskId) return;
@@ -3183,21 +3212,22 @@ async function handleAutoSyncToGoogleDrive() {
     return;
   }
 
-  console.log('Đang tự động đồng bộ Google Drive (chu kỳ 2 phút)...');
+  console.log('Đang tự động đồng bộ Google Drive (chu kỳ 5 phút)...');
   await performGoogleDriveUpload({ silent: true });
 }
 
 /**
  * Thực hiện upload/cập nhật tài liệu lên Google Drive
- * @param {Object} options - { silent: boolean }
+ * @param {Object} options - { silent: boolean, taskId: string, contentHtml: string, fileName: string }
  *  - silent = false: Được gọi khi người dùng bấm nút "Lưu vào Drive" thủ công -> Hiển thị spinner nút, toast thông báo
- *  - silent = true: Được gọi từ vòng lặp tự động đồng bộ 2 phút/lần -> Cập nhật trạng thái thanh công cụ ngầm, không popup làm phiền
+ *  - silent = true: Được gọi từ vòng lặp tự động đồng bộ 5 phút/lần hoặc khi tắt modal ("Xong"/"X") -> Cập nhật trạng thái ngầm
  */
 async function performGoogleDriveUpload(options = {}) {
   const isSilent = options && options.silent === true;
   if (isDriveSyncing) return;
-  if (!state.activeDetailTaskId) return;
-  const task = state.tasks.find(t => t.id === state.activeDetailTaskId);
+  const targetTaskId = options.taskId || state.activeDetailTaskId;
+  if (!targetTaskId) return;
+  const task = state.tasks.find(t => t.id === targetTaskId);
   if (!task) return;
 
   // Nếu chưa đăng nhập
@@ -3264,10 +3294,14 @@ async function performGoogleDriveUpload(options = {}) {
   try {
     const editor = document.getElementById('taskDocEditor');
     const fileNameInput = document.getElementById('docFileNameInput');
-    let fileName = (fileNameInput ? fileNameInput.value.trim() : '') || 'Tai_lieu.docx';
+    let fileName = options.fileName || (fileNameInput ? fileNameInput.value.trim() : '') || task.document?.fileName || 'Tai_lieu.docx';
     if (!fileName.endsWith('.docx')) fileName += '.docx';
 
-    const editorHtml = editor ? (editor.innerHTML || '<p></p>') : '<p></p>';
+    let editorHtml = options.contentHtml !== undefined
+      ? options.contentHtml
+      : (editor ? (editor.innerHTML || '') : (task.document?.contentHtml || ''));
+    if (!editorHtml) editorHtml = '<p></p>';
+
     const fullHtml = buildTaskDocxHtml(task, editorHtml);
 
     // Cấu trúc phân cấp 4 tầng: study_idv_planning / [Năm] / [Task tổng] / [Task con]
@@ -3318,7 +3352,7 @@ async function performGoogleDriveUpload(options = {}) {
     if (driveSyncStatus) {
       driveSyncStatus.classList.remove('hidden');
       driveSyncStatus.classList.add('flex');
-      driveSyncStatus.title = 'Tự động đồng bộ vào Google Drive 2 phút/lần';
+      driveSyncStatus.title = 'Tự động đồng bộ vào Google Drive 5 phút/lần';
       driveSyncStatus.innerHTML = `<i data-lucide="cloud-check" class="w-4 h-4 text-emerald-500"></i> <span class="text-emerald-600 dark:text-emerald-400">Đã sync Drive (${timeStr})</span>`;
     }
 
@@ -3854,10 +3888,14 @@ function renderApp() {
   updateHeaderDisplay();
   updateNotificationBell();
 
-  if (state.currentView === 'day') renderDayView();
-  else if (state.currentView === 'week') renderWeekView();
-  else if (state.currentView === 'month') renderMonthView();
-  else if (state.currentView === 'year') renderYearView();
+  // Chỉ render các views task nếu người dùng đã đăng nhập (tránh render lộ thông tin cho khách)
+  if (state.isAdmin || state.currentUser) {
+    if (state.currentView === 'day') renderDayView();
+    else if (state.currentView === 'week') renderWeekView();
+    else if (state.currentView === 'month') renderMonthView();
+    else if (state.currentView === 'year') renderYearView();
+  }
+  lucide.createIcons();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -4647,6 +4685,26 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('Module Firebase chưa sẵn sàng!');
       }
     });
+  }
+
+  const btnPortalGoogle = document.getElementById('btnPortalGoogleSignIn');
+  if (btnPortalGoogle) {
+    btnPortalGoogle.addEventListener('click', async () => {
+      if (window.StudyPlannerFirebase) {
+        try {
+          await window.StudyPlannerFirebase.signInWithGoogle();
+        } catch (err) {
+          console.warn('Đăng nhập Google:', err);
+        }
+      } else {
+        alert('Module Firebase chưa sẵn sàng!');
+      }
+    });
+  }
+
+  const btnPortalAdmin = document.getElementById('btnPortalAdminLogin');
+  if (btnPortalAdmin) {
+    btnPortalAdmin.addEventListener('click', openLoginModal);
   }
 
   const btnOpenFbModal = document.getElementById('btnOpenFirebaseModal');

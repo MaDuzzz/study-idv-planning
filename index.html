@@ -319,7 +319,7 @@
   </header>
 
   <!-- Navigation Bar: Chọn chế độ xem & Ngày tháng (Elastic Layout) -->
-  <div class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-2xs transition-colors duration-200">
+  <div id="topNavigationBar" class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-2xs transition-colors duration-200">
     <div class="max-w-[2000px] w-full mx-auto px-4 sm:px-6 lg:px-8 2xl:px-12 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4">
       
       <!-- Chế độ xem: Ngày | Tuần | Tháng | Năm -->
@@ -365,61 +365,231 @@
   <!-- Main Content Container: Tối ưu co giãn cân đối từ 14", 24" đến 27" -->
   <main class="flex-1 max-w-[2000px] w-full mx-auto px-4 sm:px-6 lg:px-8 2xl:px-12 py-6">
     
-    <!-- VIEW: NGÀY (DAY VIEW) -->
-    <section id="viewDay" class="space-y-4 max-w-4xl 2xl:max-w-5xl mx-auto hidden">
-      <div class="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-between transition-colors">
-        <div>
-          <h2 id="dayViewHeader" class="text-lg font-bold text-slate-900 dark:text-white">Danh sách nhiệm vụ</h2>
-          <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Theo dõi và thực hiện các mục tiêu đặt ra cho ngày.</p>
+    <!-- KHUNG XEM LỊCH KHI ĐÃ ĐĂNG NHẬP (AUTHENTICATED VIEWS) -->
+    <div id="authenticatedMainView">
+      <!-- VIEW: NGÀY (DAY VIEW) -->
+      <section id="viewDay" class="space-y-4 max-w-4xl 2xl:max-w-5xl mx-auto hidden">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-between transition-colors">
+          <div>
+            <h2 id="dayViewHeader" class="text-lg font-bold text-slate-900 dark:text-white">Danh sách nhiệm vụ</h2>
+            <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Theo dõi và thực hiện các mục tiêu đặt ra cho ngày.</p>
+          </div>
+          <button id="btnQuickAddTaskDay" class="hidden text-xs sm:text-sm text-blue-600 dark:text-blue-400 font-bold hover:underline items-center gap-1.5">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i> Thêm nhanh
+          </button>
         </div>
-        <button id="btnQuickAddTaskDay" class="hidden text-xs sm:text-sm text-blue-600 dark:text-blue-400 font-bold hover:underline items-center gap-1.5">
-          <i data-lucide="plus-circle" class="w-4 h-4"></i> Thêm nhanh
-        </button>
-      </div>
 
-      <div id="dayTaskList" class="space-y-3"></div>
+        <div id="dayTaskList" class="space-y-3"></div>
 
-      <div id="dayEmptyState" class="hidden bg-white dark:bg-slate-900 rounded-2xl p-12 border border-dashed border-slate-300 dark:border-slate-800 text-center transition-colors">
-        <i data-lucide="calendar" class="w-14 h-14 text-slate-300 dark:text-slate-700 mx-auto mb-3"></i>
-        <p class="text-base font-semibold text-slate-700 dark:text-slate-300">Chưa có nhiệm vụ nào cho ngày này</p>
-        <p id="emptyStateAdminHint" class="text-xs sm:text-sm text-slate-400 dark:text-slate-500 mt-1">Đăng nhập Admin để bắt đầu lên kế hoạch!</p>
-      </div>
-    </section>
-
-    <!-- VIEW: TUẦN (WEEK VIEW) - Elastic Grid co giãn chuẩn mực cho 14", 24", 27" -->
-    <section id="viewWeek">
-      <div class="overflow-x-auto pb-4">
-        <!-- 7 cột: co giãn linh hoạt, trên màn hình lớn 2K/27" sẽ bung rộng rãi, màn hình 14" giữ min-width 1200px không bị co dúm -->
-        <div class="grid grid-cols-7 gap-3.5 xl:gap-4 2xl:gap-5 min-w-[1200px] xl:min-w-full" id="weekGridContainer"></div>
-      </div>
-    </section>
-
-    <!-- VIEW: THÁNG (MONTH VIEW) -->
-    <section id="viewMonth" class="hidden bg-white dark:bg-slate-900/90 p-6 2xl:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs transition-colors">
-      <div class="grid grid-cols-7 gap-2 text-center font-bold text-xs sm:text-sm text-slate-700 dark:text-slate-200 pb-3 border-b border-slate-100 dark:border-slate-800 mb-3">
-        <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span class="text-blue-600 dark:text-blue-400 font-extrabold">T7</span><span class="text-rose-600 dark:text-rose-400 font-extrabold">CN</span>
-      </div>
-      <div class="grid grid-cols-7 gap-2.5 2xl:gap-3.5" id="monthGridContainer"></div>
-    </section>
-
-    <!-- VIEW: NĂM (YEAR HEATMAP VIEW) -->
-    <section id="viewYear" class="hidden bg-white dark:bg-slate-900 p-6 sm:p-8 2xl:p-10 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-6 transition-colors">
-      <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-        <div>
-          <h2 class="text-lg font-bold text-slate-900 dark:text-white">Yearly Activity & Focus Heatmap</h2>
-          <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Đo lường mức độ kiên trì và kỷ luật học tập trong cả năm (như GitHub commit graph)</p>
+        <div id="dayEmptyState" class="hidden bg-white dark:bg-slate-900 rounded-2xl p-12 border border-dashed border-slate-300 dark:border-slate-800 text-center transition-colors">
+          <i data-lucide="calendar" class="w-14 h-14 text-slate-300 dark:text-slate-700 mx-auto mb-3"></i>
+          <p class="text-base font-semibold text-slate-700 dark:text-slate-300">Chưa có nhiệm vụ nào cho ngày này</p>
+          <p id="emptyStateAdminHint" class="text-xs sm:text-sm text-slate-400 dark:text-slate-500 mt-1">Đăng nhập Admin để bắt đầu lên kế hoạch!</p>
         </div>
-        <div class="flex items-center gap-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-          <span>Ít</span>
-          <span class="w-4 h-4 rounded-xs bg-slate-100 dark:bg-slate-800 border dark:border-slate-700"></span>
-          <span class="w-4 h-4 rounded-xs bg-emerald-200 dark:bg-emerald-900/60"></span>
-          <span class="w-4 h-4 rounded-xs bg-emerald-400 dark:bg-emerald-700"></span>
-          <span class="w-4 h-4 rounded-xs bg-emerald-600 dark:bg-emerald-500"></span>
-          <span>Nhiều</span>
+      </section>
+
+      <!-- VIEW: TUẦN (WEEK VIEW) - Elastic Grid co giãn chuẩn mực cho 14", 24", 27" -->
+      <section id="viewWeek">
+        <div class="overflow-x-auto pb-4">
+          <!-- 7 cột: co giãn linh hoạt, trên màn hình lớn 2K/27" sẽ bung rộng rãi, màn hình 14" giữ min-width 1200px không bị co dúm -->
+          <div class="grid grid-cols-7 gap-3.5 xl:gap-4 2xl:gap-5 min-w-[1200px] xl:min-w-full" id="weekGridContainer"></div>
+        </div>
+      </section>
+
+      <!-- VIEW: THÁNG (MONTH VIEW) -->
+      <section id="viewMonth" class="hidden bg-white dark:bg-slate-900/90 p-6 2xl:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs transition-colors">
+        <div class="grid grid-cols-7 gap-2 text-center font-bold text-xs sm:text-sm text-slate-700 dark:text-slate-200 pb-3 border-b border-slate-100 dark:border-slate-800 mb-3">
+          <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span class="text-blue-600 dark:text-blue-400 font-extrabold">T7</span><span class="text-rose-600 dark:text-rose-400 font-extrabold">CN</span>
+        </div>
+        <div class="grid grid-cols-7 gap-2.5 2xl:gap-3.5" id="monthGridContainer"></div>
+      </section>
+
+      <!-- VIEW: NĂM (YEAR HEATMAP VIEW) -->
+      <section id="viewYear" class="hidden bg-white dark:bg-slate-900 p-6 sm:p-8 2xl:p-10 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-6 transition-colors">
+        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900 dark:text-white">Yearly Activity & Focus Heatmap</h2>
+            <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Đo lường mức độ kiên trì và kỷ luật học tập trong cả năm (như GitHub commit graph)</p>
+          </div>
+          <div class="flex items-center gap-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+            <span>Ít</span>
+            <span class="w-4 h-4 rounded-xs bg-slate-100 dark:bg-slate-800 border dark:border-slate-700"></span>
+            <span class="w-4 h-4 rounded-xs bg-emerald-200 dark:bg-emerald-900/60"></span>
+            <span class="w-4 h-4 rounded-xs bg-emerald-400 dark:bg-emerald-700"></span>
+            <span class="w-4 h-4 rounded-xs bg-emerald-600 dark:bg-emerald-500"></span>
+            <span>Nhiều</span>
+          </div>
+        </div>
+        <div id="yearHeatmapContainer" class="overflow-x-auto pb-4"></div>
+      </section>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- PORTAL & LANDING PAGE DÀNH CHO KHÁCH (CHƯA ĐĂNG NHẬP) -->
+    <!-- Bảo mật thông tin riêng tư • Giới thiệu tính năng & User Guide -->
+    <!-- ======================================================== -->
+    <div id="guestLandingPortal" class="hidden py-4 sm:py-8 max-w-6xl mx-auto space-y-12">
+      
+      <!-- 1. HERO SECTION -->
+      <div class="text-center space-y-5 px-4">
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs sm:text-sm font-bold shadow-2xs">
+          <i data-lucide="sparkles" class="w-4 h-4 text-blue-500 animate-pulse"></i>
+          <span>Study & Life Planning Hub • Quản lý mục tiêu cá nhân</span>
+        </div>
+        
+        <h1 class="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+          Lập kế hoạch thông minh,<br class="hidden sm:inline"> chinh phục mục tiêu mỗi ngày
+        </h1>
+        
+        <p class="text-sm sm:text-base md:text-lg text-slate-600 dark:text-slate-300 max-w-3xl mx-auto leading-relaxed">
+          Không gian làm việc tập trung kết hợp <strong>Lịch trình đa góc nhìn</strong> (Ngày, Tuần, Tháng, Heatmap), <strong>phân rã nhiệm vụ đa cấp</strong>, trình soạn thảo <strong>Word .docx trực tiếp</strong> và <strong>đồng bộ tự động Google Drive</strong>.
+        </p>
+
+        <!-- CTA Buttons -->
+        <div class="flex items-center justify-center gap-3 sm:gap-4 pt-3 flex-wrap">
+          <button id="btnPortalGoogleSignIn" class="flex items-center gap-2.5 px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:-translate-y-0.5 transition-all text-sm sm:text-base">
+            <svg class="w-5 h-5 bg-white rounded-full p-0.5" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span>Đăng nhập bằng Google</span>
+          </button>
+          
+          <button id="btnPortalAdminLogin" class="flex items-center gap-2 px-5 py-3.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 font-bold rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs hover:-translate-y-0.5 transition-all text-sm sm:text-base">
+            <i data-lucide="lock" class="w-4 h-4 text-slate-500"></i>
+            <span>Đăng nhập Admin Password</span>
+          </button>
+        </div>
+
+        <!-- Privacy & Security pill -->
+        <div class="flex items-center justify-center gap-6 text-xs text-slate-500 dark:text-slate-400 pt-2 flex-wrap">
+          <div class="flex items-center gap-1.5">
+            <i data-lucide="shield-check" class="w-4 h-4 text-emerald-500"></i>
+            <span>Bảo mật dữ liệu cá nhân</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <i data-lucide="cloud" class="w-4 h-4 text-blue-500"></i>
+            <span>Lưu trữ Google Drive & Firestore</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <i data-lucide="laptop" class="w-4 h-4 text-amber-500"></i>
+            <span>Tối ưu màn hình 14", 24" & 27"</span>
+          </div>
         </div>
       </div>
-      <div id="yearHeatmapContainer" class="overflow-x-auto pb-4"></div>
-    </section>
+
+      <!-- 2. CORE FEATURES SHOWCASE (4 CARDS) -->
+      <div class="space-y-4">
+        <div class="text-center">
+          <h2 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">Các tính năng nổi bật</h2>
+          <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">Được thiết kế tỉ mỉ để tối ưu hóa sự tập trung và năng suất của bạn</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 px-4 sm:px-0">
+          <!-- Card 1 -->
+          <div class="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:border-blue-400 dark:hover:border-blue-500 transition-all space-y-3">
+            <div class="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+              <i data-lucide="calendar" class="w-5 h-5"></i>
+            </div>
+            <h3 class="font-bold text-slate-900 dark:text-white text-base">Lịch trình đa góc nhìn</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Theo dõi theo Ngày, Tuần (lưới Elastic 7 cột kéo thả fluid), Tháng và Heatmap cam kết cả năm như GitHub activity graph.
+            </p>
+          </div>
+
+          <!-- Card 2 -->
+          <div class="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:border-emerald-400 dark:hover:border-emerald-500 transition-all space-y-3">
+            <div class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+              <i data-lucide="layers" class="w-5 h-5"></i>
+            </div>
+            <h3 class="font-bold text-slate-900 dark:text-white text-base">Parent Tasks & Sub-tasks</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Phân rã mục tiêu lớn thành các nhiệm vụ con cụ thể. Tự động sinh mã Tag viết tắt (VD: <code>[NCHT]</code>, <code>[VA]</code>) với bảng màu RGB trực quan.
+            </p>
+          </div>
+
+          <!-- Card 3 -->
+          <div class="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:border-purple-400 dark:hover:border-purple-500 transition-all space-y-3">
+            <div class="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
+              <i data-lucide="file-text" class="w-5 h-5"></i>
+            </div>
+            <h3 class="font-bold text-slate-900 dark:text-white text-base">Live Word .docx & Drive</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Soạn thảo văn bản chuẩn Word với font Times New Roman 13pt, bullet đa dạng, thụt lề nhiều cấp, nén ảnh thông minh, lưu trực tiếp vào Google Drive.
+            </p>
+          </div>
+
+          <!-- Card 4 -->
+          <div class="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:border-amber-400 dark:hover:border-amber-500 transition-all space-y-3">
+            <div class="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+              <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+            </div>
+            <h3 class="font-bold text-slate-900 dark:text-white text-base">Replan Center thông minh</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Tự động cảnh báo task trễ hạn từ các ngày trước. Dời lịch 1-click về Hôm nay, Ngày mai hoặc Tuần sau (+7d) không để sót việc.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. USER GUIDE / HƯỚNG DẪN SỬ DỤNG NHANH 4 BƯỚC -->
+      <div class="p-6 sm:p-8 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-6">
+        <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold">
+            <i data-lucide="book-open" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h2 class="text-lg sm:text-xl font-black text-slate-900 dark:text-white">Hướng dẫn sử dụng nhanh (User Guide)</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Chỉ 4 bước đơn giản để làm chủ hệ thống lập kế hoạch</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="flex items-start gap-4">
+            <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-black text-sm flex items-center justify-center shrink-0">1</div>
+            <div class="space-y-1">
+              <h4 class="font-bold text-slate-900 dark:text-white text-sm">Đăng nhập tài khoản</h4>
+              <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Bấm nút <strong>Đăng nhập Google</strong> để kích hoạt tính năng đồng bộ đám mây và kết nối Google Drive riêng tư của bạn. Hoặc dùng Admin Password nếu làm việc cục bộ.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-4">
+            <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-black text-sm flex items-center justify-center shrink-0">2</div>
+            <div class="space-y-1">
+              <h4 class="font-bold text-slate-900 dark:text-white text-sm">Tạo Task tổng (Parent Task)</h4>
+              <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Vào <strong>Quản lý nhiệm vụ</strong> &rarr; tạo mục tiêu lớn (VD: <em>Chứng chỉ Vault</em>, <em>Nghiên cứu khoa học</em>). Chọn màu sắc và mã Tag viết tắt đại diện.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-4">
+            <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-black text-sm flex items-center justify-center shrink-0">3</div>
+            <div class="space-y-1">
+              <h4 class="font-bold text-slate-900 dark:text-white text-sm">Phân rã Subtasks & Soạn thảo tài liệu</h4>
+              <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Tạo các nhiệm vụ con cụ thể. Bấm vào task để mở <strong>Live Editor</strong>: ghi chép, dán ảnh, chèn bảng, đính kèm tệp PDF/video và đồng bộ tự động lên Drive.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-4">
+            <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-black text-sm flex items-center justify-center shrink-0">4</div>
+            <div class="space-y-1">
+              <h4 class="font-bold text-slate-900 dark:text-white text-sm">Xếp lịch, Kéo thả & Theo dõi tiến độ</h4>
+              <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Kéo thả các thẻ nhiệm vụ giữa các ngày trên màn hình <strong>Tuần</strong>. Tích hoàn thành mỗi ngày để duy trì thói quen và lấp đầy <strong>Heatmap</strong> cả năm!
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
 
   </main>
 
@@ -442,7 +612,6 @@
         <div>
           <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Mật khẩu Admin</label>
           <input type="password" id="loginPassword" required placeholder="Nhập mật khẩu..." class="w-full px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
-          <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Mật khẩu mặc định: <code class="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-blue-600 dark:text-blue-400 font-bold">admin123</code></p>
         </div>
 
         <div class="flex items-center gap-2">
@@ -1029,30 +1198,30 @@
               </button>
 
               <!-- Dropdown Menu Bullet Styles -->
-              <div id="dropdownBulletMenu" class="hidden absolute left-0 top-full mt-1.5 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1.5 z-50 text-xs">
-                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition" data-bullet-type="disc">
-                  <span class="w-5 text-center font-bold text-base leading-none">•</span>
-                  <span>Chấm tròn (Disc)</span>
+              <div id="dropdownBulletMenu" class="hidden absolute left-0 top-full mt-1.5 w-60 min-w-max bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1.5 z-50 text-xs">
+                <button type="button" class="w-full text-left px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition whitespace-nowrap" data-bullet-type="disc">
+                  <span class="w-6 shrink-0 text-center font-bold text-base leading-none text-slate-800 dark:text-slate-200">•</span>
+                  <span class="text-slate-700 dark:text-slate-200">Chấm tròn (Disc)</span>
                 </button>
-                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition text-amber-500 font-bold" data-bullet-type="star">
-                  <span class="w-5 text-center font-bold text-base leading-none">★</span>
+                <button type="button" class="w-full text-left px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition whitespace-nowrap text-amber-500 font-bold" data-bullet-type="star">
+                  <span class="w-6 shrink-0 text-center font-bold text-base leading-none">★</span>
                   <span class="text-slate-800 dark:text-slate-200 font-normal">Ngôi sao (Star bullet)</span>
                 </button>
-                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition text-emerald-600 dark:text-emerald-400 font-bold" data-bullet-type="check">
-                  <span class="w-5 text-center font-bold text-base leading-none">✔</span>
+                <button type="button" class="w-full text-left px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition whitespace-nowrap text-emerald-600 dark:text-emerald-400 font-bold" data-bullet-type="check">
+                  <span class="w-6 shrink-0 text-center font-bold text-base leading-none">✔</span>
                   <span class="text-slate-800 dark:text-slate-200 font-normal">Dấu kiểm (Checkmark)</span>
                 </button>
-                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition" data-bullet-type="square">
-                  <span class="w-5 text-center font-bold text-sm leading-none">▪</span>
-                  <span>Hình vuông (Square)</span>
+                <button type="button" class="w-full text-left px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition whitespace-nowrap" data-bullet-type="square">
+                  <span class="w-6 shrink-0 text-center font-bold text-sm leading-none text-slate-800 dark:text-slate-200">▪</span>
+                  <span class="text-slate-700 dark:text-slate-200">Hình vuông (Square)</span>
                 </button>
-                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition text-blue-500 font-bold" data-bullet-type="arrow">
-                  <span class="w-5 text-center font-bold text-sm leading-none">➔</span>
+                <button type="button" class="w-full text-left px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition whitespace-nowrap text-blue-500 font-bold" data-bullet-type="arrow">
+                  <span class="w-6 shrink-0 text-center font-bold text-sm leading-none">➔</span>
                   <span class="text-slate-800 dark:text-slate-200 font-normal">Mũi tên (Arrow)</span>
                 </button>
-                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition" data-bullet-type="circle">
-                  <span class="w-5 text-center font-bold text-sm leading-none">○</span>
-                  <span>Vòng tròn rỗng (Circle)</span>
+                <button type="button" class="w-full text-left px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition whitespace-nowrap" data-bullet-type="circle">
+                  <span class="w-6 shrink-0 text-center font-bold text-sm leading-none text-slate-800 dark:text-slate-200">○</span>
+                  <span class="text-slate-700 dark:text-slate-200">Vòng tròn rỗng (Circle)</span>
                 </button>
               </div>
             </div>
@@ -1067,26 +1236,26 @@
               </button>
 
               <!-- Dropdown Menu Number Styles -->
-              <div id="dropdownNumberMenu" class="hidden absolute left-0 top-full mt-1.5 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1.5 z-50 text-xs">
-                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition" data-number-type="1">
-                  <span class="w-6 font-bold text-slate-900 dark:text-white">1, 2, 3</span>
-                  <span>Số thập phân</span>
+              <div id="dropdownNumberMenu" class="hidden absolute left-0 top-full mt-1.5 w-64 min-w-max bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1.5 z-50 text-xs">
+                <button type="button" class="w-full text-left px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition whitespace-nowrap" data-number-type="1">
+                  <span class="w-16 shrink-0 font-mono font-bold whitespace-nowrap text-slate-900 dark:text-white">1, 2, 3</span>
+                  <span class="text-slate-700 dark:text-slate-200">Số thập phân</span>
                 </button>
-                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition" data-number-type="a">
-                  <span class="w-6 font-bold text-blue-600 dark:text-blue-400">a, b, c</span>
-                  <span>Chữ cái thường</span>
+                <button type="button" class="w-full text-left px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition whitespace-nowrap" data-number-type="a">
+                  <span class="w-16 shrink-0 font-mono font-bold whitespace-nowrap text-blue-600 dark:text-blue-400">a, b, c</span>
+                  <span class="text-slate-700 dark:text-slate-200">Chữ cái thường</span>
                 </button>
-                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition" data-number-type="A">
-                  <span class="w-6 font-bold text-blue-600 dark:text-blue-400">A, B, C</span>
-                  <span>Chữ cái hoa</span>
+                <button type="button" class="w-full text-left px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition whitespace-nowrap" data-number-type="A">
+                  <span class="w-16 shrink-0 font-mono font-bold whitespace-nowrap text-blue-600 dark:text-blue-400">A, B, C</span>
+                  <span class="text-slate-700 dark:text-slate-200">Chữ cái hoa</span>
                 </button>
-                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition" data-number-type="i">
-                  <span class="w-6 font-bold text-emerald-600 dark:text-emerald-400">i, ii, iii</span>
-                  <span>Số La Mã thường</span>
+                <button type="button" class="w-full text-left px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition whitespace-nowrap" data-number-type="i">
+                  <span class="w-16 shrink-0 font-mono font-bold whitespace-nowrap text-emerald-600 dark:text-emerald-400">i, ii, iii</span>
+                  <span class="text-slate-700 dark:text-slate-200">Số La Mã thường</span>
                 </button>
-                <button type="button" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2.5 transition" data-number-type="I">
-                  <span class="w-6 font-bold text-emerald-600 dark:text-emerald-400">I, II, III</span>
-                  <span>Số La Mã hoa</span>
+                <button type="button" class="w-full text-left px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 transition whitespace-nowrap" data-number-type="I">
+                  <span class="w-16 shrink-0 font-mono font-bold whitespace-nowrap text-emerald-600 dark:text-emerald-400">I, II, III</span>
+                  <span class="text-slate-700 dark:text-slate-200">Số La Mã hoa</span>
                 </button>
               </div>
             </div>
@@ -1344,7 +1513,7 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=4.7"></script>
-  <script src="app.js?v=4.7"></script>
+  <script src="firebase-config.js?v=4.8"></script>
+  <script src="app.js?v=4.8"></script>
 </body>
 </html>
