@@ -1387,13 +1387,13 @@ function renderWeekView() {
     const completedCount = tasks.filter(t => t.completed).length;
 
     const addBtnHtml = (state.isAdmin && !isPast)
-      ? `<div class="p-3 border-t border-slate-200 dark:border-slate-700/80 mt-auto bg-slate-100/70 dark:bg-slate-800/50 rounded-b-2xl">
+      ? `<div class="p-3 border-t border-slate-200 dark:border-slate-700/80 mt-auto bg-slate-100/70 dark:bg-slate-800/50 rounded-b-2xl shrink-0">
           <button onclick="openAddTaskModalForDate('${dateStr}')" class="w-full py-2.5 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/80 dark:hover:bg-blue-950/60 border border-dashed border-slate-300 dark:border-slate-600 hover:border-blue-400 rounded-xl transition flex items-center justify-center gap-1.5 shadow-2xs">
             <i data-lucide="plus" class="w-4 h-4"></i> Thêm nhiệm vụ
           </button>
         </div>`
       : (isPast 
-          ? `<div class="py-3 px-3 border-t border-slate-200/60 dark:border-slate-800/60 mt-auto bg-slate-100/40 dark:bg-slate-900/30 rounded-b-2xl text-center pointer-events-none select-none flex items-center justify-center" title="Ngày trong quá khứ (Chỉ xem)">
+          ? `<div class="py-3 px-3 border-t border-slate-200/60 dark:border-slate-800/60 mt-auto bg-slate-100/40 dark:bg-slate-900/30 rounded-b-2xl text-center pointer-events-none select-none flex items-center justify-center shrink-0" title="Ngày trong quá khứ (Chỉ xem)">
               <i data-lucide="lock" class="w-4 h-4 text-slate-400 dark:text-slate-500"></i>
             </div>`
           : '');
@@ -1424,9 +1424,9 @@ function renderWeekView() {
           : 'bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-800 dark:text-slate-100 font-bold');
 
     return `
-      <!-- Cột ngày Elastic: min-height 540px trên màn hình lớn 2K/27" và tự do co giãn -->
+      <!-- Cột ngày Elastic & Cố định chiều cao đồng đều 530px (2K: 610px), cuộn thanh slide mượt khi > 4 task -->
       <div 
-        class="day-dropzone rounded-2xl border transition-all duration-200 flex flex-col min-h-[520px] 2xl:min-h-[600px] ${dayCardClasses}"
+        class="day-dropzone rounded-2xl border transition-all duration-200 flex flex-col h-[530px] 2xl:h-[610px] ${dayCardClasses}"
         data-is-past="${isPast ? 'true' : 'false'}"
         data-is-today="${isToday ? 'true' : 'false'}"
         ${isPast ? '' : `
@@ -1438,7 +1438,7 @@ function renderWeekView() {
       >
         
         <!-- Day Column Header -->
-        <div class="p-4 border-b border-slate-200 dark:border-slate-700/80 flex items-center justify-between ${headerBg} rounded-t-2xl pointer-events-none">
+        <div class="p-4 border-b border-slate-200 dark:border-slate-700/80 flex items-center justify-between ${headerBg} rounded-t-2xl pointer-events-none shrink-0">
           <div>
             <div class="flex items-center gap-1.5">
               <span class="text-xs font-bold uppercase tracking-wider ${dayNameColor}">${dayNames[idx]}</span>
@@ -1446,13 +1446,13 @@ function renderWeekView() {
             </div>
             <div class="text-xl 2xl:text-2xl font-black ${dateNumberColor} leading-tight">${dayDate.getDate()}/${dayDate.getMonth() + 1}</div>
           </div>
-          <span class="text-xs font-extrabold px-2.5 py-1 rounded-full ${countBadgeClass} shadow-2xs">
+          <span class="text-xs font-extrabold px-2.5 py-1 rounded-full ${countBadgeClass} shadow-2xs" ${tasks.length > 4 ? `title="Có ${tasks.length} nhiệm vụ (Cuộn thanh slide để xem thêm)"` : ''}>
             ${completedCount}/${tasks.length}
           </span>
         </div>
 
-        <!-- Task List inside day -->
-        <div class="p-3 space-y-2.5 flex-1 overflow-y-auto max-h-[500px] 2xl:max-h-[650px]">
+        <!-- Task List inside day: Giới hạn 4 task, nếu > 4 task sẽ xuất hiện thanh slide cuộn mượt mà -->
+        <div class="p-3 space-y-2.5 flex-1 min-h-0 overflow-y-auto custom-slidebar ${tasks.length > 4 ? 'pr-1.5' : ''}">
           ${tasks.length === 0 ? `
             <div class="text-xs text-slate-400 dark:text-slate-500 text-center py-16 flex flex-col items-center justify-center gap-1.5 pointer-events-none">
               <i data-lucide="clipboard-check" class="w-8 h-8 text-slate-300 dark:text-slate-700"></i>

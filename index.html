@@ -346,6 +346,43 @@
     #authenticatedMainView {
       overflow-x: clip;
     }
+
+    /* Thanh slide / Thanh cuộn thanh mảnh, hiện đại cho danh sách task (> 4 task) */
+    .custom-slidebar {
+      scrollbar-width: thin;
+      scrollbar-color: #cbd5e1 rgba(241, 245, 249, 0.6);
+      scroll-behavior: smooth;
+    }
+    html.dark .custom-slidebar {
+      scrollbar-color: #475569 rgba(30, 41, 59, 0.5);
+    }
+    .custom-slidebar::-webkit-scrollbar {
+      width: 5px;
+    }
+    .custom-slidebar::-webkit-scrollbar-track {
+      background: rgba(241, 245, 249, 0.6);
+      border-radius: 9999px;
+      margin: 4px 0;
+    }
+    html.dark .custom-slidebar::-webkit-scrollbar-track {
+      background: rgba(30, 41, 59, 0.5);
+    }
+    .custom-slidebar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+      border: 1px solid transparent;
+      background-clip: padding-box;
+      transition: background-color 0.2s ease;
+    }
+    .custom-slidebar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    html.dark .custom-slidebar::-webkit-scrollbar-thumb {
+      background: #475569;
+    }
+    html.dark .custom-slidebar::-webkit-scrollbar-thumb:hover {
+      background: #64748b;
+    }
   </style>
 </head>
 <body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col font-sans antialiased text-sm transition-colors duration-200 pt-[2px]">
@@ -1749,7 +1786,7 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=5.4"></script>
-  <script src="app.js?v=5.4"></script>
+  <script src="firebase-config.js?v=5.5"></script>
+  <script src="app.js?v=5.5"></script>
 </body>
 </html>
