@@ -4741,6 +4741,9 @@ function generateReminderEmailPreviewHtml(shift = 'morning') {
         <table width="100%" border="0" cellspacing="0" cellpadding="0" class="main-card" style="max-width: 600px; background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
           <tr>
             <td style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 30px 24px; text-align: center;">
+              <div style="margin-bottom: 12px;">
+                <img src="logo/logo_idv_planner.png" width="48" height="48" alt="Logo" style="width: 48px; height: 48px; border-radius: 14px; display: inline-block; vertical-align: middle; box-shadow: 0 4px 12px rgba(0,0,0,0.18); border: 2px solid rgba(255,255,255,0.35); background-color: #ffffff;" />
+              </div>
               <div style="display: inline-block; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.3); border-radius: 12px; padding: 6px 14px; margin-bottom: 12px;">
                 <span style="font-size: 11px; font-weight: 800; color: #ffffff !important; letter-spacing: 1.2px; text-transform: uppercase;">STUDY & LIFE PLANNER</span>
               </div>

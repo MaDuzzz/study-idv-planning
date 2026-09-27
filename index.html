@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Study & Plan Tracker</title>
   
+  <!-- Favicon / Logo Web App -->
+  <link rel="icon" type="image/png" sizes="64x64" href="logo/logo_idv_planner.png">
+  <link rel="shortcut icon" type="image/png" href="logo/logo_idv_planner.png">
+  <link rel="apple-touch-icon" href="logo/logo_idv_planner.png">
+  
   <!-- Script phát hiện & áp dụng Dark Mode ngay lập tức (Chống nhấp nháy FOUT) -->
   <script>
     (function() {
@@ -393,8 +398,8 @@
       
       <!-- Logo & Tiêu đề -->
       <div class="flex items-center gap-3.5">
-        <div class="w-11 h-11 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
-          <i data-lucide="calendar-check-2" class="w-6 h-6"></i>
+        <div class="w-11 h-11 rounded-2xl overflow-hidden shadow-md shadow-blue-500/20 shrink-0 border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800 flex items-center justify-center">
+          <img src="logo/logo_idv_planner.png" alt="Study & Life Planner Logo" class="w-full h-full object-cover">
         </div>
         <div>
           <h1 class="font-bold text-lg sm:text-xl text-slate-900 dark:text-white leading-tight">Study & Life Planner</h1>
@@ -627,6 +632,12 @@
       
       <!-- 1. HERO SECTION -->
       <div class="text-center space-y-5 px-4">
+        <div class="flex justify-center mb-2">
+          <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl overflow-hidden shadow-xl shadow-blue-500/25 border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-800 p-1 hover:scale-105 transition-transform duration-200">
+            <img src="logo/logo_idv_planner.png" alt="Study & Life Planner" class="w-full h-full object-cover rounded-2xl">
+          </div>
+        </div>
+
         <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs sm:text-sm font-bold shadow-2xs">
           <i data-lucide="sparkles" class="w-4 h-4 text-blue-500 animate-pulse"></i>
           <span>Study & Life Planning Hub • Quản lý mục tiêu cá nhân</span>
@@ -1872,7 +1883,7 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=5.7"></script>
-  <script src="app.js?v=5.7"></script>
+  <script src="firebase-config.js?v=5.8"></script>
+  <script src="app.js?v=5.8"></script>
 </body>
 </html>
