@@ -114,11 +114,10 @@ function createEmailTransporter() {
   );
 }
 
-// 5. Tạo Template HTML Email hiện đại, chuẩn Responsive
+// 5. Tạo Template HTML Email hiện đại, chuẩn Responsive & tương thích hoàn hảo Dark Mode
 function generateEmailHtml({ user, shift, todayStr, formattedDate, tasks, parentTasksMap, appUrl }) {
   const isMorning = shift === 'morning';
   const completedCount = tasks.filter(t => t.completed).length;
-  const pendingTasks = tasks.filter(t => !t.completed);
   const highPriorityCount = tasks.filter(t => t.priority === 'high' && !t.completed).length;
   const totalTasks = tasks.length;
 
@@ -134,10 +133,10 @@ function generateEmailHtml({ user, shift, todayStr, formattedDate, tasks, parent
   let tasksHtml = '';
   if (totalTasks === 0) {
     tasksHtml = `
-      <div style="background-color: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 16px; padding: 36px 20px; text-align: center; margin: 24px 0;">
+      <div class="empty-card" style="background-color: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 16px; padding: 36px 20px; text-align: center; margin: 24px 0;">
         <div style="font-size: 40px; margin-bottom: 12px;">🏖️</div>
-        <h3 style="margin: 0 0 8px 0; color: #1e293b; font-size: 18px; font-weight: 700;">Hôm nay không có nhiệm vụ nào cả!</h3>
-        <p style="margin: 0; color: #64748b; font-size: 14px; line-height: 1.5;">
+        <h3 class="empty-title" style="margin: 0 0 8px 0; color: #0f172a; font-size: 18px; font-weight: 700;">Hôm nay không có nhiệm vụ nào cả!</h3>
+        <p class="empty-text" style="margin: 0; color: #475569; font-size: 14px; line-height: 1.5;">
           ${isMorning 
             ? 'Bạn không có task nào được lên lịch cho ngày hôm nay. Hãy tận hưởng ngày nghỉ hoặc click vào nút bên dưới để lên kế hoạch mới.' 
             : 'Toàn bộ ngày hôm nay bạn không có nhiệm vụ nào tồn đọng. Chúc bạn có một buổi tối thật thư giãn và nạp đầy năng lượng!'}
@@ -146,25 +145,40 @@ function generateEmailHtml({ user, shift, todayStr, formattedDate, tasks, parent
     `;
   } else {
     tasksHtml = `
-      <!-- Thống kê nhanh -->
-      <div style="display: flex; gap: 12px; margin: 20px 0; flex-wrap: wrap;">
-        <div style="flex: 1; min-width: 130px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 12px 16px; text-align: center;">
-          <div style="font-size: 11px; font-weight: 700; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.5px;">Tổng nhiệm vụ</div>
-          <div style="font-size: 24px; font-weight: 900; color: #1e40af; margin-top: 4px;">${totalTasks}</div>
-        </div>
-        <div style="flex: 1; min-width: 130px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; padding: 12px 16px; text-align: center;">
-          <div style="font-size: 11px; font-weight: 700; color: #047857; text-transform: uppercase; letter-spacing: 0.5px;">Đã xong</div>
-          <div style="font-size: 24px; font-weight: 900; color: #065f46; margin-top: 4px;">${completedCount}</div>
-        </div>
-        <div style="flex: 1; min-width: 130px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 12px; padding: 12px 16px; text-align: center;">
-          <div style="font-size: 11px; font-weight: 700; color: #be123c; text-transform: uppercase; letter-spacing: 0.5px;">Ưu tiên cao</div>
-          <div style="font-size: 24px; font-weight: 900; color: #9f1239; margin-top: 4px;">${highPriorityCount}</div>
-        </div>
-      </div>
+      <!-- Thống kê nhanh: Sử dụng table 3 cột cách đều nhau tuyệt đối trên mọi email client (Gmail, Outlook, iOS) -->
+      <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 22px 0; table-layout: fixed;">
+        <tr>
+          <!-- Cột 1: TỔNG NHIỆM VỤ -->
+          <td width="31%" align="center" style="vertical-align: top;">
+            <div class="stat-card-total" style="background-color: #eff6ff; border: 1.5px solid #93c5fd; border-radius: 14px; padding: 14px 6px; text-align: center;">
+              <div class="stat-label-total" style="font-size: 11px; font-weight: 800; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.5px;">TỔNG NHIỆM VỤ</div>
+              <div class="stat-num-total" style="font-size: 26px; font-weight: 900; color: #1e3a8a; margin-top: 4px;">${totalTasks}</div>
+            </div>
+          </td>
+          <!-- Khoảng cách giữa cột 1 và 2 -->
+          <td width="3.5%">&nbsp;</td>
+          <!-- Cột 2: DONE -->
+          <td width="31%" align="center" style="vertical-align: top;">
+            <div class="stat-card-done" style="background-color: #ecfdf5; border: 1.5px solid #6ee7b7; border-radius: 14px; padding: 14px 6px; text-align: center;">
+              <div class="stat-label-done" style="font-size: 11px; font-weight: 800; color: #047857; text-transform: uppercase; letter-spacing: 0.5px;">DONE</div>
+              <div class="stat-num-done" style="font-size: 26px; font-weight: 900; color: #065f46; margin-top: 4px;">${completedCount}</div>
+            </div>
+          </td>
+          <!-- Khoảng cách giữa cột 2 và 3 -->
+          <td width="3.5%">&nbsp;</td>
+          <!-- Cột 3: ƯU TIÊN CAO -->
+          <td width="31%" align="center" style="vertical-align: top;">
+            <div class="stat-card-high" style="background-color: #fff1f2; border: 1.5px solid #fda4af; border-radius: 14px; padding: 14px 6px; text-align: center;">
+              <div class="stat-label-high" style="font-size: 11px; font-weight: 800; color: #be123c; text-transform: uppercase; letter-spacing: 0.5px;">ƯU TIÊN CAO</div>
+              <div class="stat-num-high" style="font-size: 26px; font-weight: 900; color: #9f1239; margin-top: 4px;">${highPriorityCount}</div>
+            </div>
+          </td>
+        </tr>
+      </table>
 
       <!-- Danh sách chi tiết các thẻ Task -->
       <div style="margin-top: 16px;">
-        ${tasks.map((t, idx) => {
+        ${tasks.map((t) => {
           const parent = t.parentId ? parentTasksMap[t.parentId] : null;
           const parentTag = parent ? (parent.tag || parent.title.slice(0, 5).toUpperCase()) : '';
           const parentColor = (parent && parent.color) ? parent.color : '#2563eb';
@@ -174,36 +188,36 @@ function generateEmailHtml({ user, shift, todayStr, formattedDate, tasks, parent
           const borderStyle = isDone ? 'border-left: 4px solid #10b981;' : (t.priority === 'high' ? 'border-left: 4px solid #ef4444;' : 'border-left: 4px solid #3b82f6;');
 
           return `
-            <div style="background: #ffffff; border: 1px solid #e2e8f0; ${borderStyle} border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div class="task-card" style="background-color: #ffffff; border: 1px solid #e2e8f0; ${borderStyle} border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
               <div style="display: flex; align-items: flex-start; justify-content: space-between;">
                 <div style="flex: 1;">
-                  <div style="font-size: 14px; font-weight: 700; color: ${isDone ? '#94a3b8; text-decoration: line-through;' : '#0f172a;'}; line-height: 1.4;">
+                  <div class="${isDone ? 'task-title-done' : 'task-title'}" style="font-size: 15px; font-weight: 700; color: ${isDone ? '#94a3b8; text-decoration: line-through;' : '#0f172a;'}; line-height: 1.4;">
                     ${statusIcon} ${escapeHtml(t.title)}
                   </div>
                   
-                  <div style="margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                     ${parentTag ? `
-                      <span style="font-family: monospace; font-size: 10px; font-weight: 800; background: rgba(37,99,235,0.1); color: ${parentColor}; border: 1px solid rgba(37,99,235,0.25); border-radius: 6px; padding: 2px 6px;">
+                      <span class="tag-badge" style="font-family: monospace; font-size: 10px; font-weight: 800; background-color: #f1f5f9; color: ${parentColor}; border: 1px solid #cbd5e1; border-radius: 6px; padding: 3px 8px; display: inline-block;">
                         [${escapeHtml(parentTag)}]
                       </span>
                     ` : ''}
 
                     ${t.priority === 'high' ? `
-                      <span style="font-size: 10px; font-weight: 700; background: #fee2e2; color: #b91c1c; border-radius: 6px; padding: 2px 6px;">
-                        Ưu tiên cao
+                      <span style="font-size: 10px; font-weight: 800; background-color: #fee2e2; color: #b91c1c; border: 1px solid #fecdd3; border-radius: 6px; padding: 3px 8px; display: inline-block;">
+                        🔥 Ưu tiên cao
                       </span>
                     ` : ''}
 
                     ${t.document && t.document.contentHtml ? `
-                      <span style="font-size: 10px; font-weight: 700; background: #dcfce7; color: #15803d; border-radius: 6px; padding: 2px 6px;">
+                      <span style="font-size: 10px; font-weight: 800; background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; border-radius: 6px; padding: 3px 8px; display: inline-block;">
                         📄 Có tài liệu DOCX
                       </span>
                     ` : ''}
                   </div>
 
                   ${t.note ? `
-                    <div style="margin-top: 6px; font-size: 12px; color: #64748b; font-style: italic;">
-                      Ghi chú: ${escapeHtml(t.note)}
+                    <div class="task-note-box" style="margin-top: 8px; font-size: 12px; color: #334155; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; line-height: 1.5;">
+                      <strong class="task-note-label" style="color: #0f172a;">Ghi chú:</strong> ${escapeHtml(t.note)}
                     </div>
                   ` : ''}
                 </div>
@@ -215,36 +229,91 @@ function generateEmailHtml({ user, shift, todayStr, formattedDate, tasks, parent
     `;
   }
 
-  // Khung HTML Email chuẩn
+  // Khung HTML Email chuẩn với hỗ trợ Dark Mode mạnh mẽ
   return `
     <!DOCTYPE html>
     <html lang="vi">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="color-scheme" content="light dark">
+      <meta name="supported-color-schemes" content="light dark">
       <title>${escapeHtml(headerTitle)}</title>
+      <style>
+        :root {
+          color-scheme: light dark;
+          supported-color-schemes: light dark;
+        }
+        @media (prefers-color-scheme: dark) {
+          .email-bg { background-color: #0b0f19 !important; }
+          .main-card { background-color: #111827 !important; border-color: #1f2937 !important; }
+          .content-text { color: #f3f4f6 !important; }
+          .header-date { color: #ffffff !important; }
+          .stat-card-total { background-color: #172554 !important; border-color: #3b82f6 !important; }
+          .stat-label-total { color: #93c5fd !important; }
+          .stat-num-total { color: #bfdbfe !important; }
+          .stat-card-done { background-color: #064e3b !important; border-color: #10b981 !important; }
+          .stat-label-done { color: #6ee7b7 !important; }
+          .stat-num-done { color: #a7f3d0 !important; }
+          .stat-card-high { background-color: #4c0519 !important; border-color: #f43f5e !important; }
+          .stat-label-high { color: #fda4af !important; }
+          .stat-num-high { color: #fecdd3 !important; }
+          .task-card { background-color: #1f2937 !important; border-color: #374151 !important; }
+          .task-title { color: #f9fafb !important; }
+          .task-title-done { color: #9ca3af !important; }
+          .tag-badge { background-color: #111827 !important; border-color: #475569 !important; }
+          .task-note-box { background-color: #111827 !important; border-color: #374151 !important; color: #d1d5db !important; }
+          .task-note-label { color: #93c5fd !important; }
+          .footer-bg { background-color: #0b0f19 !important; border-color: #1f2937 !important; }
+          .footer-text { color: #9ca3af !important; }
+          .empty-card { background-color: #1f2937 !important; border-color: #374151 !important; }
+          .empty-title { color: #f9fafb !important; }
+          .empty-text { color: #9ca3af !important; }
+        }
+        /* Gmail App Dark Mode selectors */
+        [data-ogsc] .content-text { color: #f3f4f6 !important; }
+        [data-ogsc] .header-date { color: #ffffff !important; }
+        [data-ogsc] .stat-label-total { color: #93c5fd !important; }
+        [data-ogsc] .stat-num-total { color: #bfdbfe !important; }
+        [data-ogsc] .stat-label-done { color: #6ee7b7 !important; }
+        [data-ogsc] .stat-num-done { color: #a7f3d0 !important; }
+        [data-ogsc] .stat-label-high { color: #fda4af !important; }
+        [data-ogsc] .stat-num-high { color: #fecdd3 !important; }
+        [data-ogsc] .task-title { color: #f9fafb !important; }
+        [data-ogsc] .task-title-done { color: #9ca3af !important; }
+        [data-ogsc] .task-note-box { color: #d1d5db !important; }
+        [data-ogsc] .task-note-label { color: #93c5fd !important; }
+        [data-ogsc] .footer-text { color: #9ca3af !important; }
+        [data-ogsb] .stat-card-total { background-color: #172554 !important; }
+        [data-ogsb] .stat-card-done { background-color: #064e3b !important; }
+        [data-ogsb] .stat-card-high { background-color: #4c0519 !important; }
+        [data-ogsb] .task-card { background-color: #1f2937 !important; }
+        [data-ogsb] .task-note-box { background-color: #111827 !important; }
+      </style>
     </head>
-    <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-      <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; padding: 30px 10px;">
+    <body class="email-bg" style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+      <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; padding: 30px 10px;" class="email-bg">
         <tr>
           <td align="center">
-            <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+            <table width="100%" border="0" cellspacing="0" cellpadding="0" class="main-card" style="max-width: 600px; background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
               
               <!-- Header Gradient -->
               <tr>
                 <td style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 30px 24px; text-align: center;">
-                  <div style="display: inline-block; background: rgba(255,255,255,0.18); border-radius: 12px; padding: 8px 12px; margin-bottom: 12px;">
-                    <span style="font-size: 12px; font-weight: 800; color: #ffffff; letter-spacing: 1px; text-transform: uppercase;">STUDY & LIFE PLANNER</span>
+                  <div style="display: inline-block; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.3); border-radius: 12px; padding: 6px 14px; margin-bottom: 12px;">
+                    <span style="font-size: 11px; font-weight: 800; color: #ffffff !important; letter-spacing: 1.2px; text-transform: uppercase;">STUDY & LIFE PLANNER</span>
                   </div>
-                  <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 800; line-height: 1.3;">${escapeHtml(headerTitle)}</h1>
-                  <p style="margin: 6px 0 0 0; color: #bfdbfe; font-size: 14px; font-weight: 500;">${escapeHtml(formattedDate)}</p>
+                  <h1 style="margin: 0; color: #ffffff !important; font-size: 22px; font-weight: 800; line-height: 1.3;">${escapeHtml(headerTitle)}</h1>
+                  <p class="header-date" style="margin: 8px 0 0 0; color: #ffffff !important; opacity: 0.95; font-size: 14px; font-weight: 600;">
+                    <span style="color: #ffffff !important;">${escapeHtml(formattedDate)}</span>
+                  </p>
                 </td>
               </tr>
 
               <!-- Body Content -->
               <tr>
                 <td style="padding: 28px 24px;">
-                  <p style="margin: 0 0 16px 0; color: #334155; font-size: 15px; line-height: 1.6;">
+                  <p class="content-text" style="margin: 0 0 16px 0; color: #0f172a; font-size: 15px; line-height: 1.6;">
                     ${greeting}
                   </p>
 
@@ -261,11 +330,11 @@ function generateEmailHtml({ user, shift, todayStr, formattedDate, tasks, parent
 
               <!-- Footer -->
               <tr>
-                <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 24px; text-align: center;">
-                  <p style="margin: 0 0 6px 0; font-size: 12px; color: #94a3b8; line-height: 1.4;">
+                <td class="footer-bg" style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 24px; text-align: center;">
+                  <p class="footer-text" style="margin: 0 0 6px 0; font-size: 12px; color: #64748b; line-height: 1.4;">
                     Email này được gửi tự động bởi hệ thống nhắc việc Study & Life Planner qua GitHub Actions.
                   </p>
-                  <p style="margin: 0; font-size: 11px; color: #cbd5e1;">
+                  <p class="footer-text" style="margin: 0; font-size: 11px; color: #94a3b8;">
                     Thời gian: ${getVietnamNow().toLocaleTimeString('vi-VN')} • Múi giờ Việt Nam (ICT)
                   </p>
                 </td>
