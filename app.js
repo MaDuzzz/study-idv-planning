@@ -2049,12 +2049,12 @@ function renderTaskManagerContent() {
           ${parentSubtasks.length === 0 ? `
             <div class="p-6 text-center text-xs text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-1.5">
               ${allParentSubtasks.length === 0 ? `
-                <p>Chưa có nhiệm vụ con nào thuộc mục tiêu này.</p>
+                <p>Chưa có subtask nào thuộc mục tiêu này.</p>
                 <button onclick="openAddTaskModalForParent('${parent.id}')" class="text-blue-600 dark:text-blue-400 font-bold hover:underline">
-                  + Thêm nhiệm vụ con ngay
+                  + Thêm subtask ngay
                 </button>
               ` : `
-                <p>Không có nhiệm vụ con nào thỏa mãn bộ lọc hiện tại.</p>
+                <p>Không có subtask nào thỏa mãn bộ lọc hiện tại.</p>
               `}
             </div>
           ` : parentSubtasks.map(task => renderTaskManagerSubtaskRow(task)).join('')}
