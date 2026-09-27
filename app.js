@@ -1393,10 +1393,8 @@ function renderWeekView() {
           </button>
         </div>`
       : (isPast 
-          ? `<div class="p-2.5 border-t border-slate-200/60 dark:border-slate-800/60 mt-auto bg-slate-100/40 dark:bg-slate-900/30 rounded-b-2xl text-center pointer-events-none select-none">
-              <span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 flex items-center justify-center gap-1">
-                <i data-lucide="lock" class="w-3.5 h-3.5"></i> Đã qua &bull; Chỉ xem
-              </span>
+          ? `<div class="py-3 px-3 border-t border-slate-200/60 dark:border-slate-800/60 mt-auto bg-slate-100/40 dark:bg-slate-900/30 rounded-b-2xl text-center pointer-events-none select-none flex items-center justify-center" title="Ngày trong quá khứ (Chỉ xem)">
+              <i data-lucide="lock" class="w-4 h-4 text-slate-400 dark:text-slate-500"></i>
             </div>`
           : '');
 
