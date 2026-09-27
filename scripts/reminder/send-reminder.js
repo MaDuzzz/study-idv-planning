@@ -78,16 +78,72 @@ function initFirebase() {
 
 // 4. Khởi tạo Email Transporter (Hỗ trợ Gmail SMTP hoặc Resend API)
 function createEmailTransporter() {
-  const gmailUser = process.env.GMAIL_USER;
-  const gmailAppPw = process.env.GMAIL_APP_PASSWORD;
+  // Ưu tiên 1: Resend REST API (Nếu user cấu hình RESEND_API_KEY - không bao giờ bị Google chặn SMTP)
+  if (process.env.RESEND_API_KEY) {
+    const resendKey = process.env.RESEND_API_KEY.trim();
+    console.log('📧 Sử dụng Resend REST API (Gửi trực tiếp qua HTTPS, 100% không bị chặn)');
+    return {
+      type: 'resend',
+      verify: async () => true,
+      sendMail: async (options) => {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${resendKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            from: 'Study & Life Planner <onboarding@resend.dev>',
+            to: [options.to],
+            subject: options.subject,
+            html: options.html
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.message || (typeof data === 'object' ? JSON.stringify(data) : 'Lỗi gửi email qua Resend'));
+        }
+        return { messageId: data.id };
+      }
+    };
+  }
+
+  let gmailUser = (process.env.GMAIL_USER || '').trim().replace(/^["']|["']$/g, '');
+  let gmailAppPw = (process.env.GMAIL_APP_PASSWORD || '').trim().replace(/^["']|["']$/g, '');
 
   if (gmailUser && gmailAppPw) {
-    console.log(`📧 Sử dụng Gmail SMTP: ${gmailUser}`);
+    if (!gmailUser.includes('@')) {
+      gmailUser += '@gmail.com';
+    }
+
+    // Google App Password chuẩn chỉ gồm 16 chữ cái tiếng Anh viết thường
+    const cleanPass = gmailAppPw.replace(/[^a-zA-Z]/g, '').toLowerCase();
+
+    const maskedUser = gmailUser.length > 6
+      ? `${gmailUser.slice(0, 3)}***@${gmailUser.split('@')[1]}`
+      : '***';
+
+    console.log(`📧 Cấu hình Gmail SMTP: ${maskedUser}`);
+    console.log(`🔑 Kiểm tra Mật khẩu ứng dụng: Độ dài: ${cleanPass.length} ký tự (chuẩn của Google là đúng 16 chữ cái)`);
+
+    if (cleanPass.length !== 16) {
+      console.warn(`\n⚠️ CẢNH BÁO: Mật khẩu của bạn có độ dài ${cleanPass.length} ký tự (Google App Password chuẩn là ĐÚNG 16 CHỮ CÁI).`);
+      console.warn(`   Nếu bạn đang nhập mật khẩu đăng nhập Gmail thông thường (có số, ký tự đặc biệt) thay vì Mật khẩu ứng dụng 16 chữ cái, Google SMTP chắc chắn sẽ báo lỗi 534!`);
+      console.warn(`   Hãy truy cập https://myaccount.google.com/apppasswords để tạo đúng Mật khẩu ứng dụng.\n`);
+    }
+
+    // Sử dụng kết nối bảo mật smtp.gmail.com cổng 465 SSL với cơ chế AUTH LOGIN
     return nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
       auth: {
         user: gmailUser,
-        pass: gmailAppPw.replace(/\s+/g, '') // Bỏ khoảng trắng nếu user copy từ Google App Passwords
+        pass: cleanPass
+      },
+      authMethod: 'LOGIN',
+      tls: {
+        rejectUnauthorized: false
       }
     });
   }
@@ -110,7 +166,8 @@ function createEmailTransporter() {
     'Thiếu cấu hình gửi email!\n' +
     'Vui lòng thêm các Secret sau vào GitHub Actions:\n' +
     '- GMAIL_USER: Địa chỉ Gmail của bạn (vd: your-email@gmail.com)\n' +
-    '- GMAIL_APP_PASSWORD: Mật khẩu ứng dụng 16 ký tự tạo từ Google Account (Security -> 2-Step Verification -> App passwords)'
+    '- GMAIL_APP_PASSWORD: Mật khẩu ứng dụng 16 ký tự tạo từ Google Account (Security -> 2-Step Verification -> App passwords)\n' +
+    'HOẶC thêm RESEND_API_KEY nếu sử dụng dịch vụ Resend.'
   );
 }
 
