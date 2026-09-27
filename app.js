@@ -1428,6 +1428,7 @@ function renderWeekView() {
       <div 
         class="day-dropzone rounded-2xl border transition-all duration-200 flex flex-col min-h-[520px] 2xl:min-h-[600px] ${dayCardClasses}"
         data-is-past="${isPast ? 'true' : 'false'}"
+        data-is-today="${isToday ? 'true' : 'false'}"
         ${isPast ? '' : `
         ondragover="handleDragOver(event)"
         ondragenter="handleDragEnter(event)"
@@ -1565,6 +1566,7 @@ function renderMonthView() {
                 : 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800/80 hover:border-blue-400 dark:hover:border-blue-400 hover:shadow-xs'
           }"
           data-is-past="${isPast ? 'true' : 'false'}"
+          data-is-today="${isToday ? 'true' : 'false'}"
           onclick="openDayFromGrid('${dateStr}')"
           ${isPast ? '' : `
           ondragover="handleDragOver(event)"
@@ -1590,6 +1592,7 @@ function renderMonthView() {
           <div class="space-y-1.5 my-1.5 overflow-hidden">
             ${tasks.slice(0, 3).map(t => {
               let pillClasses = '';
+              let pillStyle = '';
               let prefixIcon = '';
 
               const parent = t.parentId ? getParentTask(t.parentId) : null;
@@ -1597,14 +1600,27 @@ function renderMonthView() {
               const parentTag = parent ? getParentTag(parent) : '';
 
               if (t.completed) {
-                pillClasses = 'bg-slate-100 dark:bg-slate-700/90 text-slate-600 dark:text-slate-200 line-through border border-slate-200 dark:border-slate-600 font-medium';
+                pillClasses = 'bg-slate-100 dark:bg-slate-700/80 text-slate-500 dark:text-slate-400 line-through border border-slate-200 dark:border-slate-600 font-medium';
                 prefixIcon = '<i data-lucide="check" class="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0 mr-1 inline-block"></i>';
+              } else if (palette) {
+                // Áp dụng màu sắc thẻ đồng nhất với Tag của Task tổng
+                const isDark = document.documentElement.classList.contains('dark');
+                const rgb = hexToRgb(palette.hex);
+                const bgOpacity = isDark ? 0.22 : 0.14;
+                const borderOpacity = isDark ? 0.45 : 0.35;
+                const textColor = isDark ? `rgb(${Math.min(255, rgb.r + 55)}, ${Math.min(255, rgb.g + 55)}, ${Math.min(255, rgb.b + 55)})` : palette.hex;
+
+                pillClasses = 'font-bold border shadow-2xs';
+                pillStyle = `background-color: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${bgOpacity}); color: ${textColor}; border-color: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${borderOpacity});`;
+                
+                if (isOverdue(t)) {
+                  prefixIcon = '<span class="w-2 h-2 rounded-full bg-amber-500 ring-2 ring-amber-300 dark:ring-amber-800 shrink-0 mr-1 inline-block" title="Trễ hạn"></span>';
+                } else {
+                  prefixIcon = `<span class="w-1.5 h-1.5 rounded-full shrink-0 mr-1 inline-block ${palette.dot || ''}" style="${palette.dotStyle || `background-color: ${palette.hex};`}"></span>`;
+                }
               } else if (isOverdue(t)) {
                 pillClasses = 'bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-100 font-bold border border-amber-300 dark:border-amber-600/90 shadow-2xs';
                 prefixIcon = '<span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mr-1 inline-block"></span>';
-              } else if (palette) {
-                pillClasses = `${palette.badge} font-bold shadow-2xs`;
-                prefixIcon = `<span class="w-1.5 h-1.5 rounded-full ${palette.dot} shrink-0 mr-1 inline-block"></span>`;
               } else if (t.priority === 'high') {
                 pillClasses = 'bg-rose-100 dark:bg-rose-950 text-rose-950 dark:text-rose-100 font-bold border border-rose-300 dark:border-rose-600/90 shadow-2xs';
                 prefixIcon = '<span class="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 mr-1 inline-block"></span>';
@@ -1625,6 +1641,7 @@ function renderMonthView() {
                   ` : ''}
                   onclick="event.stopPropagation(); openTaskDetailModal('${t.id}')"
                   class="text-[11px] px-2 py-0.5 rounded-md truncate transition-colors flex items-center cursor-pointer hover:opacity-85 ${pillClasses}"
+                  style="${pillStyle}"
                   title="${escapeHtml(t.title)}${parent ? ` [${escapeHtml(parent.title)}]` : ''} (${isPast ? 'Ngày trong quá khứ - Bấm để xem chi tiết' : 'Bấm để xem chi tiết & tài liệu'})"
                 >
                   ${prefixIcon}
@@ -1696,7 +1713,50 @@ function renderYearView() {
   container.innerHTML = html;
 }
 
-// --- 7. SWITCH & NAVIGATE ---
+// --- 7. SWITCH & NAVIGATE (HIỆU ỨNG SLIDE CHUYỂN NGÀY/TUẦN/THÁNG SIÊU MƯỢT) ---
+function triggerSlideAnimation(direction) {
+  const mainView = document.getElementById('authenticatedMainView');
+  const dateDisplay = document.getElementById('currentDateDisplay');
+
+  if (mainView) {
+    mainView.classList.remove('slide-in-right', 'slide-in-left', 'date-pulse', 'view-fade-in');
+    void mainView.offsetWidth; // Buộc reflow để kích hoạt lại animation mượt mà ngay lập tức
+    if (direction === 'next') {
+      mainView.classList.add('slide-in-right');
+    } else if (direction === 'prev') {
+      mainView.classList.add('slide-in-left');
+    } else if (direction === 'pulse') {
+      mainView.classList.add('date-pulse');
+    } else if (direction === 'fade') {
+      mainView.classList.add('view-fade-in');
+    }
+
+    const onAnimEnd = () => {
+      mainView.classList.remove('slide-in-right', 'slide-in-left', 'date-pulse', 'view-fade-in');
+      mainView.removeEventListener('animationend', onAnimEnd);
+    };
+    mainView.addEventListener('animationend', onAnimEnd);
+  }
+
+  if (dateDisplay) {
+    dateDisplay.classList.remove('slide-in-right-sm', 'slide-in-left-sm', 'date-pulse');
+    void dateDisplay.offsetWidth;
+    if (direction === 'next') {
+      dateDisplay.classList.add('slide-in-right-sm');
+    } else if (direction === 'prev') {
+      dateDisplay.classList.add('slide-in-left-sm');
+    } else if (direction === 'pulse') {
+      dateDisplay.classList.add('date-pulse');
+    }
+
+    const onDateAnimEnd = () => {
+      dateDisplay.classList.remove('slide-in-right-sm', 'slide-in-left-sm', 'date-pulse');
+      dateDisplay.removeEventListener('animationend', onDateAnimEnd);
+    };
+    dateDisplay.addEventListener('animationend', onDateAnimEnd);
+  }
+}
+
 function switchView(viewName) {
   state.currentView = viewName;
 
@@ -1714,6 +1774,7 @@ function switchView(viewName) {
   document.getElementById('viewYear').classList.toggle('hidden', viewName !== 'year');
 
   renderApp();
+  triggerSlideAnimation('fade');
 }
 
 function navigateDate(delta) {
@@ -1728,6 +1789,47 @@ function navigateDate(delta) {
     d.setFullYear(d.getFullYear() + delta);
   }
   renderApp();
+  triggerSlideAnimation(delta > 0 ? 'next' : 'prev');
+}
+
+function goToToday() {
+  const today = new Date();
+  const current = new Date(state.currentDate);
+  let direction = 'pulse';
+
+  if (state.currentView === 'day') {
+    const todayStr = getTodayStr();
+    const currStr = formatDate(current);
+    if (todayStr > currStr) direction = 'next';
+    else if (todayStr < currStr) direction = 'prev';
+  } else if (state.currentView === 'week') {
+    const currMonday = getMonday(current);
+    const todayMonday = getMonday(today);
+    if (todayMonday.getTime() > currMonday.getTime()) direction = 'next';
+    else if (todayMonday.getTime() < currMonday.getTime()) direction = 'prev';
+  } else if (state.currentView === 'month') {
+    const currMonthVal = current.getFullYear() * 12 + current.getMonth();
+    const todayMonthVal = today.getFullYear() * 12 + today.getMonth();
+    if (todayMonthVal > currMonthVal) direction = 'next';
+    else if (todayMonthVal < currMonthVal) direction = 'prev';
+  } else if (state.currentView === 'year') {
+    if (today.getFullYear() > current.getFullYear()) direction = 'next';
+    else if (today.getFullYear() < current.getFullYear()) direction = 'prev';
+  }
+
+  state.currentDate = today;
+  renderApp();
+  triggerSlideAnimation(direction);
+
+  // Nếu đang ở màn hình Tuần, tự động cuộn nhẹ đến cột Hôm nay
+  if (state.currentView === 'week') {
+    setTimeout(() => {
+      const todayCard = document.querySelector('[data-is-today="true"]');
+      if (todayCard && todayCard.scrollIntoView) {
+        todayCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }, 60);
+  }
 }
 
 function openDayFromGrid(dateStr) {
@@ -4373,10 +4475,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Điều hướng ngày
   document.getElementById('btnPrevDate').addEventListener('click', () => navigateDate(-1));
   document.getElementById('btnNextDate').addEventListener('click', () => navigateDate(1));
-  document.getElementById('btnToday').addEventListener('click', () => {
-    state.currentDate = new Date();
-    renderApp();
-  });
+  document.getElementById('btnToday').addEventListener('click', goToToday);
 
   // Chuông thông báo
   const btnNotifBell = document.getElementById('btnNotifBell');
