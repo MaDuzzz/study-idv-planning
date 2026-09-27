@@ -477,6 +477,10 @@
                 <i data-lucide="layout-list" class="w-4 h-4 text-blue-500"></i>
                 <span class="font-medium">Quản lý nhiệm vụ</span>
               </button>
+              <button id="btnOpenReminderSettings" class="w-full text-left px-4 py-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 transition">
+                <i data-lucide="mail-check" class="w-4 h-4 text-emerald-500"></i>
+                <span class="font-medium">Cài đặt Email nhắc việc</span>
+              </button>
               <button id="btnLogout" class="w-full text-left px-4 py-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2.5 border-t border-slate-100 dark:border-slate-800 mt-1 transition">
                 <i data-lucide="log-out" class="w-4 h-4"></i>
                 <span>Đăng xuất</span>
@@ -1782,11 +1786,93 @@
     </div>
   </div>
 
+  <!-- ========================================== -->
+  <!-- MODAL: CÀI ĐẶT EMAIL NHẮC VIỆC (7H & 18H) -->
+  <!-- ========================================== -->
+  <div id="reminderSettingsModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[100] modal-layer-system hidden flex items-center justify-center p-4">
+    <div id="reminderSettingsDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-4 border border-slate-200 dark:border-slate-800 transition-colors modal-dialog-animated max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div class="flex items-center gap-2.5 text-emerald-600 dark:text-emerald-400">
+          <i data-lucide="mail-check" class="w-6 h-6"></i>
+          <h3 class="text-lg font-bold text-slate-900 dark:text-white">Cài đặt Email nhắc việc</h3>
+        </div>
+        <button id="btnCloseReminderModal" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+        Hệ thống tự động chạy ngầm qua <strong>GitHub Actions</strong> để gửi email nhắc nhở vào <strong>7:00 sáng</strong> và tổng kết vào <strong>18:00 chiều</strong> (múi giờ Việt Nam). Ngày nào không có task sẽ thông báo ngày nghỉ thảnh thơi.
+      </p>
+
+      <!-- Địa chỉ nhận mail -->
+      <div class="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/80 space-y-1.5">
+        <label class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+          <i data-lucide="send" class="w-3.5 h-3.5 text-blue-500"></i> Email nhận thông báo:
+        </label>
+        <div id="reminderUserEmailDisplay" class="font-mono text-sm font-bold text-blue-600 dark:text-blue-400">
+          Chưa đăng nhập
+        </div>
+      </div>
+
+      <!-- Tùy chọn ca thông báo -->
+      <div class="space-y-3 pt-1">
+        <label class="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition">
+          <div>
+            <div class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">Bật nhận email tự động</div>
+            <div class="text-[11px] text-slate-500 dark:text-slate-400">Cho phép hệ thống gửi mail định kỳ hàng ngày</div>
+          </div>
+          <input type="checkbox" id="chkReminderMaster" class="w-4 h-4 text-emerald-600 rounded-sm cursor-pointer" checked>
+        </label>
+
+        <label class="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition">
+          <div>
+            <div class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">🌅 Ca 7:00 Sáng (Kế hoạch ngày mới)</div>
+            <div class="text-[11px] text-slate-500 dark:text-slate-400">Gửi danh sách việc cần làm trong ngày hôm nay</div>
+          </div>
+          <input type="checkbox" id="chkReminderMorning" class="w-4 h-4 text-blue-600 rounded-sm cursor-pointer" checked>
+        </label>
+
+        <label class="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition">
+          <div>
+            <div class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">🌙 Ca 18:00 Tối (Tổng kết & Đôn đốc)</div>
+            <div class="text-[11px] text-slate-500 dark:text-slate-400">Tổng kết việc đã xong và nhắc việc còn tồn đọng</div>
+          </div>
+          <input type="checkbox" id="chkReminderEvening" class="w-4 h-4 text-purple-600 rounded-sm cursor-pointer" checked>
+        </label>
+      </div>
+
+      <!-- Hướng dẫn cấu hình GitHub Secrets (Accordion) -->
+      <details class="group p-3 bg-amber-50/80 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-900/50 text-xs text-amber-900 dark:text-amber-200">
+        <summary class="font-bold flex items-center justify-between cursor-pointer select-none">
+          <span class="flex items-center gap-1.5"><i data-lucide="key-round" class="w-4 h-4 text-amber-600"></i> Hướng dẫn cấu hình GitHub Secrets (Chỉ làm 1 lần)</span>
+          <i data-lucide="chevron-down" class="w-4 h-4 transition-transform group-open:rotate-180"></i>
+        </summary>
+        <div class="mt-2.5 space-y-1.5 text-[11px] leading-relaxed border-t border-amber-200/60 dark:border-amber-900/60 pt-2">
+          <div>Vào repository GitHub &rarr; <strong>Settings</strong> &rarr; <strong>Secrets and variables</strong> &rarr; <strong>Actions</strong> &rarr; Thêm 3 Secrets sau:</div>
+          <div>1. <code class="font-mono bg-white dark:bg-slate-800 px-1 py-0.5 rounded font-bold">FIREBASE_SERVICE_ACCOUNT</code>: File JSON Private Key lấy từ Firebase Console (Project Settings &rarr; Service accounts &rarr; Generate new private key).</div>
+          <div>2. <code class="font-mono bg-white dark:bg-slate-800 px-1 py-0.5 rounded font-bold">GMAIL_USER</code>: Địa chỉ Gmail của bạn (dùng làm hộp thư gửi).</div>
+          <div>3. <code class="font-mono bg-white dark:bg-slate-800 px-1 py-0.5 rounded font-bold">GMAIL_APP_PASSWORD</code>: Mật khẩu ứng dụng 16 chữ số tạo từ Google Account (Bảo mật &rarr; Xác minh 2 bước &rarr; Mật khẩu ứng dụng).</div>
+        </div>
+      </details>
+
+      <div class="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+        <button type="button" id="btnPreviewReminderEmail" class="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-center gap-1">
+          <i data-lucide="eye" class="w-3.5 h-3.5"></i> Xem mẫu Email
+        </button>
+        <div class="flex items-center gap-2">
+          <button type="button" id="btnCancelReminderModal" class="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs sm:text-sm font-semibold">Đóng</button>
+          <button type="button" id="btnSaveReminderSettings" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs">Lưu cài đặt</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Container (Thông báo nổi góc phải màn hình) -->
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=5.5"></script>
-  <script src="app.js?v=5.5"></script>
+  <script src="firebase-config.js?v=5.6"></script>
+  <script src="app.js?v=5.6"></script>
 </body>
 </html>

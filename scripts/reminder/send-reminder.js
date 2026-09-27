@@ -1,0 +1,434 @@
+/**
+ * Study & Life Planner - Daily Task Reminder Script
+ * Chạy tự động qua GitHub Actions vào 7:00 sáng và 18:00 tối hàng ngày
+ */
+
+const admin = require('firebase-admin');
+const nodemailer = require('nodemailer');
+
+// 1. Cấu hình múi giờ Việt Nam (UTC+7)
+const VN_TIMEZONE = 'Asia/Ho_Chi_Minh';
+
+function getVietnamNow() {
+  const now = new Date();
+  return new Date(now.toLocaleString('en-US', { timeZone: VN_TIMEZONE }));
+}
+
+function getTodayStrVietnam() {
+  const vnDate = getVietnamNow();
+  const year = vnDate.getFullYear();
+  const month = String(vnDate.getMonth() + 1).padStart(2, '0');
+  const day = String(vnDate.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatVietnameseDate(dateObj) {
+  const days = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+  const dayName = days[dateObj.getDay()];
+  const day = dateObj.getDate();
+  const month = dateObj.getMonth() + 1;
+  const year = dateObj.getFullYear();
+  return `${dayName}, ngày ${day}/${month}/${year}`;
+}
+
+// 2. Xác định ca gửi (Sáng 7h / Chiều 18h)
+function getReminderShift() {
+  const explicit = (process.env.REMINDER_SHIFT || 'auto').toLowerCase();
+  if (explicit === 'morning' || explicit === 'evening') {
+    return explicit;
+  }
+  const vnHour = getVietnamNow().getHours();
+  // Trước 13h trưa coi là ca sáng (7h), sau 13h trưa coi là ca chiều (18h)
+  return vnHour < 13 ? 'morning' : 'evening';
+}
+
+// 3. Khởi tạo Firebase Admin SDK
+function initFirebase() {
+  if (admin.apps.length > 0) return admin.firestore();
+
+  const serviceAccountRaw = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!serviceAccountRaw) {
+    throw new Error(
+      'Thiếu GitHub Secret "FIREBASE_SERVICE_ACCOUNT"!\n' +
+      'Vui lòng vào Firebase Console -> Project Settings -> Service Accounts -> "Generate new private key", ' +
+      'sau đó copy nội dung file JSON và paste vào GitHub Repo -> Settings -> Secrets and variables -> Actions.'
+    );
+  }
+
+  let serviceAccount;
+  try {
+    serviceAccount = JSON.parse(serviceAccountRaw);
+  } catch (err) {
+    // Thử giải mã nếu user lưu dưới dạng Base64
+    try {
+      const decoded = Buffer.from(serviceAccountRaw, 'base64').toString('utf8');
+      serviceAccount = JSON.parse(decoded);
+    } catch (e) {
+      throw new Error('Nội dung FIREBASE_SERVICE_ACCOUNT không phải JSON hợp lệ: ' + err.message);
+    }
+  }
+
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+
+  console.log('✅ Firebase Admin đã kết nối thành công với Project:', serviceAccount.project_id);
+  return admin.firestore();
+}
+
+// 4. Khởi tạo Email Transporter (Hỗ trợ Gmail SMTP hoặc Resend API)
+function createEmailTransporter() {
+  const gmailUser = process.env.GMAIL_USER;
+  const gmailAppPw = process.env.GMAIL_APP_PASSWORD;
+
+  if (gmailUser && gmailAppPw) {
+    console.log(`📧 Sử dụng Gmail SMTP: ${gmailUser}`);
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: gmailUser,
+        pass: gmailAppPw.replace(/\s+/g, '') // Bỏ khoảng trắng nếu user copy từ Google App Passwords
+      }
+    });
+  }
+
+  // Hỗ trợ SMTP tùy chỉnh khác nếu có
+  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    console.log(`📧 Sử dụng Custom SMTP Host: ${process.env.SMTP_HOST}`);
+    return nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+  }
+
+  throw new Error(
+    'Thiếu cấu hình gửi email!\n' +
+    'Vui lòng thêm các Secret sau vào GitHub Actions:\n' +
+    '- GMAIL_USER: Địa chỉ Gmail của bạn (vd: your-email@gmail.com)\n' +
+    '- GMAIL_APP_PASSWORD: Mật khẩu ứng dụng 16 ký tự tạo từ Google Account (Security -> 2-Step Verification -> App passwords)'
+  );
+}
+
+// 5. Tạo Template HTML Email hiện đại, chuẩn Responsive
+function generateEmailHtml({ user, shift, todayStr, formattedDate, tasks, parentTasksMap, appUrl }) {
+  const isMorning = shift === 'morning';
+  const completedCount = tasks.filter(t => t.completed).length;
+  const pendingTasks = tasks.filter(t => !t.completed);
+  const highPriorityCount = tasks.filter(t => t.priority === 'high' && !t.completed).length;
+  const totalTasks = tasks.length;
+
+  const headerTitle = isMorning
+    ? '🌅 Kế hoạch & Mục tiêu ngày mới'
+    : '🌙 Tổng kết & Nhắc nhở buổi tối';
+
+  const greeting = isMorning
+    ? `Chào buổi sáng <strong>${escapeHtml(user.displayName || 'bạn')}</strong>! Dưới đây là danh sách nhiệm vụ đã lên lịch cho hôm nay:`
+    : `Chào buổi tối <strong>${escapeHtml(user.displayName || 'bạn')}</strong>! Cùng điểm lại tiến độ hoàn thành các mục tiêu hôm nay nhé:`;
+
+  // Render danh sách task
+  let tasksHtml = '';
+  if (totalTasks === 0) {
+    tasksHtml = `
+      <div style="background-color: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 16px; padding: 36px 20px; text-align: center; margin: 24px 0;">
+        <div style="font-size: 40px; margin-bottom: 12px;">🏖️</div>
+        <h3 style="margin: 0 0 8px 0; color: #1e293b; font-size: 18px; font-weight: 700;">Hôm nay không có nhiệm vụ nào cả!</h3>
+        <p style="margin: 0; color: #64748b; font-size: 14px; line-height: 1.5;">
+          ${isMorning 
+            ? 'Bạn không có task nào được lên lịch cho ngày hôm nay. Hãy tận hưởng ngày nghỉ hoặc click vào nút bên dưới để lên kế hoạch mới.' 
+            : 'Toàn bộ ngày hôm nay bạn không có nhiệm vụ nào tồn đọng. Chúc bạn có một buổi tối thật thư giãn và nạp đầy năng lượng!'}
+        </p>
+      </div>
+    `;
+  } else {
+    tasksHtml = `
+      <!-- Thống kê nhanh -->
+      <div style="display: flex; gap: 12px; margin: 20px 0; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 130px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 12px 16px; text-align: center;">
+          <div style="font-size: 11px; font-weight: 700; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.5px;">Tổng nhiệm vụ</div>
+          <div style="font-size: 24px; font-weight: 900; color: #1e40af; margin-top: 4px;">${totalTasks}</div>
+        </div>
+        <div style="flex: 1; min-width: 130px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; padding: 12px 16px; text-align: center;">
+          <div style="font-size: 11px; font-weight: 700; color: #047857; text-transform: uppercase; letter-spacing: 0.5px;">Đã xong</div>
+          <div style="font-size: 24px; font-weight: 900; color: #065f46; margin-top: 4px;">${completedCount}</div>
+        </div>
+        <div style="flex: 1; min-width: 130px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 12px; padding: 12px 16px; text-align: center;">
+          <div style="font-size: 11px; font-weight: 700; color: #be123c; text-transform: uppercase; letter-spacing: 0.5px;">Ưu tiên cao</div>
+          <div style="font-size: 24px; font-weight: 900; color: #9f1239; margin-top: 4px;">${highPriorityCount}</div>
+        </div>
+      </div>
+
+      <!-- Danh sách chi tiết các thẻ Task -->
+      <div style="margin-top: 16px;">
+        ${tasks.map((t, idx) => {
+          const parent = t.parentId ? parentTasksMap[t.parentId] : null;
+          const parentTag = parent ? (parent.tag || parent.title.slice(0, 5).toUpperCase()) : '';
+          const parentColor = (parent && parent.color) ? parent.color : '#2563eb';
+          
+          const isDone = !!t.completed;
+          const statusIcon = isDone ? '✅' : (t.priority === 'high' ? '🔥' : '📌');
+          const borderStyle = isDone ? 'border-left: 4px solid #10b981;' : (t.priority === 'high' ? 'border-left: 4px solid #ef4444;' : 'border-left: 4px solid #3b82f6;');
+
+          return `
+            <div style="background: #ffffff; border: 1px solid #e2e8f0; ${borderStyle} border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+              <div style="display: flex; align-items: flex-start; justify-content: space-between;">
+                <div style="flex: 1;">
+                  <div style="font-size: 14px; font-weight: 700; color: ${isDone ? '#94a3b8; text-decoration: line-through;' : '#0f172a;'}; line-height: 1.4;">
+                    ${statusIcon} ${escapeHtml(t.title)}
+                  </div>
+                  
+                  <div style="margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    ${parentTag ? `
+                      <span style="font-family: monospace; font-size: 10px; font-weight: 800; background: rgba(37,99,235,0.1); color: ${parentColor}; border: 1px solid rgba(37,99,235,0.25); border-radius: 6px; padding: 2px 6px;">
+                        [${escapeHtml(parentTag)}]
+                      </span>
+                    ` : ''}
+
+                    ${t.priority === 'high' ? `
+                      <span style="font-size: 10px; font-weight: 700; background: #fee2e2; color: #b91c1c; border-radius: 6px; padding: 2px 6px;">
+                        Ưu tiên cao
+                      </span>
+                    ` : ''}
+
+                    ${t.document && t.document.contentHtml ? `
+                      <span style="font-size: 10px; font-weight: 700; background: #dcfce7; color: #15803d; border-radius: 6px; padding: 2px 6px;">
+                        📄 Có tài liệu DOCX
+                      </span>
+                    ` : ''}
+                  </div>
+
+                  ${t.note ? `
+                    <div style="margin-top: 6px; font-size: 12px; color: #64748b; font-style: italic;">
+                      Ghi chú: ${escapeHtml(t.note)}
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  // Khung HTML Email chuẩn
+  return `
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${escapeHtml(headerTitle)}</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+      <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; padding: 30px 10px;">
+        <tr>
+          <td align="center">
+            <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+              
+              <!-- Header Gradient -->
+              <tr>
+                <td style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 30px 24px; text-align: center;">
+                  <div style="display: inline-block; background: rgba(255,255,255,0.18); border-radius: 12px; padding: 8px 12px; margin-bottom: 12px;">
+                    <span style="font-size: 12px; font-weight: 800; color: #ffffff; letter-spacing: 1px; text-transform: uppercase;">STUDY & LIFE PLANNER</span>
+                  </div>
+                  <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 800; line-height: 1.3;">${escapeHtml(headerTitle)}</h1>
+                  <p style="margin: 6px 0 0 0; color: #bfdbfe; font-size: 14px; font-weight: 500;">${escapeHtml(formattedDate)}</p>
+                </td>
+              </tr>
+
+              <!-- Body Content -->
+              <tr>
+                <td style="padding: 28px 24px;">
+                  <p style="margin: 0 0 16px 0; color: #334155; font-size: 15px; line-height: 1.6;">
+                    ${greeting}
+                  </p>
+
+                  ${tasksHtml}
+
+                  <!-- Call to action button -->
+                  <div style="text-align: center; margin: 32px 0 16px 0;">
+                    <a href="${appUrl}" target="_blank" style="display: inline-block; background: #2563eb; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; padding: 13px 32px; border-radius: 12px; box-shadow: 0 3px 12px rgba(37,99,235,0.35);">
+                      🚀 Mở ứng dụng Study & Life Planner
+                    </a>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Footer -->
+              <tr>
+                <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 24px; text-align: center;">
+                  <p style="margin: 0 0 6px 0; font-size: 12px; color: #94a3b8; line-height: 1.4;">
+                    Email này được gửi tự động bởi hệ thống nhắc việc Study & Life Planner qua GitHub Actions.
+                  </p>
+                  <p style="margin: 0; font-size: 11px; color: #cbd5e1;">
+                    Thời gian: ${getVietnamNow().toLocaleTimeString('vi-VN')} • Múi giờ Việt Nam (ICT)
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// 6. Hàm xử lý chính (Main Workflow)
+async function main() {
+  console.log('========================================================');
+  console.log('🚀 BẮT ĐẦU CHẠY REMINDER STUDY & LIFE PLANNER');
+  const vnNow = getVietnamNow();
+  const todayStr = getTodayStrVietnam();
+  const formattedDate = formatVietnameseDate(vnNow);
+  const shift = getReminderShift();
+  const appUrl = process.env.APP_URL || 'https://dungtm.github.io/study-idv-planning';
+
+  console.log(`⏰ Thời gian: ${formattedDate} (${vnNow.toLocaleTimeString('vi-VN')})`);
+  console.log(`📌 Ca nhắc việc: ${shift.toUpperCase()} (todayStr: ${todayStr})`);
+  console.log(`🔗 App URL: ${appUrl}`);
+  console.log('========================================================');
+
+  // Khởi tạo Firestore và Email Transporter
+  const db = initFirebase();
+  const transporter = createEmailTransporter();
+
+  // Kiểm tra kết nối SMTP
+  try {
+    await transporter.verify();
+    console.log('✅ Kết nối Email SMTP thành công và sẵn sàng gửi!');
+  } catch (err) {
+    console.error('❌ Lỗi kết nối Email SMTP:', err.message);
+    throw err;
+  }
+
+  // 1. Quét toàn bộ người dùng trong collection 'users'
+  const usersSnapshot = await db.collection('users').get();
+  console.log(`👥 Tìm thấy ${usersSnapshot.size} tài khoản trong hệ thống.`);
+
+  if (usersSnapshot.empty) {
+    console.log('⚠️ Không có người dùng nào trong Firestore để gửi thông báo.');
+    return;
+  }
+
+  let successCount = 0;
+  let skippedCount = 0;
+  let failCount = 0;
+
+  for (const userDoc of usersSnapshot.docs) {
+    const user = { uid: userDoc.id, ...userDoc.data() };
+    const email = user.email;
+
+    if (!email) {
+      console.log(`⏩ Bỏ qua User ${user.uid}: Chưa có email.`);
+      skippedCount++;
+      continue;
+    }
+
+    // Kiểm tra cài đặt nhắc nhở của user
+    const settings = user.remindSettings || { enabled: true, morning: true, evening: true };
+    if (settings.enabled === false) {
+      console.log(`⏩ Bỏ qua User ${email}: Đã tắt tính năng nhắc nhở.`);
+      skippedCount++;
+      continue;
+    }
+    if (shift === 'morning' && settings.morning === false) {
+      console.log(`⏩ Bỏ qua User ${email}: Đã tắt ca sáng 7h.`);
+      skippedCount++;
+      continue;
+    }
+    if (shift === 'evening' && settings.evening === false) {
+      console.log(`⏩ Bỏ qua User ${email}: Đã tắt ca tối 18h.`);
+      skippedCount++;
+      continue;
+    }
+
+    try {
+      // 2. Lấy danh sách task của user trong ngày hôm nay
+      const tasksSnapshot = await db
+        .collection('users')
+        .doc(user.uid)
+        .collection('tasks')
+        .where('date', '==', todayStr)
+        .get();
+
+      const tasks = [];
+      tasksSnapshot.forEach(doc => {
+        tasks.push({ id: doc.id, ...doc.data() });
+      });
+
+      // 3. Lấy danh sách Parent Tasks để map mã tag & màu sắc
+      const parentTasksSnapshot = await db
+        .collection('users')
+        .doc(user.uid)
+        .collection('parentTasks')
+        .get();
+
+      const parentTasksMap = {};
+      parentTasksSnapshot.forEach(doc => {
+        parentTasksMap[doc.id] = doc.data();
+      });
+
+      console.log(`\n📋 Người dùng ${email}: Có ${tasks.length} task vào ngày ${todayStr}`);
+
+      // 4. Tạo nội dung email HTML
+      const htmlContent = generateEmailHtml({
+        user,
+        shift,
+        todayStr,
+        formattedDate,
+        tasks,
+        parentTasksMap,
+        appUrl
+      });
+
+      const subject = shift === 'morning'
+        ? (tasks.length > 0 
+            ? `[Planner 7h Sáng] 🌅 ${tasks.length} nhiệm vụ cần hoàn thành hôm nay (${todayStr})`
+            : `[Planner 7h Sáng] 🏖️ Hôm nay bạn không có nhiệm vụ nào cả (${todayStr})`)
+        : (tasks.length > 0
+            ? `[Planner 18h Tối] 🌙 Tổng kết ngày: ${tasks.filter(t => t.completed).length}/${tasks.length} nhiệm vụ hoàn thành (${todayStr})`
+            : `[Planner 18h Tối] 🌙 Không có nhiệm vụ nào hôm nay (${todayStr})`);
+
+      // 5. Gửi email
+      const mailOptions = {
+        from: `"Study & Life Planner" <${process.env.GMAIL_USER || 'no-reply@study-planner.app'}>`,
+        to: email,
+        subject: subject,
+        html: htmlContent
+      };
+
+      const info = await transporter.sendMail(mailOptions);
+      console.log(`✅ Đã gửi email thành công đến ${email}! (Message ID: ${info.messageId})`);
+      successCount++;
+    } catch (err) {
+      console.error(`❌ Gửi email thất bại cho ${email}:`, err.message);
+      failCount++;
+    }
+  }
+
+  console.log('\n========================================================');
+  console.log(`🏁 HOÀN THÀNH: Gửi thành công: ${successCount} | Bỏ qua: ${skippedCount} | Thất bại: ${failCount}`);
+  console.log('========================================================');
+}
+
+main().catch(err => {
+  console.error('💥 Lỗi nghiêm trọng khi thực thi script:', err);
+  process.exit(1);
+});

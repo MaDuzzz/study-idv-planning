@@ -4442,6 +4442,274 @@ function handleSaveFirebaseConfig(e) {
   }
 }
 
+// --- CÀI ĐẶT EMAIL NHẮC VIỆC TỰ ĐỘNG (DAILY TASK REMINDER) ---
+
+async function openReminderSettingsModal() {
+  const modal = document.getElementById('reminderSettingsModal');
+  if (!modal) return;
+
+  const emailDisplay = document.getElementById('reminderUserEmailDisplay');
+  const chkMaster = document.getElementById('chkReminderMaster');
+  const chkMorning = document.getElementById('chkReminderMorning');
+  const chkEvening = document.getElementById('chkReminderEvening');
+
+  if (state.currentUser && state.currentUser.email) {
+    if (emailDisplay) {
+      emailDisplay.innerHTML = `<span class="text-blue-600 dark:text-blue-400 font-bold">${escapeHtml(state.currentUser.email)}</span>`;
+    }
+  } else {
+    if (emailDisplay) {
+      emailDisplay.innerHTML = `<span class="text-amber-600 dark:text-amber-400 font-semibold italic">⚠️ Chưa đăng nhập Google (Hãy đăng nhập Google để tự động nhận email nhắc việc)</span>`;
+    }
+  }
+
+  // Đọc cài đặt lưu trên Firestore
+  if (state.currentUser && window.StudyPlannerFirebase && window.StudyPlannerFirebase.getUserRemindSettings) {
+    try {
+      const settings = await window.StudyPlannerFirebase.getUserRemindSettings(state.currentUser.uid);
+      if (settings && chkMaster && chkMorning && chkEvening) {
+        chkMaster.checked = settings.enabled !== false;
+        chkMorning.checked = settings.morning !== false;
+        chkEvening.checked = settings.evening !== false;
+
+        const enabled = chkMaster.checked;
+        chkMorning.disabled = !enabled;
+        chkEvening.disabled = !enabled;
+        if (chkMorning.parentElement) chkMorning.parentElement.classList.toggle('opacity-50', !enabled);
+        if (chkEvening.parentElement) chkEvening.parentElement.classList.toggle('opacity-50', !enabled);
+      }
+    } catch (e) {
+      console.warn('Lỗi đọc cấu hình reminder:', e);
+    }
+  }
+
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+}
+window.openReminderSettingsModal = openReminderSettingsModal;
+
+function closeReminderSettingsModal() {
+  const modal = document.getElementById('reminderSettingsModal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+}
+window.closeReminderSettingsModal = closeReminderSettingsModal;
+
+async function handleSaveReminderSettings() {
+  if (!state.currentUser) {
+    alert('Bạn cần đăng nhập tài khoản Google để lưu cài đặt nhận email nhắc nhở!');
+    return;
+  }
+
+  const btnSave = document.getElementById('btnSaveReminderSettings');
+  const origText = btnSave ? btnSave.textContent : 'Lưu cài đặt';
+  if (btnSave) {
+    btnSave.disabled = true;
+    btnSave.textContent = 'Đang lưu...';
+  }
+
+  const chkMaster = document.getElementById('chkReminderMaster');
+  const chkMorning = document.getElementById('chkReminderMorning');
+  const chkEvening = document.getElementById('chkReminderEvening');
+
+  const settings = {
+    enabled: chkMaster ? chkMaster.checked : true,
+    morning: chkMorning ? chkMorning.checked : true,
+    evening: chkEvening ? chkEvening.checked : true
+  };
+
+  try {
+    if (window.StudyPlannerFirebase && window.StudyPlannerFirebase.saveUserRemindSettings) {
+      const ok = await window.StudyPlannerFirebase.saveUserRemindSettings(state.currentUser.uid, settings);
+      if (ok) {
+        showToast({
+          type: 'success',
+          title: 'Cài đặt Email thành công!',
+          message: 'Lịch nhắc việc tự động 7:00 sáng và 18:00 tối đã được cập nhật.',
+          duration: 4000
+        });
+        closeReminderSettingsModal();
+      } else {
+        throw new Error('Không thể lưu lên Firestore.');
+      }
+    }
+  } catch (err) {
+    console.error('Lỗi khi lưu cài đặt email:', err);
+    showToast({
+      type: 'error',
+      title: 'Lưu cài đặt thất bại',
+      message: err.message || 'Vui lòng kiểm tra lại kết nối Firestore.'
+    });
+  } finally {
+    if (btnSave) {
+      btnSave.disabled = false;
+      btnSave.textContent = origText;
+    }
+  }
+}
+
+function generateReminderEmailPreviewHtml(shift = 'morning') {
+  const isMorning = shift === 'morning';
+  const todayStr = getTodayStr();
+  const dateObj = new Date();
+  const days = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+  const dayName = days[dateObj.getDay()];
+  const formattedDate = `${dayName}, ngày ${dateObj.getDate()}/${dateObj.getMonth() + 1}/${dateObj.getFullYear()}`;
+
+  const user = state.currentUser || { displayName: 'Bạn', email: 'user@example.com' };
+  const parentTasksMap = (state.parentTasks || []).reduce((acc, p) => {
+    acc[p.id] = p;
+    return acc;
+  }, {});
+
+  const todayTasks = (state.tasks || []).filter(t => t.date === todayStr);
+  const completedCount = todayTasks.filter(t => t.completed).length;
+  const highPriorityCount = todayTasks.filter(t => t.priority === 'high' && !t.completed).length;
+  const totalTasks = todayTasks.length;
+
+  const headerTitle = isMorning
+    ? '🌅 Kế hoạch & Mục tiêu ngày mới'
+    : '🌙 Tổng kết & Nhắc nhở buổi tối';
+
+  const greeting = isMorning
+    ? `Chào buổi sáng <strong>${escapeHtml(user.displayName || 'bạn')}</strong>! Dưới đây là danh sách nhiệm vụ đã lên lịch cho hôm nay:`
+    : `Chào buổi tối <strong>${escapeHtml(user.displayName || 'bạn')}</strong>! Cùng điểm lại tiến độ hoàn thành các mục tiêu hôm nay nhé:`;
+
+  let tasksHtml = '';
+  if (totalTasks === 0) {
+    tasksHtml = `
+      <div style="background-color: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 16px; padding: 36px 20px; text-align: center; margin: 24px 0;">
+        <div style="font-size: 40px; margin-bottom: 12px;">🏖️</div>
+        <h3 style="margin: 0 0 8px 0; color: #1e293b; font-size: 18px; font-weight: 700;">Hôm nay không có nhiệm vụ nào cả!</h3>
+        <p style="margin: 0; color: #64748b; font-size: 14px; line-height: 1.5;">
+          ${isMorning 
+            ? 'Bạn không có task nào được lên lịch cho ngày hôm nay. Hãy tận hưởng ngày nghỉ hoặc click vào nút bên dưới để lên kế hoạch mới.' 
+            : 'Toàn bộ ngày hôm nay bạn không có nhiệm vụ nào tồn đọng. Chúc bạn có một buổi tối thật thư giãn và nạp đầy năng lượng!'}
+        </p>
+      </div>
+    `;
+  } else {
+    tasksHtml = `
+      <div style="display: flex; gap: 12px; margin: 20px 0; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 130px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 12px 16px; text-align: center;">
+          <div style="font-size: 11px; font-weight: 700; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.5px;">Tổng nhiệm vụ</div>
+          <div style="font-size: 24px; font-weight: 900; color: #1e40af; margin-top: 4px;">${totalTasks}</div>
+        </div>
+        <div style="flex: 1; min-width: 130px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; padding: 12px 16px; text-align: center;">
+          <div style="font-size: 11px; font-weight: 700; color: #047857; text-transform: uppercase; letter-spacing: 0.5px;">Đã xong</div>
+          <div style="font-size: 24px; font-weight: 900; color: #065f46; margin-top: 4px;">${completedCount}</div>
+        </div>
+        <div style="flex: 1; min-width: 130px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 12px; padding: 12px 16px; text-align: center;">
+          <div style="font-size: 11px; font-weight: 700; color: #be123c; text-transform: uppercase; letter-spacing: 0.5px;">Ưu tiên cao</div>
+          <div style="font-size: 24px; font-weight: 900; color: #9f1239; margin-top: 4px;">${highPriorityCount}</div>
+        </div>
+      </div>
+
+      <div style="margin-top: 16px;">
+        ${todayTasks.map((t) => {
+          const parent = t.parentId ? parentTasksMap[t.parentId] : null;
+          const parentTag = parent ? (parent.tag || parent.title.slice(0, 5).toUpperCase()) : '';
+          const parentColor = (parent && parent.color) ? parent.color : '#2563eb';
+          const isDone = !!t.completed;
+          const statusIcon = isDone ? '✅' : (t.priority === 'high' ? '🔥' : '📌');
+          const borderStyle = isDone ? 'border-left: 4px solid #10b981;' : (t.priority === 'high' ? 'border-left: 4px solid #ef4444;' : 'border-left: 4px solid #3b82f6;');
+
+          return `
+            <div style="background: #ffffff; border: 1px solid #e2e8f0; ${borderStyle} border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+              <div style="display: flex; align-items: flex-start; justify-content: space-between;">
+                <div style="flex: 1;">
+                  <div style="font-size: 14px; font-weight: 700; color: ${isDone ? '#94a3b8; text-decoration: line-through;' : '#0f172a;'}; line-height: 1.4;">
+                    ${statusIcon} ${escapeHtml(t.title)}
+                  </div>
+                  <div style="margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    ${parentTag ? `
+                      <span style="font-family: monospace; font-size: 10px; font-weight: 800; background: rgba(37,99,235,0.1); color: ${parentColor}; border: 1px solid rgba(37,99,235,0.25); border-radius: 6px; padding: 2px 6px;">
+                        [${escapeHtml(parentTag)}]
+                      </span>
+                    ` : ''}
+                    ${t.priority === 'high' ? `
+                      <span style="font-size: 10px; font-weight: 700; background: #fee2e2; color: #b91c1c; border-radius: 6px; padding: 2px 6px;">
+                        Ưu tiên cao
+                      </span>
+                    ` : ''}
+                    ${t.document && t.document.contentHtml ? `
+                      <span style="font-size: 10px; font-weight: 700; background: #dcfce7; color: #15803d; border-radius: 6px; padding: 2px 6px;">
+                        📄 Có tài liệu DOCX
+                      </span>
+                    ` : ''}
+                  </div>
+                  ${t.note ? `
+                    <div style="margin-top: 6px; font-size: 12px; color: #64748b; font-style: italic;">
+                      Ghi chú: ${escapeHtml(t.note)}
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  const appUrl = window.location.href;
+
+  return `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xem trước: ${escapeHtml(headerTitle)}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <div style="background: #1e293b; color: #ffffff; padding: 10px 16px; font-size: 13px; text-align: center; font-weight: 600;">
+    🔍 BẢN XEM TRƯỚC (PREVIEW) MẪU EMAIL TỰ ĐỘNG GỬI VÀO 7:00 VÀ 18:00
+  </div>
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; padding: 30px 10px;">
+    <tr>
+      <td align="center">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+          <tr>
+            <td style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 30px 24px; text-align: center;">
+              <div style="display: inline-block; background: rgba(255,255,255,0.18); border-radius: 12px; padding: 8px 12px; margin-bottom: 12px;">
+                <span style="font-size: 12px; font-weight: 800; color: #ffffff; letter-spacing: 1px; text-transform: uppercase;">STUDY & LIFE PLANNER</span>
+              </div>
+              <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 800; line-height: 1.3;">${escapeHtml(headerTitle)}</h1>
+              <p style="margin: 6px 0 0 0; color: #bfdbfe; font-size: 14px; font-weight: 500;">${escapeHtml(formattedDate)}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 28px 24px;">
+              <p style="margin: 0 0 16px 0; color: #334155; font-size: 15px; line-height: 1.6;">
+                ${greeting}
+              </p>
+              ${tasksHtml}
+              <div style="text-align: center; margin: 32px 0 16px 0;">
+                <a href="${appUrl}" target="_blank" style="display: inline-block; background: #2563eb; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; padding: 13px 32px; border-radius: 12px; box-shadow: 0 3px 12px rgba(37,99,235,0.35);">
+                  🚀 Mở ứng dụng Study & Life Planner
+                </a>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 24px; text-align: center;">
+              <p style="margin: 0 0 6px 0; font-size: 12px; color: #94a3b8; line-height: 1.4;">
+                Email này được gửi tự động bởi hệ thống nhắc việc Study & Life Planner qua GitHub Actions.
+              </p>
+              <p style="margin: 0; font-size: 11px; color: #cbd5e1;">
+                Thời gian: ${new Date().toLocaleTimeString('vi-VN')} • Múi giờ Việt Nam (ICT)
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
 // --- 10. INITIALIZATION & EVENT LISTENERS ---
 function renderApp() {
   updateAuthUI();
@@ -4536,6 +4804,51 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         console.log('Mở trung tâm Quản lý nhiệm vụ');
       }
+    });
+  }
+
+  // Nút mở Cài đặt Email nhắc việc tự động
+  const btnOpenReminder = document.getElementById('btnOpenReminderSettings');
+  if (btnOpenReminder) {
+    btnOpenReminder.addEventListener('click', () => {
+      userDropdown.classList.add('hidden');
+      openReminderSettingsModal();
+    });
+  }
+
+  const btnCloseReminder = document.getElementById('btnCloseReminderModal');
+  if (btnCloseReminder) btnCloseReminder.addEventListener('click', closeReminderSettingsModal);
+  const btnCancelReminder = document.getElementById('btnCancelReminderModal');
+  if (btnCancelReminder) btnCancelReminder.addEventListener('click', closeReminderSettingsModal);
+
+  const btnSaveReminder = document.getElementById('btnSaveReminderSettings');
+  if (btnSaveReminder) btnSaveReminder.addEventListener('click', handleSaveReminderSettings);
+
+  const btnPreviewReminder = document.getElementById('btnPreviewReminderEmail');
+  if (btnPreviewReminder) {
+    btnPreviewReminder.addEventListener('click', () => {
+      const html = generateReminderEmailPreviewHtml('morning');
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+      showToast({
+        type: 'info',
+        title: 'Xem trước Email',
+        message: 'Đã mở giao diện email trong tab mới để bạn kiểm tra mẫu.'
+      });
+    });
+  }
+
+  const chkMasterReminder = document.getElementById('chkReminderMaster');
+  const chkMorningReminder = document.getElementById('chkReminderMorning');
+  const chkEveningReminder = document.getElementById('chkReminderEvening');
+  if (chkMasterReminder && chkMorningReminder && chkEveningReminder) {
+    chkMasterReminder.addEventListener('change', () => {
+      const enabled = chkMasterReminder.checked;
+      chkMorningReminder.disabled = !enabled;
+      chkEveningReminder.disabled = !enabled;
+      if (chkMorningReminder.parentElement) chkMorningReminder.parentElement.classList.toggle('opacity-50', !enabled);
+      if (chkEveningReminder.parentElement) chkEveningReminder.parentElement.classList.toggle('opacity-50', !enabled);
     });
   }
 

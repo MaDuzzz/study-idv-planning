@@ -1,0 +1,14 @@
+{
+  "name": "study-planner-reminder",
+  "version": "1.0.0",
+  "description": "Automated daily task reminder via GitHub Actions for Study & Life Planner",
+  "main": "send-reminder.js",
+  "scripts": {
+    "start": "node send-reminder.js",
+    "test": "node send-reminder.js --test"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "nodemailer": "^6.9.13"
+  }
+}

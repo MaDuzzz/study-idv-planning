@@ -1,0 +1,52 @@
+name: Daily Task Reminder (7h Sáng & 18h Tối)
+
+on:
+  schedule:
+    # 7:00 AM Vietnam Time (UTC+7) -> 00:00 UTC
+    - cron: '0 0 * * *'
+    # 18:00 (6:00 PM) Vietnam Time (UTC+7) -> 11:00 UTC
+    - cron: '0 11 * * *'
+
+  # Cho phép bấm nút "Run workflow" thủ công trên GitHub Actions bất kỳ lúc nào để test
+  workflow_dispatch:
+    inputs:
+      shift:
+        description: 'Chọn phiên gửi email nhắc việc'
+        required: true
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - morning
+          - evening
+
+jobs:
+  send-reminder:
+    name: Gửi email nhắc việc
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout mã nguồn
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Cài đặt môi trường Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 📦 Cài đặt thư viện Node.js
+        run: |
+          cd scripts/reminder
+          npm install
+
+      - name: 🚀 Chạy script gửi email nhắc việc
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          APP_URL: ${{ vars.APP_URL || 'https://dungtm.github.io/study-idv-planning' }}
+          REMINDER_SHIFT: ${{ github.event.inputs.shift || 'auto' }}
+        run: |
+          cd scripts/reminder
+          node send-reminder.js

@@ -67,6 +67,9 @@ function initFirebaseApp() {
     // Lắng nghe trạng thái đăng nhập
     firebaseAuth.onAuthStateChanged((user) => {
       currentUser = user;
+      if (user) {
+        syncUserProfileToFirestore(user);
+      }
       if (typeof window.handleAuthStateChange === 'function') {
         window.handleAuthStateChange(user);
       }
@@ -281,6 +284,69 @@ async function deleteParentTaskFromFirestore(userId, parentTaskId) {
   if (!firebaseDb || !userId) return false;
   await firebaseDb.collection('users').doc(userId).collection('parentTasks').doc(parentTaskId).delete();
   return true;
+}
+
+// --- USER PROFILE & REMINDER SETTINGS (HỖ TRỢ GITHUB ACTIONS GỬI MAIL) ---
+
+/**
+ * Tự động đồng bộ hồ sơ user & cài đặt email vào Firestore để phục vụ GitHub Actions nhắc việc
+ */
+async function syncUserProfileToFirestore(user) {
+  if (!firebaseDb || !user || !user.uid) return;
+  try {
+    const userRef = firebaseDb.collection('users').doc(user.uid);
+    const snap = await userRef.get();
+    const updateData = {
+      email: user.email,
+      displayName: user.displayName || (user.email ? user.email.split('@')[0] : 'Người dùng'),
+      photoURL: user.photoURL || '',
+      lastActiveAt: new Date().toISOString()
+    };
+    if (!snap.exists || !snap.data().remindSettings) {
+      updateData.remindSettings = {
+        enabled: true,
+        morning: true, // 7:00 AM
+        evening: true  // 18:00 PM
+      };
+    }
+    await userRef.set(updateData, { merge: true });
+    console.log('✅ Đã đồng bộ hồ sơ người dùng lên Firestore:', user.email);
+  } catch (err) {
+    console.warn('Lỗi khi đồng bộ hồ sơ user:', err);
+  }
+}
+
+/**
+ * Đọc cài đặt nhận email nhắc nhở
+ */
+async function getUserRemindSettings(userId) {
+  if (!firebaseDb || !userId) return { enabled: true, morning: true, evening: true };
+  try {
+    const snap = await firebaseDb.collection('users').doc(userId).get();
+    if (snap.exists && snap.data().remindSettings) {
+      return snap.data().remindSettings;
+    }
+  } catch (e) {
+    console.warn('Lỗi đọc remindSettings:', e);
+  }
+  return { enabled: true, morning: true, evening: true };
+}
+
+/**
+ * Lưu cài đặt nhận email nhắc nhở
+ */
+async function saveUserRemindSettings(userId, settings) {
+  if (!firebaseDb || !userId) return false;
+  try {
+    await firebaseDb.collection('users').doc(userId).set({
+      remindSettings: settings,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (e) {
+    console.error('Lỗi lưu remindSettings:', e);
+    return false;
+  }
 }
 
 // --- GOOGLE DRIVE API INTEGRATION ---
@@ -807,5 +873,8 @@ window.StudyPlannerFirebase = {
   deleteDriveFileOrFolder,
   deleteSubtaskDriveFolder,
   uploadFileToGoogleDrive,
-  uploadBinaryFileToGoogleDrive
+  uploadBinaryFileToGoogleDrive,
+  syncUserProfileToFirestore,
+  getUserRemindSettings,
+  saveUserRemindSettings
 };
