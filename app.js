@@ -633,6 +633,16 @@ let draggedTaskId = null;
 
 function handleDragStart(e, taskId) {
   if (!state.isAdmin) return;
+  const taskToDrag = state.tasks.find(t => t.id === taskId);
+  if (taskToDrag && taskToDrag.date && taskToDrag.date < getTodayStr() && taskToDrag.completed) {
+    e.preventDefault();
+    showToast({
+      type: 'warning',
+      title: 'Chỉ xem',
+      message: 'Nhiệm vụ trong quá khứ đã hoàn thành, không thể dời lịch!'
+    });
+    return;
+  }
   draggedTaskId = taskId;
   e.dataTransfer.setData('text/plain', taskId);
   e.dataTransfer.effectAllowed = 'move';
@@ -696,6 +706,16 @@ function handleDrop(e, targetDateStr) {
 
   const task = state.tasks.find(t => t.id === taskId);
   if (!task) return;
+
+  // Chặn dời lịch nhiệm vụ quá khứ đã hoàn thành
+  if (task.date && task.date < getTodayStr() && task.completed) {
+    showToast({
+      type: 'warning',
+      title: 'Chỉ xem',
+      message: 'Nhiệm vụ trong quá khứ đã hoàn thành, không thể dời lịch!'
+    });
+    return;
+  }
 
   if (task.date !== targetDateStr) {
     const isPastTask = Boolean(task.date && task.date < getTodayStr());
@@ -847,6 +867,16 @@ function replanTask(taskId, targetDateStr) {
   if (!targetDateStr) return;
   const task = state.tasks.find(t => t.id === taskId);
   if (!task) return;
+
+  // Chặn replan nếu nhiệm vụ quá khứ đã hoàn thành
+  if (task.date && task.date < getTodayStr() && task.completed) {
+    showToast({
+      type: 'warning',
+      title: 'Không thể dời lịch',
+      message: 'Nhiệm vụ trong quá khứ đã hoàn thành, không thể dời lịch!'
+    });
+    return;
+  }
 
   if (targetDateStr < getTodayStr()) {
     showToast({
@@ -1075,6 +1105,14 @@ async function saveTaskFromForm(formData) {
     targetTask = state.tasks.find(t => t.id === id);
     if (targetTask) {
       const wasPast = Boolean(targetTask.date && targetTask.date < getTodayStr());
+      if (wasPast && targetTask.completed) {
+        showToast({
+          type: 'warning',
+          title: 'Chỉ xem',
+          message: 'Nhiệm vụ trong quá khứ đã hoàn thành, không thể dời lịch hay chỉnh sửa!'
+        });
+        return;
+      }
       if (wasPast && date && date >= getTodayStr()) {
         targetTask.replanCount = (targetTask.replanCount || 0) + 1;
         showToast({
@@ -1338,9 +1376,10 @@ function renderDayView() {
 
     const adminActionTools = state.isAdmin
       ? `<div class="flex items-center gap-1.5 self-end sm:self-start">
+          ${(!isPast || !task.completed) ? `
           <button onclick="openEditTaskModal('${task.id}')" title="${isPast ? 'Dời lịch (Replan)' : 'Chỉnh sửa'}" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition">
             <i data-lucide="${isPast ? 'calendar-cog' : 'edit-3'}" class="w-4 h-4 ${isPast ? 'text-amber-500' : ''}"></i>
-          </button>
+          </button>` : ''}
           ${!isPast ? `
           <button onclick="deleteTask('${task.id}')" title="Xóa" class="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/40 transition">
             <i data-lucide="trash-2" class="w-4 h-4"></i>
@@ -1491,7 +1530,7 @@ function renderWeekView() {
           
           ${tasks.map(t => {
             const taskIsOverdue = isOverdue(t);
-            const canDrag = state.isAdmin;
+            const canDrag = state.isAdmin && (!isPast || !t.completed);
 
             const checkboxHtml = isPast 
               ? `<div title="Ngày đã qua - Không thể thay đổi trạng thái" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${t.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800'} cursor-not-allowed opacity-60">
@@ -1514,7 +1553,7 @@ function renderWeekView() {
                 ` : ''}
                 onclick="openTaskDetailModal('${t.id}')" 
                 class="task-card p-3 rounded-xl border transition-all duration-150 select-none ${canDrag ? 'cursor-grab active:cursor-grabbing hover:border-blue-400 dark:hover:border-blue-400 hover:shadow-md' : 'cursor-pointer hover:border-slate-300 dark:hover:border-slate-600'} ${taskIsOverdue ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-600/80' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:dark:border-slate-600'} ${t.completed ? 'bg-slate-50/90 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60' : ''}"
-                title="${isPast ? 'Ngày trong quá khứ - Bấm để xem chi tiết, hoặc kéo thả sang ngày mới để Replan' : (state.isAdmin ? 'Bấm để xem chi tiết & tài liệu, hoặc kéo thả để đổi ngày' : 'Bấm để xem chi tiết')}"
+                title="${isPast ? (t.completed ? 'Nhiệm vụ trong quá khứ đã hoàn thành (Chỉ xem)' : 'Nhiệm vụ quá hạn - Kéo thả sang ngày mới để dời lịch (Replan)') : (state.isAdmin ? 'Bấm để xem chi tiết & tài liệu, hoặc kéo thả để đổi ngày' : 'Bấm để xem chi tiết')}"
               >
                 <div class="flex items-start gap-2.5">
                   <!-- Checkbox -->
@@ -1672,17 +1711,19 @@ function renderMonthView() {
               const docIndicator = (t.document && t.document.contentHtml) ? '<i data-lucide="file-text" class="w-3 h-3 ml-1 shrink-0 text-emerald-600 dark:text-emerald-400"></i>' : '';
               const linkIndicator = (t.links && t.links.length > 0) ? '<i data-lucide="link" class="w-3 h-3 ml-0.5 shrink-0 text-purple-600 dark:text-purple-400"></i>' : '';
 
+              const canDragTask = state.isAdmin && (!isPast || !t.completed);
+
               return `
                 <div 
-                  draggable="${canInteract ? 'true' : 'false'}"
-                  ${canInteract ? `
+                  draggable="${canDragTask ? 'true' : 'false'}"
+                  ${canDragTask ? `
                   ondragstart="handleDragStart(event, '${t.id}')"
                   ondragend="handleDragEnd(event)"
                   ` : ''}
                   onclick="event.stopPropagation(); openTaskDetailModal('${t.id}')"
                   class="text-[11px] px-2 py-0.5 rounded-md truncate transition-colors flex items-center cursor-pointer hover:opacity-85 ${pillClasses}"
                   style="${pillStyle}"
-                  title="${escapeHtml(t.title)}${parent ? ` [${escapeHtml(parent.title)}]` : ''} (${isPast ? 'Ngày trong quá khứ - Bấm để xem chi tiết' : 'Bấm để xem chi tiết & tài liệu'})"
+                  title="${escapeHtml(t.title)}${parent ? ` [${escapeHtml(parent.title)}]` : ''} (${isPast ? (t.completed ? 'Nhiệm vụ trong quá khứ đã hoàn thành (Chỉ xem)' : 'Nhiệm vụ quá hạn - Kéo thả để dời lịch (Replan)') : 'Bấm để xem chi tiết & tài liệu'})"
                 >
                   ${prefixIcon}
                   ${parentTag ? `<span class="font-mono font-black mr-1 text-[10px] opacity-90 shrink-0">[${escapeHtml(parentTag)}]</span>` : ''}
@@ -2246,6 +2287,14 @@ function openEditTaskModal(taskId) {
   if (!task) return;
 
   const isPast = Boolean(task.date && task.date < getTodayStr());
+  if (isPast && task.completed) {
+    showToast({
+      type: 'warning',
+      title: 'Chỉ xem',
+      message: 'Nhiệm vụ trong quá khứ đã hoàn thành, không thể chỉnh sửa hay dời lịch!'
+    });
+    return;
+  }
 
   if (!taskManagerModal.classList.contains('hidden')) {
     pushModalStack('taskManagerDialog');
@@ -2569,6 +2618,8 @@ function renderTaskManagerContent() {
 function renderTaskManagerSubtaskRow(task) {
   const isPast = Boolean(task.date && task.date < getTodayStr());
   const isTaskOverdue = isOverdue(task);
+  const canReplanThisTask = isPast && !task.completed && state.isAdmin;
+
   const priorityBadge = {
     high: '<span class="px-2 py-0.5 text-[10px] sm:text-xs font-bold rounded-md bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-700 shrink-0">🔥 Cao</span>',
     medium: '<span class="px-2 py-0.5 text-[10px] sm:text-xs font-semibold rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shrink-0">Bình thường</span>',
@@ -2576,9 +2627,9 @@ function renderTaskManagerSubtaskRow(task) {
   }[task.priority] || '';
 
   const scheduleBadge = task.date && task.date.trim() !== ''
-    ? `<span ${isPast && state.isAdmin ? `onclick="openQuickScheduleModal('${task.id}')" title="Bấm để dời lịch (Replan) sang ngày mới"` : ''} class="px-2.5 py-1 text-xs font-semibold rounded-lg ${isPast ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800 cursor-pointer hover:border-amber-400 hover:shadow-2xs' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'} border flex items-center gap-1.5 shrink-0">
-        <i data-lucide="calendar" class="w-3.5 h-3.5 ${isPast ? 'text-amber-500' : 'text-blue-500'}"></i> ${task.date}
-        ${isPast && state.isAdmin ? `<i data-lucide="calendar-sync" class="w-3 h-3 text-amber-500 ml-0.5" title="Replan"></i>` : ''}
+    ? `<span ${canReplanThisTask ? `onclick="openQuickScheduleModal('${task.id}')" title="Bấm để dời lịch (Replan) sang ngày mới"` : ''} class="px-2.5 py-1 text-xs font-semibold rounded-lg ${isPast ? (task.completed ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700' : 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800 cursor-pointer hover:border-amber-400 hover:shadow-2xs') : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'} border flex items-center gap-1.5 shrink-0">
+        <i data-lucide="calendar" class="w-3.5 h-3.5 ${isPast ? (task.completed ? 'text-slate-400' : 'text-amber-500') : 'text-blue-500'}"></i> ${task.date}
+        ${canReplanThisTask ? `<i data-lucide="calendar-sync" class="w-3 h-3 text-amber-500 ml-0.5" title="Replan"></i>` : ''}
       </span>`
     : `<div class="flex items-center gap-1.5 shrink-0">
         <span class="px-2 py-1 text-xs font-bold rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-700/80 flex items-center gap-1">
@@ -2639,19 +2690,16 @@ function renderTaskManagerSubtaskRow(task) {
           <button onclick="deleteTask('${task.id}')" title="Xóa nhiệm vụ" class="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition">
             <i data-lucide="trash-2" class="w-4 h-4"></i>
           </button>
-        ` : (state.isAdmin ? `
+        ` : (canReplanThisTask ? `
           <button onclick="openQuickScheduleModal('${task.id}')" title="Dời lịch (Replan) sang ngày hôm nay hoặc tương lai" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
             <i data-lucide="calendar-sync" class="w-3.5 h-3.5"></i> Replan
           </button>
           <button onclick="openEditTaskModal('${task.id}')" title="Dời ngày qua form chỉnh sửa" class="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition">
             <i data-lucide="calendar-cog" class="w-4 h-4 text-amber-500"></i>
           </button>
-          <span class="text-[11px] font-bold text-slate-400 dark:text-slate-500 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
-            <i data-lucide="lock" class="w-3 h-3"></i> Chỉ xem
-          </span>
         ` : `
           <span class="text-[11px] font-bold text-slate-400 dark:text-slate-500 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
-            <i data-lucide="lock" class="w-3 h-3"></i> Chỉ xem
+            <i data-lucide="${task.completed ? 'check-check' : 'lock'}" class="w-3 h-3"></i> ${task.completed ? 'Đã xong' : 'Chỉ xem'}
           </span>
         `)}
       </div>
@@ -2875,6 +2923,15 @@ function openQuickScheduleModal(taskId) {
   const task = state.tasks.find(t => t.id === taskId);
   if (!task) return;
 
+  if (task.date && task.date < getTodayStr() && task.completed) {
+    showToast({
+      type: 'warning',
+      title: 'Không thể xếp lịch',
+      message: 'Nhiệm vụ trong quá khứ đã hoàn thành, không thể dời lịch!'
+    });
+    return;
+  }
+
   const todayStr = getTodayStr();
   const currentSelected = formatDate(state.currentDate);
 
@@ -2922,7 +2979,24 @@ async function handleQuickScheduleSubmit(e) {
 
   const task = state.tasks.find(t => t.id === taskId);
   if (task) {
+    const wasPast = Boolean(task.date && task.date < getTodayStr());
+    if (wasPast && task.completed) {
+      showToast({
+        type: 'warning',
+        title: 'Chỉ xem',
+        message: 'Nhiệm vụ trong quá khứ đã hoàn thành, không thể dời lịch!'
+      });
+      return;
+    }
     task.date = date;
+    if (wasPast && date >= getTodayStr()) {
+      task.replanCount = (task.replanCount || 0) + 1;
+      showToast({
+        type: 'success',
+        title: 'Replan thành công',
+        message: `Đã dời lịch nhiệm vụ "${task.title}" sang ngày ${date}! Bây giờ bạn có thể chỉnh sửa như bình thường.`
+      });
+    }
     await saveSingleTask(task);
     closeQuickScheduleModal();
     renderApp();
@@ -3298,26 +3372,41 @@ function openTaskDetailModal(taskId) {
   if (pastNotice) {
     pastNotice.classList.toggle('hidden', !isPast);
     if (isPast) {
-      pastNotice.innerHTML = `
-        <div class="flex items-center justify-between w-full flex-wrap gap-2">
-          <div class="flex items-center gap-2">
-            <i data-lucide="lock" class="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0"></i>
-            <span>Nhiệm vụ thuộc ngày trong quá khứ. Chế độ chỉ xem (Read-only).</span>
+      if (task.completed) {
+        pastNotice.innerHTML = `
+          <div class="flex items-center justify-between w-full flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+              <i data-lucide="lock" class="w-4 h-4 text-slate-500 shrink-0"></i>
+              <span>Nhiệm vụ đã hoàn thành trong quá khứ. Chế độ lưu trữ chỉ xem (Read-only).</span>
+            </div>
+            <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950 px-2.5 py-1 rounded-lg flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
+              <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Đã hoàn thành
+            </span>
           </div>
-          ${state.isAdmin ? `
-            <button onclick="openQuickScheduleModal('${task.id}')" class="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center gap-1 shadow-2xs transition">
-              <i data-lucide="calendar-sync" class="w-3.5 h-3.5"></i> Dời lịch (Replan) sang ngày mới
-            </button>
-          ` : ''}
-        </div>
-      `;
+        `;
+      } else {
+        pastNotice.innerHTML = `
+          <div class="flex items-center justify-between w-full flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+              <i data-lucide="alert-circle" class="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0"></i>
+              <span>Nhiệm vụ quá hạn trong quá khứ. Hãy dời lịch (Replan) sang ngày mới để tiếp tục thực hiện.</span>
+            </div>
+            ${state.isAdmin ? `
+              <button onclick="openQuickScheduleModal('${task.id}')" class="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center gap-1 shadow-2xs transition">
+                <i data-lucide="calendar-sync" class="w-3.5 h-3.5"></i> Dời lịch (Replan) sang ngày mới
+              </button>
+            ` : ''}
+          </div>
+        `;
+      }
     }
   }
 
   // Nút Sửa & Xóa trong Header
   const btnDetailEdit = document.getElementById('btnDetailEditTask');
   if (btnDetailEdit) {
-    btnDetailEdit.classList.toggle('hidden', !state.isAdmin);
+    const canEditOrReplan = state.isAdmin && (!isPast || !task.completed);
+    btnDetailEdit.classList.toggle('hidden', !canEditOrReplan);
     btnDetailEdit.title = isPast ? 'Dời lịch (Replan) nhiệm vụ' : 'Chỉnh sửa ngày/ưu tiên';
   }
   const btnDetailDelete = document.getElementById('btnDetailDeleteTask');
