@@ -1,14 +1,11 @@
-name: Daily Task Reminder (7h Sáng & 18h Tối)
+name: Daily Task Reminder (6h Sáng & 18h Tối)
 
 on:
   schedule:
-    # 🌅 CA SÁNG: Mục tiêu nhận mail lúc ~07:00 AM giờ Việt Nam (UTC+7).
-    # Vì hàng đợi GitHub Actions bị hoãn (delay) trung bình ~5 tiếng 25 phút,
-    # đặt lịch kích hoạt lúc 18:40 UTC (tức 01:40 AM VN) -> sau delay sẽ chạy vào khoảng ~07:05 AM VN.
+    # 🌅 CA SÁNG: Kích hoạt lúc 18:40 UTC (01:40 AM VN) -> sau delay hàng đợi GitHub Actions (~4.5h - 5h) nhận mail loanh quanh ~06:00 - 06:30 AM VN.
     - cron: '40 18 * * *'
 
-    # 🌙 CA TỐI: Mục tiêu nhận mail lúc ~18:00 PM giờ Việt Nam (UTC+7).
-    # Đặt lịch kích hoạt lúc 05:30 UTC (tức 12:30 PM VN) -> sau delay ~5 tiếng 35 phút sẽ chạy vào khoảng ~18:05 PM VN.
+    # 🌙 CA TỐI: Kích hoạt lúc 05:30 UTC (12:30 PM VN) -> sau delay hàng đợi (~5.5h) nhận mail loanh quanh ~18:00 - 18:05 PM VN.
     - cron: '30 5 * * *'
 
   # Cho phép bấm nút "Run workflow" thủ công trên GitHub Actions bất kỳ lúc nào để test
