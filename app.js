@@ -1694,21 +1694,12 @@ function renderMonthView() {
 
                 pillClasses = 'font-bold border shadow-2xs';
                 pillStyle = `background-color: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${bgOpacity}); color: ${textColor}; border-color: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${borderOpacity});`;
-                
-                if (isOverdue(t)) {
-                  prefixIcon = '<span class="w-2 h-2 rounded-full bg-amber-500 ring-2 ring-amber-300 dark:ring-amber-800 shrink-0 mr-1 inline-block" title="Trễ hạn"></span>';
-                } else {
-                  prefixIcon = `<span class="w-1.5 h-1.5 rounded-full shrink-0 mr-1 inline-block ${palette.dot || ''}" style="${palette.dotStyle || `background-color: ${palette.hex};`}"></span>`;
-                }
               } else if (isOverdue(t)) {
                 pillClasses = 'bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-100 font-bold border border-amber-300 dark:border-amber-600/90 shadow-2xs';
-                prefixIcon = '<span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mr-1 inline-block"></span>';
               } else if (t.priority === 'high') {
                 pillClasses = 'bg-rose-100 dark:bg-rose-950 text-rose-950 dark:text-rose-100 font-bold border border-rose-300 dark:border-rose-600/90 shadow-2xs';
-                prefixIcon = '<span class="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 mr-1 inline-block"></span>';
               } else {
                 pillClasses = 'bg-blue-100 dark:bg-blue-950 text-blue-950 dark:text-blue-100 font-bold border border-blue-300 dark:border-blue-600/90 shadow-2xs';
-                prefixIcon = '<span class="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 mr-1 inline-block"></span>';
               }
 
               const docIndicator = (t.document && t.document.contentHtml) ? '<i data-lucide="file-text" class="w-3 h-3 ml-1 shrink-0 text-emerald-600 dark:text-emerald-400"></i>' : '';
