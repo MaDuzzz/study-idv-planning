@@ -1552,26 +1552,26 @@ function renderWeekView() {
                 ondragend="handleDragEnd(event)"
                 ` : ''}
                 onclick="openTaskDetailModal('${t.id}')" 
-                class="task-card p-3 rounded-xl border transition-all duration-150 select-none ${canDrag ? 'cursor-grab active:cursor-grabbing hover:border-blue-400 dark:hover:border-blue-400 hover:shadow-md' : 'cursor-pointer hover:border-slate-300 dark:hover:border-slate-600'} ${taskIsOverdue ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-600/80' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:dark:border-slate-600'} ${t.completed ? 'bg-slate-50/90 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60' : ''}"
+                class="task-card h-[96px] shrink-0 p-3 rounded-xl border transition-all duration-150 select-none flex flex-col justify-between ${canDrag ? 'cursor-grab active:cursor-grabbing hover:border-blue-400 dark:hover:border-blue-400 hover:shadow-md' : 'cursor-pointer hover:border-slate-300 dark:hover:border-slate-600'} ${taskIsOverdue ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-600/80' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:dark:border-slate-600'} ${t.completed ? 'bg-slate-50/90 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60' : ''}"
                 title="${escapeHtml(t.title)} • ${isPast ? (t.completed ? 'Nhiệm vụ trong quá khứ đã hoàn thành (Chỉ xem)' : 'Nhiệm vụ quá hạn - Kéo thả sang ngày mới để dời lịch (Replan)') : (state.isAdmin ? 'Bấm để xem chi tiết & tài liệu, hoặc kéo thả để đổi ngày' : 'Bấm để xem chi tiết')}"
               >
-                <div class="flex items-start gap-2.5">
+                <div class="flex items-start gap-2.5 h-full">
                   <!-- Checkbox -->
                   ${checkboxHtml}
                   
                   <!-- Nội dung task -->
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-1.5 min-w-0">
+                  <div class="flex-1 min-w-0 flex flex-col justify-between h-full">
+                    <div class="flex items-start gap-1.5 min-w-0 h-[36px] sm:h-[40px]">
                       <span 
-                        class="text-xs sm:text-sm font-semibold leading-snug truncate flex-1 min-w-0 ${t.completed ? 'line-through text-slate-500 dark:text-slate-300' : 'text-slate-900 dark:text-slate-100 font-bold'}"
+                        class="text-xs sm:text-sm font-semibold leading-snug line-clamp-2 flex-1 min-w-0 ${t.completed ? 'line-through text-slate-500 dark:text-slate-300' : 'text-slate-900 dark:text-slate-100 font-bold'}"
                         title="${escapeHtml(t.title)}"
                       >
                         ${escapeHtml(t.title)}
                       </span>
-                      ${t.replanCount > 0 ? `<span class="inline-flex items-center text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 transition-colors cursor-help shrink-0" title="Nhiệm vụ này đã được dời lịch ${t.replanCount} lần. Cố gắng hoàn thành sớm nhé!"><i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i></span>` : ''}
+                      ${t.replanCount > 0 ? `<span class="inline-flex items-center text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 transition-colors cursor-help shrink-0 mt-0.5" title="Nhiệm vụ này đã được dời lịch ${t.replanCount} lần. Cố gắng hoàn thành sớm nhé!"><i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i></span>` : ''}
                     </div>
                     
-                    <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
+                    <div class="flex items-center gap-1.5 flex-nowrap overflow-hidden mt-auto">
                       ${getParentBadgeHtml(t)}
                       ${t.document && t.document.contentHtml ? `<span class="text-[10px] px-1.5 py-0.5 font-semibold rounded bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700/80 inline-flex items-center gap-0.5 shrink-0" title="Có tài liệu soạn thảo (.docx)"><i data-lucide="file-text" class="w-3 h-3"></i> DOCX</span>` : ''}
                       ${t.links && t.links.length > 0 ? `<span class="text-[10px] px-1.5 py-0.5 font-semibold rounded bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-700/80 inline-flex items-center gap-0.5 shrink-0" title="${t.links.length} tài nguyên đính kèm"><i data-lucide="link" class="w-3 h-3"></i> ${t.links.length}</span>` : ''}
@@ -4822,7 +4822,7 @@ async function handleSaveReminderSettings() {
         showToast({
           type: 'success',
           title: 'Cài đặt Email thành công!',
-          message: 'Lịch nhắc việc tự động 7:00 sáng và 18:00 tối đã được cập nhật.',
+          message: 'Lịch nhắc việc tự động buổi sáng và buổi tối đã được cập nhật.',
           duration: 4000
         });
         closeReminderSettingsModal();
@@ -5029,7 +5029,7 @@ function generateReminderEmailPreviewHtml(shift = 'morning') {
 </head>
 <body class="email-bg" style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
   <div style="background: #1e293b; color: #ffffff; padding: 10px 16px; font-size: 13px; text-align: center; font-weight: 600;">
-    🔍 BẢN XEM TRƯỚC (PREVIEW) MẪU EMAIL TỰ ĐỘNG GỬI VÀO 7:00 VÀ 18:00
+    🔍 BẢN XEM TRƯỚC (PREVIEW) MẪU EMAIL TỰ ĐỘNG GỬI VÀO BUỔI SÁNG VÀ BUỔI TỐI
   </div>
   <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; padding: 30px 10px;" class="email-bg">
     <tr>

@@ -1,4 +1,4 @@
-name: Daily Task Reminder (6h Sáng & 18h Tối)
+name: Daily Task Reminder (Sáng & Tối)
 
 on:
   schedule:

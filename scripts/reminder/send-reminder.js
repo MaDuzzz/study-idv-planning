@@ -1269,12 +1269,12 @@ async function main() {
       continue;
     }
     if (shift === 'morning' && settings.morning === false) {
-      console.log(`⏩ Bỏ qua User ${email}: Đã tắt ca sáng 6h.`);
+      console.log(`⏩ Bỏ qua User ${email}: Đã tắt ca sáng.`);
       skippedCount++;
       continue;
     }
     if (shift === 'evening' && settings.evening === false) {
-      console.log(`⏩ Bỏ qua User ${email}: Đã tắt ca tối 18h.`);
+      console.log(`⏩ Bỏ qua User ${email}: Đã tắt ca tối.`);
       skippedCount++;
       continue;
     }
@@ -1419,16 +1419,16 @@ async function main() {
           const yTotal = yesterdayTasks.length;
           const yInfo = yTotal > 0 ? `Hôm qua: ${yDone}/${yTotal} xong` : 'Hôm qua: 0 task';
           if (tasks.length > 0) {
-            subject = `[Planner 6h Sáng] 🌅 ${tasks.length} nhiệm vụ hôm nay (${todayStr}) • ${yInfo}`;
+            subject = `[Planner Buổi Sáng] 🌅 ${tasks.length} nhiệm vụ hôm nay (${todayStr}) • ${yInfo}`;
           } else {
-            subject = `[Planner 6h Sáng] 🏖️ Hôm nay không có task (${todayStr}) • ${yInfo}`;
+            subject = `[Planner Buổi Sáng] 🏖️ Hôm nay không có task (${todayStr}) • ${yInfo}`;
           }
         } else {
           const completedCount = tasks.filter(t => t.completed).length;
           if (tasks.length > 0) {
-            subject = `[Planner 18h Tối] 🌙 Tổng kết ngày: ${completedCount}/${tasks.length} nhiệm vụ hoàn thành (${todayStr})`;
+            subject = `[Planner Buổi Tối] 🌙 Tổng kết ngày: ${completedCount}/${tasks.length} nhiệm vụ hoàn thành (${todayStr})`;
           } else {
-            subject = `[Planner 18h Tối] 🌙 Không có nhiệm vụ nào hôm nay (${todayStr})`;
+            subject = `[Planner Buổi Tối] 🌙 Không có nhiệm vụ nào hôm nay (${todayStr})`;
           }
         }
       }
