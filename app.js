@@ -632,6 +632,41 @@ function parseDateStr(str) {
   return new Date(y, m - 1, d);
 }
 
+function formatPrettyDate(dateStr) {
+  if (!dateStr || !dateStr.trim()) return 'Chọn ngày...';
+  try {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    if (!y || !m || !d) return dateStr;
+    const dd = String(d).padStart(2, '0');
+    const mm = String(m).padStart(2, '0');
+    return `${dd}/${mm}/${y}`;
+  } catch (e) {
+    return dateStr;
+  }
+}
+
+function updateCustomDatePickerDisplay(inputId, displayId) {
+  const input = document.getElementById(inputId);
+  const display = document.getElementById(displayId);
+  if (!input || !display) return;
+  const val = input.value;
+  if (val && val.trim()) {
+    display.textContent = formatPrettyDate(val);
+    display.classList.remove('text-slate-400', 'dark:text-slate-500', 'font-normal');
+    display.classList.add('text-slate-800', 'dark:text-white', 'font-medium');
+  } else {
+    display.textContent = 'Chọn ngày...';
+    display.classList.add('text-slate-400', 'dark:text-slate-500', 'font-normal');
+    display.classList.remove('text-slate-800', 'dark:text-white', 'font-medium');
+  }
+}
+
+function updateAllDatePickerDisplays() {
+  updateCustomDatePickerDisplay('taskDate', 'taskDateDisplay');
+  updateCustomDatePickerDisplay('definedTaskDate', 'definedTaskDateDisplay');
+  updateCustomDatePickerDisplay('quickScheduleDateInput', 'quickScheduleDateDisplay');
+}
+
 function isOverdue(task) {
   if (!task.date || !task.date.trim()) return false;
   return task.date < getTodayStr() && !task.completed;
@@ -2396,6 +2431,7 @@ function openAddTaskModal(initialDate = null) {
   if (formTagInput) formTagInput.value = '';
   isTaskFormTagManuallyEdited = false;
   toggleTaskFormTagRow();
+  updateAllDatePickerDisplays();
 
   animateModalOpen(taskModal, 'taskDialog');
   lucide.createIcons();
@@ -2435,6 +2471,7 @@ function openAddTaskModalForParent(parentId) {
   toggleTaskFormTagRow();
   // Để trống ngày để task mới lưu thẳng vào Kho (chờ xếp lịch)
   document.getElementById('taskDate').value = '';
+  updateAllDatePickerDisplays();
   document.getElementById('taskTitle').focus();
 }
 
@@ -2473,6 +2510,7 @@ function resetTaskFormState() {
   if (pastNotice) {
     pastNotice.classList.add('hidden');
   }
+  updateAllDatePickerDisplays();
 }
 
 function openEditTaskModal(taskId) {
@@ -2517,6 +2555,7 @@ function openEditTaskModal(taskId) {
   dateInput.value = task.date || '';
   prioritySelect.value = task.priority || 'medium';
   noteInput.value = task.note || '';
+  updateAllDatePickerDisplays();
 
   let pastNotice = document.getElementById('editTaskPastReplanNotice');
 
@@ -3142,6 +3181,7 @@ function openQuickScheduleModal(taskId) {
     dateInput.min = todayStr;
     dateInput.value = currentSelected < todayStr ? todayStr : currentSelected;
   }
+  updateAllDatePickerDisplays();
   if (!taskManagerModal.classList.contains('hidden')) {
     pushModalStack('taskManagerDialog');
   }
@@ -5545,6 +5585,35 @@ document.addEventListener('DOMContentLoaded', () => {
     closeTaskModal();
   });
 
+  // Lắng nghe thay đổi trên các input[type="date"] để cập nhật custom display box
+  ['taskDate', 'definedTaskDate', 'quickScheduleDateInput'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', updateAllDatePickerDisplays);
+      el.addEventListener('change', updateAllDatePickerDisplays);
+      el.addEventListener('click', () => {
+        if (typeof el.showPicker === 'function') {
+          try { el.showPicker(); } catch (err) {}
+        }
+      });
+    }
+  });
+
+  ['taskDateContainer', 'definedTaskDateContainer', 'quickScheduleDateContainer'].forEach((containerId, idx) => {
+    const c = document.getElementById(containerId);
+    const inputId = ['taskDate', 'definedTaskDate', 'quickScheduleDateInput'][idx];
+    const input = document.getElementById(inputId);
+    if (c && input) {
+      c.addEventListener('click', () => {
+        if (typeof input.showPicker === 'function') {
+          try { input.showPicker(); } catch (err) {}
+        } else {
+          input.focus();
+        }
+      });
+    }
+  });
+
   const taskParentSel = document.getElementById('taskParentSelect');
   if (taskParentSel) {
     taskParentSel.addEventListener('change', toggleTaskFormTagRow);
@@ -6306,5 +6375,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Render khởi động
   renderApp();
+  updateAllDatePickerDisplays();
   lucide.createIcons();
 });
