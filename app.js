@@ -134,6 +134,13 @@ let state = {
 };
 
 // Quản lý Dark Mode
+function updateThemeColorMeta(isDark) {
+  const metas = document.querySelectorAll('meta[name="theme-color"]');
+  metas.forEach(meta => {
+    meta.setAttribute('content', isDark ? '#0f172a' : '#ffffff');
+  });
+}
+
 function initTheme() {
   const savedTheme = localStorage.getItem(THEME_KEY);
   const isDark = savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -142,11 +149,13 @@ function initTheme() {
   } else {
     document.documentElement.classList.remove('dark');
   }
+  updateThemeColorMeta(isDark);
 }
 
 function toggleTheme() {
   const isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+  updateThemeColorMeta(isDark);
   lucide.createIcons();
 }
 
