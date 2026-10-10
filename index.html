@@ -1013,45 +1013,61 @@
   </div>
 
   <!-- MODAL: THÊM / CHỈNH SỬA TASK (Hỗ trợ 2 chế độ: Chọn từ kho Defined vs Tạo mới Others) -->
-  <div id="taskModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[90] modal-layer-child hidden flex items-center justify-center p-4">
-    <div id="taskDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 transition-colors modal-dialog-animated">
+  <div id="taskModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[90] modal-layer-child hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div id="taskDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 transition-colors modal-dialog-animated my-auto">
+      <!-- Modal Header -->
       <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-        <h3 id="modalTitle" class="text-lg font-bold text-slate-900 dark:text-white">Thêm nhiệm vụ vào lịch</h3>
-        <button id="btnCloseModal" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
-          <i data-lucide="x" class="w-5 h-5"></i>
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 shadow-2xs">
+            <i data-lucide="calendar-plus" class="w-4 h-4"></i>
+          </div>
+          <h3 id="modalTitle" class="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Thêm nhiệm vụ vào lịch</h3>
+        </div>
+        <button id="btnCloseModal" type="button" class="w-8 h-8 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition cursor-pointer">
+          <i data-lucide="x" class="w-4 h-4"></i>
         </button>
       </div>
 
       <!-- Segmented Tabs: Chọn từ kho task (Defined) vs Tạo mới (Others) -->
-      <div id="addTaskTypeTabs" class="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-        <button type="button" id="tabBtnAddDefined" class="flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-2xs">
-          📦 Chọn từ kho (Defined)
+      <div id="addTaskTypeTabs" class="flex p-1 bg-slate-100 dark:bg-slate-800/90 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
+        <button type="button" id="tabBtnAddDefined" class="flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs border border-slate-200/50 dark:border-slate-600/50">
+          📦 Chọn từ kho
         </button>
-        <button type="button" id="tabBtnAddOthers" class="flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">
-          ✍️ Tạo mới (Others)
+        <button type="button" id="tabBtnAddOthers" class="flex-1 py-2 text-xs sm:text-sm font-medium rounded-lg transition text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
+          ✍️ Tạo nhiệm vụ mới
         </button>
       </div>
 
       <!-- FORM 1: CHỌN TASK TỪ KHO (DEFINED TASK) -->
       <form id="formAddDefinedTask" class="space-y-4">
         <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Chọn nhiệm vụ từ kho chưa lên lịch *</label>
-          <select id="selectDefinedTaskId" required class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+            <i data-lucide="package" class="w-3.5 h-3.5 text-blue-500"></i>
+            <span>Nhiệm vụ từ kho chưa lên lịch <span class="text-rose-500">*</span></span>
+          </label>
+          <select id="selectDefinedTaskId" required class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
             <!-- Dynamic optgroups populated in JS -->
           </select>
-          <div id="emptyDefinedHint" class="hidden text-xs text-amber-600 dark:text-amber-400 p-2.5 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-800 mt-2">
-            Kho task hiện không có task nào đang chờ xếp lịch. Bạn hãy chuyển sang tab <strong>"Tạo mới (Others)"</strong> hoặc mở <strong>Kho nhiệm vụ</strong> để thêm!
+          <div id="emptyDefinedHint" class="hidden text-xs text-amber-600 dark:text-amber-400 p-3 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-800 mt-2 flex items-start gap-2">
+            <i data-lucide="alert-circle" class="w-4 h-4 shrink-0 mt-0.5"></i>
+            <span>Kho task hiện không có task nào đang chờ xếp lịch. Bạn hãy chuyển sang tab <strong>"Tạo nhiệm vụ mới"</strong> hoặc mở <strong>Kho nhiệm vụ</strong> để thêm!</span>
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Ngày thực hiện trên lịch *</label>
-          <input type="date" id="definedTaskDate" required class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+            <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i>
+            <span>Ngày thực hiện trên lịch <span class="text-rose-500">*</span></span>
+          </label>
+          <input type="date" id="definedTaskDate" required class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
         </div>
 
         <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <button type="button" id="btnCancelDefinedModal" class="px-5 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-semibold">Hủy</button>
-          <button type="submit" id="btnSubmitDefined" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-xs">Xếp vào lịch</button>
+          <button type="button" id="btnCancelDefinedModal" class="px-5 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-semibold transition active:scale-95 cursor-pointer">Hủy</button>
+          <button type="submit" id="btnSubmitDefined" class="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-500/20 active:scale-95 transition flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="calendar-plus" class="w-4 h-4"></i>
+            <span>Xếp vào lịch</span>
+          </button>
         </div>
       </form>
 
@@ -1060,18 +1076,27 @@
         <input type="hidden" id="taskId">
         
         <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Tên nhiệm vụ / Mục tiêu học tập *</label>
-          <input type="text" id="taskTitle" required placeholder="Ví dụ: Ôn tập 20 từ vựng IELTS, Đọc 1 chương sách..." class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+            <i data-lucide="check-square" class="w-3.5 h-3.5 text-blue-500"></i>
+            <span>Tên nhiệm vụ / Mục tiêu học tập <span class="text-rose-500">*</span></span>
+          </label>
+          <input type="text" id="taskTitle" required placeholder="Ví dụ: Ôn tập 20 từ vựng IELTS, Đọc 1 chương sách..." class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
         </div>
 
-        <div class="grid grid-cols-2 gap-3.5">
+        <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Ngày thực hiện</label>
-            <input type="date" id="taskDate" class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i>
+              <span>Ngày thực hiện</span>
+            </label>
+            <input type="date" id="taskDate" class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Mức độ ưu tiên</label>
-            <select id="taskPriority" class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <i data-lucide="flag" class="w-3.5 h-3.5 text-amber-500"></i>
+              <span>Mức độ ưu tiên</span>
+            </label>
+            <select id="taskPriority" class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
               <option value="medium">Bình thường</option>
               <option value="high">🔥 Ưu tiên cao</option>
               <option value="low">Thấp</option>
@@ -1080,9 +1105,12 @@
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Parent Task</label>
-          <select id="taskParentSelect" class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
-            <option value="">Parent Task</option>
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+            <i data-lucide="folder-tree" class="w-3.5 h-3.5 text-indigo-500"></i>
+            <span>Thuộc mục tiêu (Parent Task)</span>
+          </label>
+          <select id="taskParentSelect" class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
+            <option value="">-- Nhiệm vụ độc lập (Tự sinh mã Tag) --</option>
             <!-- Dynamic options of existing parent tasks -->
           </select>
         </div>
@@ -1090,8 +1118,9 @@
         <!-- Ô Tag viết tắt khi chọn Parent Task -->
         <div id="taskTagRow" class="space-y-1">
           <div class="flex items-center justify-between mb-1">
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">
-              Mã Tag viết tắt (Tối đa 5 ký tự)
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <i data-lucide="tag" class="w-3.5 h-3.5 text-blue-500"></i>
+              <span>Mã Tag viết tắt (Tối đa 5 ký tự)</span>
             </label>
             <button type="button" id="btnRegenSubtaskParentTag" title="Tự động sinh mã tag" class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 font-semibold transition cursor-pointer">
               <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
@@ -1104,22 +1133,28 @@
               id="taskFormTagInput" 
               maxlength="5" 
               placeholder="VD: VA, IELTS, CORE..." 
-              class="w-full px-3.5 py-2.5 uppercase font-mono font-bold tracking-wider bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden pr-14"
+              class="w-full h-11 px-3.5 uppercase font-mono font-bold tracking-wider bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-blue-600 dark:text-blue-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden pr-14 transition"
             >
-            <div id="taskFormTagCount" class="absolute right-3.5 top-2.5 text-xs font-mono font-semibold text-slate-400 dark:text-slate-500 pointer-events-none">
+            <div id="taskFormTagCount" class="absolute right-3.5 top-3 text-xs font-mono font-semibold text-slate-400 dark:text-slate-500 pointer-events-none">
               0/5
             </div>
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Ghi chú thêm</label>
-          <textarea id="taskNote" rows="2" placeholder="Ghi chú tài liệu, link bài học, tiêu chí hoàn thành..." class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"></textarea>
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+            <i data-lucide="file-text" class="w-3.5 h-3.5 text-slate-400"></i>
+            <span>Ghi chú thêm (Tùy chọn)</span>
+          </label>
+          <textarea id="taskNote" rows="2" placeholder="Ghi chú tài liệu, link bài học, tiêu chí hoàn thành..." class="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition resize-none"></textarea>
         </div>
 
         <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <button type="button" id="btnCancelModal" class="px-5 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-semibold">Hủy</button>
-          <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-xs">Lưu nhiệm vụ</button>
+          <button type="button" id="btnCancelModal" class="px-5 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-semibold transition active:scale-95 cursor-pointer">Hủy</button>
+          <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-500/25 active:scale-95 transition flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="check" class="w-4 h-4 stroke-[2.5]"></i>
+            <span>Lưu nhiệm vụ</span>
+          </button>
         </div>
       </form>
     </div>
@@ -2114,15 +2149,15 @@
         <span class="text-[11px] font-semibold leading-none">Tuần</span>
       </button>
 
-      <!-- Nút nổi bật: Thêm Task (+) Phong cách Neon-Lime Floating FAB uốn lượn -->
+      <!-- Nút nổi bật: Thêm Task (+) Phong cách Soft Gradient FAB đồng bộ màu chủ đạo -->
       <div class="flex-1 flex justify-center -mt-6 relative z-10">
         <button 
           type="button" 
           id="btnMobileQuickAdd" 
           title="Thêm nhiệm vụ mới" 
-          class="w-[52px] h-[52px] rounded-full bg-[#bef264] hover:bg-[#a3e635] text-slate-950 font-black shadow-lg shadow-lime-500/35 flex items-center justify-center active:scale-90 hover:scale-105 transition-all duration-200 cursor-pointer"
+          class="w-[52px] h-[52px] rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-400 text-white shadow-lg shadow-blue-500/35 dark:shadow-indigo-500/40 ring-4 ring-blue-500/15 dark:ring-blue-400/20 border border-white/30 flex items-center justify-center active:scale-90 hover:scale-105 transition-all duration-300 ease-out cursor-pointer"
         >
-          <i data-lucide="plus" class="w-6 h-6 stroke-[3]"></i>
+          <i data-lucide="plus" class="w-6 h-6 stroke-[2.5] drop-shadow-xs"></i>
         </button>
       </div>
 
@@ -2144,8 +2179,8 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=7.1"></script>
-  <script src="app.js?v=7.1"></script>
+  <script src="firebase-config.js?v=7.2"></script>
+  <script src="app.js?v=7.2"></script>
 
   <!-- Đăng ký Service Worker cho Progressive Web App (PWA) -->
   <script>

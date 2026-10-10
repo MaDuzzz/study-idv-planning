@@ -2241,13 +2241,13 @@ function switchAddTaskTypeTab(tabName) {
   const formOthers = document.getElementById('taskForm');
 
   if (tabName === 'defined') {
-    if (tabBtnDefined) tabBtnDefined.className = 'flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-2xs';
-    if (tabBtnOthers) tabBtnOthers.className = 'flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white';
+    if (tabBtnDefined) tabBtnDefined.className = 'flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs border border-slate-200/50 dark:border-slate-600/50';
+    if (tabBtnOthers) tabBtnOthers.className = 'flex-1 py-2 text-xs sm:text-sm font-medium rounded-lg transition text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200';
     if (formDefined) formDefined.classList.remove('hidden');
     if (formOthers) formOthers.classList.add('hidden');
   } else {
-    if (tabBtnOthers) tabBtnOthers.className = 'flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-2xs';
-    if (tabBtnDefined) tabBtnDefined.className = 'flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white';
+    if (tabBtnOthers) tabBtnOthers.className = 'flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs border border-slate-200/50 dark:border-slate-600/50';
+    if (tabBtnDefined) tabBtnDefined.className = 'flex-1 py-2 text-xs sm:text-sm font-medium rounded-lg transition text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200';
     if (formOthers) formOthers.classList.remove('hidden');
     if (formDefined) formDefined.classList.add('hidden');
   }
@@ -2271,7 +2271,7 @@ function toggleTaskFormTagRow() {
   const titleInput = document.getElementById('taskTitle');
   if (!parentSelect || !tagRow) return;
 
-  // Nếu chọn "Parent Task" (value rỗng)
+  // Nếu chọn "Nhiệm vụ độc lập" (value rỗng)
   if (!parentSelect.value) {
     tagRow.classList.remove('hidden');
     if ((!tagInput.value.trim() || !isTaskFormTagManuallyEdited) && titleInput && titleInput.value.trim()) {
@@ -2285,7 +2285,7 @@ function toggleTaskFormTagRow() {
 }
 
 function populateParentSelectOptions(selectEl, selectedParentId = '') {
-  let html = `<option value="">Parent Task</option>`;
+  let html = `<option value="">-- Nhiệm vụ độc lập (Tự sinh mã Tag) --</option>`;
   state.parentTasks.forEach(p => {
     const isSelected = p.id === selectedParentId ? 'selected' : '';
     const tag = getParentTag(p);
