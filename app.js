@@ -1771,24 +1771,24 @@ function renderYearView() {
           <h4 class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white capitalize mb-2.5">${monthName}</h4>
           
           <!-- Hàng tiêu đề thứ trong tuần: Thứ 2 -> Chủ nhật -->
-          <div class="grid grid-cols-7 gap-1.5 mb-2 text-center text-[10px] font-bold select-none pointer-events-none text-slate-400 dark:text-slate-500">
-            <span>T2</span>
-            <span>T3</span>
-            <span>T4</span>
-            <span>T5</span>
-            <span>T6</span>
-            <span class="text-blue-600 dark:text-blue-400 font-extrabold">T7</span>
-            <span class="text-rose-600 dark:text-rose-400 font-extrabold">CN</span>
+          <div class="grid grid-cols-7 gap-1.5 mb-2 justify-items-center text-center text-[10px] font-bold select-none pointer-events-none text-slate-400 dark:text-slate-500">
+            <span class="w-full flex items-center justify-center">T2</span>
+            <span class="w-full flex items-center justify-center">T3</span>
+            <span class="w-full flex items-center justify-center">T4</span>
+            <span class="w-full flex items-center justify-center">T5</span>
+            <span class="w-full flex items-center justify-center">T6</span>
+            <span class="w-full flex items-center justify-center text-blue-600 dark:text-blue-400 font-extrabold">T7</span>
+            <span class="w-full flex items-center justify-center text-rose-600 dark:text-rose-400 font-extrabold">CN</span>
           </div>
 
           <!-- Lưới 7 cột chuẩn theo lịch thực tế của tháng -->
-          <div class="grid grid-cols-7 gap-1.5">
+          <div class="grid grid-cols-7 gap-1.5 justify-items-center">
     `;
 
     for (let slot = 0; slot < totalSlots; slot++) {
       if (slot < startingDay || slot >= startingDay + daysInMonth) {
-        // Ô trống ngoài tháng: giữ layout căn thẳng hàng theo đúng thứ
-        html += `<div class="w-5 h-5 2xl:w-6 2xl:h-6 rounded-md opacity-0 pointer-events-none select-none"></div>`;
+        // Ô trống ngoài tháng: giữ khung viền nét đứt mờ để cố định lưới 7 cột ngay ngắn, không bị thụt hàng
+        html += `<div class="w-full aspect-square max-w-[24px] max-h-[24px] sm:max-w-[26px] sm:max-h-[26px] 2xl:max-w-[30px] 2xl:max-h-[30px] mx-auto rounded-md border border-dashed border-slate-200/60 dark:border-slate-800/60 opacity-30 pointer-events-none select-none"></div>`;
       } else {
         const dayNum = slot - startingDay + 1;
         const cellDate = new Date(year, m, dayNum);
@@ -1811,7 +1811,7 @@ function renderYearView() {
           <div 
             onclick="openDayFromGrid('${dateStr}')" 
             title="${dateStr} (${weekdayName}): ${completed}/${tasks.length} hoàn thành${isToday ? ' • Hôm nay' : ''}" 
-            class="w-5 h-5 2xl:w-6 2xl:h-6 rounded-md border text-[10px] flex items-center justify-center cursor-pointer transition hover:scale-115 ${colorClass} ${todayIndicator}"
+            class="w-full aspect-square max-w-[24px] max-h-[24px] sm:max-w-[26px] sm:max-h-[26px] 2xl:max-w-[30px] 2xl:max-h-[30px] mx-auto rounded-md border text-[10px] flex items-center justify-center cursor-pointer transition hover:scale-115 ${colorClass} ${todayIndicator}"
           >
           </div>
         `;
