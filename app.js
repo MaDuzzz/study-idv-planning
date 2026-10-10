@@ -5240,6 +5240,34 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Nút mở Hướng dẫn Cài App trên iPhone / iPad (PWA)
+  const btnOpenPwa = document.getElementById('btnOpenPwaGuide');
+  const modalPwa = document.getElementById('modalPwaGuide');
+  const btnClosePwa = document.getElementById('btnClosePwaGuide');
+  const btnGotItPwa = document.getElementById('btnGotItPwaGuide');
+
+  if (btnOpenPwa && modalPwa) {
+    btnOpenPwa.addEventListener('click', () => {
+      userDropdown.classList.add('hidden');
+      modalPwa.classList.remove('hidden');
+      lucide.createIcons();
+    });
+  }
+  [btnClosePwa, btnGotItPwa].forEach(btn => {
+    if (btn && modalPwa) {
+      btn.addEventListener('click', () => {
+        modalPwa.classList.add('hidden');
+      });
+    }
+  });
+  if (modalPwa) {
+    modalPwa.addEventListener('click', (e) => {
+      if (e.target === modalPwa) {
+        modalPwa.classList.add('hidden');
+      }
+    });
+  }
+
   const btnCloseReminder = document.getElementById('btnCloseReminderModal');
   if (btnCloseReminder) btnCloseReminder.addEventListener('click', closeReminderSettingsModal);
   const btnCancelReminder = document.getElementById('btnCancelReminderModal');
