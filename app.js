@@ -1657,9 +1657,9 @@ function renderMonthView() {
 
       let borderRingClass = '';
       if (isToday) {
-        borderRingClass = 'border-blue-500 ring-2 ring-blue-300 dark:ring-blue-900/60 bg-blue-50/70 dark:bg-blue-950/40 shadow-xs';
+        borderRingClass = 'border-blue-500 ring-2 ring-blue-500/80 dark:ring-blue-400 bg-blue-50/70 dark:bg-blue-950/40 shadow-xs';
       } else if (isSelected) {
-        borderRingClass = 'border-blue-500 ring-2 ring-blue-400 dark:ring-blue-600 bg-blue-50/50 dark:bg-blue-950/30';
+        borderRingClass = 'border-amber-400 dark:border-amber-500 ring-2 ring-amber-400 dark:ring-amber-500 bg-amber-50/70 dark:bg-amber-950/40 shadow-xs';
       } else if (isPast) {
         borderRingClass = 'border-slate-200/80 dark:border-slate-800/80 bg-slate-100/50 dark:bg-slate-950/40 opacity-70 hover:opacity-90';
       } else {
@@ -1684,7 +1684,7 @@ function renderMonthView() {
               isToday 
                 ? 'bg-blue-600 text-white w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center shadow-xs' 
                 : (isSelected 
-                    ? 'text-blue-600 dark:text-blue-400 font-black' 
+                    ? 'text-amber-600 dark:text-amber-400 font-black' 
                     : (isPast ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-100'))
             }">${dayNum}</span>
             <div class="flex items-center gap-1">
@@ -1810,11 +1810,19 @@ function renderMonthSelectedDayTasks() {
     btnGoDay.onclick = () => openDayFromGrid(dateStr);
   }
 
+  const isSelectedToday = dateStr === getTodayStr();
   const cellDate = parseDateStr(dateStr);
   const dayName = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'][cellDate.getDay()];
   const formattedDateLabel = `${dayName}, ${cellDate.getDate()}/${cellDate.getMonth() + 1}/${cellDate.getFullYear()}`;
 
-  if (badge) badge.textContent = formattedDateLabel;
+  if (badge) {
+    badge.textContent = formattedDateLabel + (isSelectedToday ? ' • Hôm nay' : '');
+    if (isSelectedToday) {
+      badge.className = 'text-xs font-bold px-2.5 py-1 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/80';
+    } else {
+      badge.className = 'text-xs font-bold px-2.5 py-1 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700/80';
+    }
+  }
 
   const tasks = state.tasks.filter(t => t.date === dateStr);
   const completedCount = tasks.filter(t => t.completed).length;
