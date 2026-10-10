@@ -2214,9 +2214,21 @@ function popModalStack(dialogId) {
   }
 }
 
+function updateMobileNavVisibility() {
+  const mobileNav = document.getElementById('mobileBottomNav');
+  if (!mobileNav) return;
+  const anyModalOpen = document.querySelector('.modal-layer-child:not(.hidden), .modal-layer-hub:not(.hidden), .modal-layer-detail:not(.hidden), .modal-layer-system:not(.hidden)');
+  if (anyModalOpen) {
+    mobileNav.classList.add('hidden');
+  } else {
+    mobileNav.classList.remove('hidden');
+  }
+}
+
 function animateModalOpen(modalEl, dialogId) {
   if (!modalEl) return;
   modalEl.classList.remove('hidden');
+  updateMobileNavVisibility();
   const dlg = dialogId ? document.getElementById(dialogId) : null;
   if (dlg) {
     dlg.classList.add('modal-dialog-animated');
@@ -2568,6 +2580,7 @@ function closeTaskModal() {
   resetTaskFormState();
   taskModal.classList.add('hidden');
   popModalStack('taskManagerDialog');
+  updateMobileNavVisibility();
 }
 
 // Xử lý nộp Form 1: Chọn Task có sẵn từ kho để xếp vào ngày
@@ -2629,6 +2642,7 @@ function openTaskManagerModal() {
 function closeTaskManagerModal() {
   taskManagerModal.classList.add('hidden');
   popModalStack('taskManagerDialog');
+  updateMobileNavVisibility();
 }
 
 function setTaskManagerFilter(filter) {
@@ -3036,6 +3050,7 @@ function openEditParentTaskModal(parentId) {
 function closeParentTaskModal() {
   parentTaskModal.classList.add('hidden');
   popModalStack('taskManagerDialog');
+  updateMobileNavVisibility();
 }
 
 async function handleSaveParentTask(e) {
@@ -3136,6 +3151,7 @@ function openQuickScheduleModal(taskId) {
 function closeQuickScheduleModal() {
   quickScheduleModal.classList.add('hidden');
   popModalStack('taskManagerDialog');
+  updateMobileNavVisibility();
 }
 
 async function handleQuickScheduleSubmit(e) {
@@ -3196,32 +3212,38 @@ function openReplanModal() {
   }
   renderReplanModalContent();
   replanModal.classList.remove('hidden');
+  updateMobileNavVisibility();
 }
 
 function closeReplanModal() {
   replanModal.classList.add('hidden');
+  updateMobileNavVisibility();
 }
 
 function openLoginModal() {
   loginForm.reset();
   document.getElementById('loginErrorMsg').classList.add('hidden');
   loginModal.classList.remove('hidden');
+  updateMobileNavVisibility();
   document.getElementById('loginPassword').focus();
 }
 
 function closeLoginModal() {
   loginModal.classList.add('hidden');
+  updateMobileNavVisibility();
 }
 
 function openChangePwModal() {
   changePwForm.reset();
   document.getElementById('changePwErrorMsg').classList.add('hidden');
   changePwModal.classList.remove('hidden');
+  updateMobileNavVisibility();
   document.getElementById('userDropdown').classList.add('hidden');
 }
 
 function closeChangePwModal() {
   changePwModal.classList.add('hidden');
+  updateMobileNavVisibility();
 }
 
 function renderReplanModalContent() {

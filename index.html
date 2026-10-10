@@ -449,6 +449,18 @@
       }
     }
 
+    /* Tự động ẩn thanh Mobile Bottom Dock khi có bất kỳ modal nào đang mở (tránh đè giao diện) */
+    body:has(#taskModal:not(.hidden)) #mobileBottomNav,
+    body:has(#taskManagerModal:not(.hidden)) #mobileBottomNav,
+    body:has(#quickScheduleModal:not(.hidden)) #mobileBottomNav,
+    body:has(#replanModal:not(.hidden)) #mobileBottomNav,
+    body:has(#taskDetailModal:not(.hidden)) #mobileBottomNav,
+    body:has(#firebaseSetupModal:not(.hidden)) #mobileBottomNav,
+    body:has(#reminderSettingsModal:not(.hidden)) #mobileBottomNav,
+    body:has(#loginModal:not(.hidden)) #mobileBottomNav {
+      display: none !important;
+    }
+
     .no-scrollbar::-webkit-scrollbar {
       display: none;
     }
@@ -1013,8 +1025,8 @@
   </div>
 
   <!-- MODAL: THÊM / CHỈNH SỬA TASK (Hỗ trợ 2 chế độ: Chọn từ kho Defined vs Tạo mới Others) -->
-  <div id="taskModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[90] modal-layer-child hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-    <div id="taskDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 transition-colors modal-dialog-animated my-auto">
+  <div id="taskModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[90] modal-layer-child hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div id="taskDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 transition-colors modal-dialog-animated my-auto max-h-[92dvh] overflow-y-auto">
       <!-- Modal Header -->
       <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
         <div class="flex items-center gap-2.5">
@@ -1072,9 +1084,10 @@
       </form>
 
       <!-- FORM 2: TẠO MỚI TRỰC TIẾP (OTHERS) / CHỈNH SỬA TASK -->
-      <form id="taskForm" class="space-y-4 hidden">
+      <form id="taskForm" class="space-y-3.5 hidden">
         <input type="hidden" id="taskId">
         
+        <!-- Tên nhiệm vụ -->
         <div>
           <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
             <i data-lucide="check-square" class="w-3.5 h-3.5 text-blue-500"></i>
@@ -1083,25 +1096,26 @@
           <input type="text" id="taskTitle" required placeholder="Ví dụ: Ôn tập 20 từ vựng IELTS, Đọc 1 chương sách..." class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-              <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i>
-              <span>Ngày thực hiện</span>
-            </label>
-            <input type="date" id="taskDate" class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-              <i data-lucide="flag" class="w-3.5 h-3.5 text-amber-500"></i>
-              <span>Mức độ ưu tiên</span>
-            </label>
-            <select id="taskPriority" class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
-              <option value="medium">Bình thường</option>
-              <option value="high">🔥 Ưu tiên cao</option>
-              <option value="low">Thấp</option>
-            </select>
-          </div>
+        <!-- Ngày thực hiện (Hàng độc lập, full width không lo tràn) -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+            <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i>
+            <span>Ngày thực hiện</span>
+          </label>
+          <input type="date" id="taskDate" class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
+        </div>
+
+        <!-- Mức độ ưu tiên (Hàng độc lập, full width căn đều đẹp mắt) -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+            <i data-lucide="flag" class="w-3.5 h-3.5 text-amber-500"></i>
+            <span>Mức độ ưu tiên</span>
+          </label>
+          <select id="taskPriority" class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
+            <option value="medium">Bình thường</option>
+            <option value="high">🔥 Ưu tiên cao</option>
+            <option value="low">Thấp</option>
+          </select>
         </div>
 
         <div>
@@ -2179,8 +2193,8 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=7.2"></script>
-  <script src="app.js?v=7.2"></script>
+  <script src="firebase-config.js?v=7.3"></script>
+  <script src="app.js?v=7.3"></script>
 
   <!-- Đăng ký Service Worker cho Progressive Web App (PWA) -->
   <script>
