@@ -449,6 +449,42 @@
       }
     }
 
+    /* Khắc phục triệt để lỗi input[type="date"] bị tràn view trên iOS Safari */
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"] {
+      -webkit-appearance: none !important;
+      -moz-appearance: none !important;
+      appearance: none !important;
+      box-sizing: border-box !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      display: block !important;
+      overflow: hidden !important;
+      background-clip: padding-box !important;
+    }
+
+    /* Đảm bảo chữ hiển thị ngày trong iOS Safari căn trái gọn gàng, không bị lệch */
+    input[type="date"]::-webkit-date-and-time-value {
+      text-align: left !important;
+      min-height: 1.5em !important;
+      line-height: normal !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    html.dark input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(1);
+      opacity: 0.7;
+      cursor: pointer;
+    }
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      opacity: 0.7;
+      cursor: pointer;
+    }
+
     /* Tự động ẩn thanh Mobile Bottom Dock khi có bất kỳ modal nào đang mở (tránh đè giao diện) */
     body:has(#taskModal:not(.hidden)) #mobileBottomNav,
     body:has(#taskManagerModal:not(.hidden)) #mobileBottomNav,
@@ -1026,7 +1062,7 @@
 
   <!-- MODAL: THÊM / CHỈNH SỬA TASK (Hỗ trợ 2 chế độ: Chọn từ kho Defined vs Tạo mới Others) -->
   <div id="taskModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[90] modal-layer-child hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-    <div id="taskDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 transition-colors modal-dialog-animated my-auto max-h-[92dvh] overflow-y-auto">
+    <div id="taskDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 transition-colors modal-dialog-animated my-auto max-h-[92dvh] overflow-y-auto overflow-x-hidden">
       <!-- Modal Header -->
       <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
         <div class="flex items-center gap-2.5">
@@ -1066,12 +1102,14 @@
           </div>
         </div>
 
-        <div>
+        <div class="w-full max-w-full min-w-0">
           <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
             <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i>
             <span>Ngày thực hiện trên lịch <span class="text-rose-500">*</span></span>
           </label>
-          <input type="date" id="definedTaskDate" required class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
+          <div class="w-full max-w-full min-w-0 overflow-hidden rounded-xl">
+            <input type="date" id="definedTaskDate" required class="w-full max-w-full min-w-0 block h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
+          </div>
         </div>
 
         <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
@@ -1097,12 +1135,14 @@
         </div>
 
         <!-- Ngày thực hiện (Hàng độc lập, full width không lo tràn) -->
-        <div>
+        <div class="w-full max-w-full min-w-0">
           <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
             <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i>
             <span>Ngày thực hiện</span>
           </label>
-          <input type="date" id="taskDate" class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
+          <div class="w-full max-w-full min-w-0 overflow-hidden rounded-xl">
+            <input type="date" id="taskDate" class="w-full max-w-full min-w-0 block h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
+          </div>
         </div>
 
         <!-- Mức độ ưu tiên (Hàng độc lập, full width căn đều đẹp mắt) -->
@@ -1389,9 +1429,11 @@
           <div id="quickScheduleTaskTitle" class="font-bold text-slate-900 dark:text-white text-sm mt-0.5 break-words"></div>
         </div>
 
-        <div>
+        <div class="w-full max-w-full min-w-0">
           <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Chọn ngày thực hiện *</label>
-          <input type="date" id="quickScheduleDateInput" required class="w-full px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+          <div class="w-full max-w-full min-w-0 overflow-hidden rounded-xl">
+            <input type="date" id="quickScheduleDateInput" required class="w-full max-w-full min-w-0 block h-11 px-3.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+          </div>
         </div>
 
         <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -2193,8 +2235,8 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=7.3"></script>
-  <script src="app.js?v=7.3"></script>
+  <script src="firebase-config.js?v=7.4"></script>
+  <script src="app.js?v=7.4"></script>
 
   <!-- Đăng ký Service Worker cho Progressive Web App (PWA) -->
   <script>
