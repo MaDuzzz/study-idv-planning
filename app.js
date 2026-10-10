@@ -1724,25 +1724,32 @@ function renderMonthView() {
             }">${dayNum}</span>
             <div class="flex items-center gap-1">
               ${isPast ? `<i data-lucide="lock" class="w-2.5 h-2.5 sm:w-3 sm:h-3 text-slate-400 dark:text-slate-500" title="Ngày đã qua (Chỉ xem)"></i>` : ''}
-              ${overdueTasks.length > 0 ? `<span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-rose-500 shadow-2xs" title="Có task trễ hạn"></span>` : ''}
+              ${overdueTasks.length > 0 ? `<span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-500 shadow-2xs" title="Có task trễ hạn"></span>` : ''}
             </div>
           </div>
           
           <!-- Chấm chỉ báo trạng thái trên Điện thoại (Mobile Dot Indicators) -->
           <div class="flex sm:hidden items-center justify-center gap-0.5 my-0.5 min-h-[6px]">
-            ${tasks.slice(0, 3).map(t => {
-              let dotColor = 'bg-blue-500';
-              if (t.completed) dotColor = 'bg-emerald-500';
-              else if (isOverdue(t)) dotColor = 'bg-amber-500';
-              else if (t.priority === 'high') dotColor = 'bg-rose-500';
-              else {
-                const parent = t.parentId ? getParentTask(t.parentId) : null;
-                const palette = parent ? getParentColorConfig(parent.color) : null;
-                if (palette) dotColor = `bg-[${palette.hex}]`;
-              }
-              return `<span class="w-1.5 h-1.5 rounded-full ${dotColor}"></span>`;
-            }).join('')}
-            ${tasks.length > 3 ? `<span class="w-1 h-1 rounded-full bg-slate-400"></span>` : ''}
+            ${(() => {
+              // Sắp xếp ưu tiên hiển thị: Quá hạn (Vàng) -> Chưa xong (Xám) -> Đã xong (Xanh lá)
+              const sortedForDots = [...tasks].sort((a, b) => {
+                const getRank = (t) => {
+                  if (!t.completed && isOverdue(t)) return 0;
+                  if (!t.completed) return 1;
+                  return 2;
+                };
+                return getRank(a) - getRank(b);
+              });
+              return sortedForDots.slice(0, 3).map(t => {
+                let dotColor = 'bg-slate-400 dark:bg-slate-500'; // Chưa hoàn thành (Màu xám)
+                if (t.completed) {
+                  dotColor = 'bg-emerald-500'; // Đã hoàn thành (Màu xanh)
+                } else if (isOverdue(t)) {
+                  dotColor = 'bg-amber-500'; // Quá hạn mà chưa done (Màu vàng)
+                }
+                return `<span class="w-1.5 h-1.5 rounded-full ${dotColor}"></span>`;
+              }).join('') + (tasks.length > 3 ? `<span class="text-[8px] font-extrabold text-slate-400 dark:text-slate-500 leading-none select-none">+</span>` : '');
+            })()}
           </div>
           <div class="sm:hidden text-[9px] font-extrabold ${isAllDone ? 'text-emerald-600 dark:text-emerald-400 font-black' : 'text-slate-400'} text-center leading-none">
             ${tasks.length > 0 ? `${completedCount}/${tasks.length}` : ''}
@@ -1839,11 +1846,6 @@ function renderMonthSelectedDayTasks() {
   const badge = document.getElementById('monthSelectedDateBadge');
   const count = document.getElementById('monthSelectedTaskCount');
   const list = document.getElementById('monthSelectedTaskList');
-  const btnGoDay = document.getElementById('btnMonthGoToDayView');
-
-  if (btnGoDay) {
-    btnGoDay.onclick = () => openDayFromGrid(dateStr);
-  }
 
   const isSelectedToday = dateStr === getTodayStr();
   const cellDate = parseDateStr(dateStr);
