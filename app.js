@@ -1751,37 +1751,74 @@ function renderYearView() {
 
   let html = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 2xl:gap-6">`;
 
+  const dayNamesShort = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
   for (let m = 0; m < 12; m++) {
-    const monthDate = new Date(year, m, 1);
-    const monthName = monthDate.toLocaleDateString('vi-VN', { month: 'long' });
-    const daysInMonth = new Date(year, m + 1, 0).getDate();
+    const firstDay = new Date(year, m, 1);
+    const lastDay = new Date(year, m + 1, 0);
+    const monthName = firstDay.toLocaleDateString('vi-VN', { month: 'long' });
+    const daysInMonth = lastDay.getDate();
+
+    // Thứ 2 là 0, Chủ nhật là 6 để căn đúng cột T2 -> CN
+    let startingDay = firstDay.getDay() - 1;
+    if (startingDay === -1) startingDay = 6;
+
+    const totalSlots = Math.ceil((startingDay + daysInMonth) / 7) * 7;
 
     html += `
-      <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-xs">
-        <h4 class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white capitalize mb-3">${monthName}</h4>
-        <div class="grid grid-cols-7 gap-1.5">
+      <div class="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-xs flex flex-col justify-between">
+        <div>
+          <h4 class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white capitalize mb-2.5">${monthName}</h4>
+          
+          <!-- Hàng tiêu đề thứ trong tuần: Thứ 2 -> Chủ nhật -->
+          <div class="grid grid-cols-7 gap-1.5 mb-2 text-center text-[10px] font-bold select-none pointer-events-none text-slate-400 dark:text-slate-500">
+            <span>T2</span>
+            <span>T3</span>
+            <span>T4</span>
+            <span>T5</span>
+            <span>T6</span>
+            <span class="text-blue-600 dark:text-blue-400 font-extrabold">T7</span>
+            <span class="text-rose-600 dark:text-rose-400 font-extrabold">CN</span>
+          </div>
+
+          <!-- Lưới 7 cột chuẩn theo lịch thực tế của tháng -->
+          <div class="grid grid-cols-7 gap-1.5">
     `;
 
-    for (let d = 1; d <= daysInMonth; d++) {
-      const cellDate = new Date(year, m, d);
-      const dateStr = formatDate(cellDate);
-      const tasks = state.tasks.filter(t => t.date === dateStr);
-      const completed = tasks.filter(t => t.completed).length;
+    for (let slot = 0; slot < totalSlots; slot++) {
+      if (slot < startingDay || slot >= startingDay + daysInMonth) {
+        // Ô trống ngoài tháng: giữ layout căn thẳng hàng theo đúng thứ
+        html += `<div class="w-5 h-5 2xl:w-6 2xl:h-6 rounded-md opacity-0 pointer-events-none select-none"></div>`;
+      } else {
+        const dayNum = slot - startingDay + 1;
+        const cellDate = new Date(year, m, dayNum);
+        const dateStr = formatDate(cellDate);
+        const isToday = dateStr === getTodayStr();
+        const tasks = state.tasks.filter(t => t.date === dateStr);
+        const completed = tasks.filter(t => t.completed).length;
 
-      let colorClass = 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700';
-      if (completed > 0) {
-        if (completed === 1) colorClass = 'bg-emerald-200 dark:bg-emerald-900 border-emerald-300 dark:border-emerald-700';
-        else if (completed === 2) colorClass = 'bg-emerald-400 dark:bg-emerald-600 border-emerald-500 dark:border-emerald-500';
-        else colorClass = 'bg-emerald-600 dark:bg-emerald-400 border-emerald-700 dark:border-emerald-300 text-slate-900';
+        let colorClass = 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700/80';
+        if (completed > 0) {
+          if (completed === 1) colorClass = 'bg-emerald-200 dark:bg-emerald-900 border-emerald-300 dark:border-emerald-700';
+          else if (completed === 2) colorClass = 'bg-emerald-400 dark:bg-emerald-600 border-emerald-500 dark:border-emerald-500';
+          else colorClass = 'bg-emerald-600 dark:bg-emerald-400 border-emerald-700 dark:border-emerald-300 text-slate-900';
+        }
+
+        const todayIndicator = isToday ? 'ring-2 ring-blue-500 dark:ring-blue-400 z-10' : '';
+        const weekdayName = dayNamesShort[cellDate.getDay()];
+
+        html += `
+          <div 
+            onclick="openDayFromGrid('${dateStr}')" 
+            title="${dateStr} (${weekdayName}): ${completed}/${tasks.length} hoàn thành${isToday ? ' • Hôm nay' : ''}" 
+            class="w-5 h-5 2xl:w-6 2xl:h-6 rounded-md border text-[10px] flex items-center justify-center cursor-pointer transition hover:scale-115 ${colorClass} ${todayIndicator}"
+          >
+          </div>
+        `;
       }
-
-      html += `
-        <div onclick="openDayFromGrid('${dateStr}')" title="${dateStr}: ${completed}/${tasks.length} hoàn thành" class="w-5 h-5 2xl:w-6 2xl:h-6 rounded-md border text-[10px] flex items-center justify-center cursor-pointer transition hover:scale-115 ${colorClass}">
-        </div>
-      `;
     }
 
-    html += `</div></div>`;
+    html += `</div></div></div>`;
   }
 
   html += `</div>`;
