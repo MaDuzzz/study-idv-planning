@@ -1617,6 +1617,7 @@ function renderWeekView() {
 }
 
 // D. Render Month View (Dark Mode High Contrast & Elastic)
+// D. Render Month View (Dark Mode High Contrast & Elastic, Apple-Style Mobile Experience)
 function renderMonthView() {
   const container = document.getElementById('monthGridContainer');
   const d = state.currentDate;
@@ -1632,6 +1633,12 @@ function renderMonthView() {
   const totalDays = lastDay.getDate();
   const totalSlots = Math.ceil((startingDay + totalDays) / 7) * 7;
 
+  const curMonthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+  if (!state.monthSelectedDate || !state.monthSelectedDate.startsWith(curMonthPrefix)) {
+    const todayStr = getTodayStr();
+    state.monthSelectedDate = todayStr.startsWith(curMonthPrefix) ? todayStr : `${curMonthPrefix}-01`;
+  }
+
   let html = '';
 
   for (let i = 0; i < totalSlots; i++) {
@@ -1640,6 +1647,7 @@ function renderMonthView() {
       const cellDate = new Date(year, month, dayNum);
       const dateStr = formatDate(cellDate);
       const isToday = dateStr === getTodayStr();
+      const isSelected = dateStr === state.monthSelectedDate;
       const isPast = dateStr < getTodayStr();
       const canInteract = state.isAdmin && !isPast;
       const tasks = state.tasks.filter(t => t.date === dateStr);
@@ -1647,18 +1655,23 @@ function renderMonthView() {
       const completedCount = tasks.filter(t => t.completed).length;
       const isAllDone = tasks.length > 0 && completedCount === tasks.length;
 
+      let borderRingClass = '';
+      if (isToday) {
+        borderRingClass = 'border-blue-500 ring-2 ring-blue-300 dark:ring-blue-900/60 bg-blue-50/70 dark:bg-blue-950/40 shadow-xs';
+      } else if (isSelected) {
+        borderRingClass = 'border-blue-500 ring-2 ring-blue-400 dark:ring-blue-600 bg-blue-50/50 dark:bg-blue-950/30';
+      } else if (isPast) {
+        borderRingClass = 'border-slate-200/80 dark:border-slate-800/80 bg-slate-100/50 dark:bg-slate-950/40 opacity-70 hover:opacity-90';
+      } else {
+        borderRingClass = 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800/80 hover:border-blue-400 dark:hover:border-blue-400 hover:shadow-xs';
+      }
+
       html += `
         <div 
-          class="day-dropzone min-h-[75px] sm:min-h-[115px] 2xl:min-h-[140px] p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl border cursor-pointer transition-all duration-150 flex flex-col justify-between ${
-            isToday 
-              ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40 shadow-sm' 
-              : isPast
-                ? 'border-slate-200/80 dark:border-slate-800/80 bg-slate-100/50 dark:bg-slate-950/40 opacity-60 hover:opacity-90'
-                : 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800/80 hover:border-blue-400 dark:hover:border-blue-400 hover:shadow-xs'
-          }"
+          class="day-dropzone min-h-[50px] sm:min-h-[115px] 2xl:min-h-[140px] p-1 sm:p-2.5 rounded-xl sm:rounded-2xl border cursor-pointer transition-all duration-150 flex flex-col justify-between ${borderRingClass}"
           data-is-past="${isPast ? 'true' : 'false'}"
           data-is-today="${isToday ? 'true' : 'false'}"
-          onclick="openDayFromGrid('${dateStr}')"
+          onclick="handleMonthDateSelect('${dateStr}')"
           ${isPast ? '' : `
           ondragover="handleDragOver(event)"
           ondragenter="handleDragEnter(event)"
@@ -1666,21 +1679,42 @@ function renderMonthView() {
           ondrop="handleDrop(event, '${dateStr}')"
           `}
         >
-          <div class="flex items-center justify-between">
-            <span class="text-xs sm:text-sm font-extrabold ${
+          <div class="flex items-center justify-between w-full">
+            <span class="text-[11px] sm:text-sm font-extrabold ${
               isToday 
-                ? 'bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-xs' 
-                : isPast
-                  ? 'text-slate-400 dark:text-slate-500'
-                  : 'text-slate-800 dark:text-slate-100'
+                ? 'bg-blue-600 text-white w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center shadow-xs' 
+                : (isSelected 
+                    ? 'text-blue-600 dark:text-blue-400 font-black' 
+                    : (isPast ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-100'))
             }">${dayNum}</span>
             <div class="flex items-center gap-1">
-              ${isPast ? `<i data-lucide="lock" class="w-3 h-3 text-slate-400 dark:text-slate-500" title="Ngày đã qua (Chỉ xem)"></i>` : ''}
-              ${overdueTasks.length > 0 ? `<span class="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-2xs" title="Có task trễ hạn"></span>` : ''}
+              ${isPast ? `<i data-lucide="lock" class="w-2.5 h-2.5 sm:w-3 sm:h-3 text-slate-400 dark:text-slate-500" title="Ngày đã qua (Chỉ xem)"></i>` : ''}
+              ${overdueTasks.length > 0 ? `<span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-rose-500 shadow-2xs" title="Có task trễ hạn"></span>` : ''}
             </div>
           </div>
           
-          <div class="space-y-1.5 my-1.5 overflow-hidden">
+          <!-- Chấm chỉ báo trạng thái trên Điện thoại (Mobile Dot Indicators) -->
+          <div class="flex sm:hidden items-center justify-center gap-0.5 my-0.5 min-h-[6px]">
+            ${tasks.slice(0, 3).map(t => {
+              let dotColor = 'bg-blue-500';
+              if (t.completed) dotColor = 'bg-emerald-500';
+              else if (isOverdue(t)) dotColor = 'bg-amber-500';
+              else if (t.priority === 'high') dotColor = 'bg-rose-500';
+              else {
+                const parent = t.parentId ? getParentTask(t.parentId) : null;
+                const palette = parent ? getParentColorConfig(parent.color) : null;
+                if (palette) dotColor = `bg-[${palette.hex}]`;
+              }
+              return `<span class="w-1.5 h-1.5 rounded-full ${dotColor}"></span>`;
+            }).join('')}
+            ${tasks.length > 3 ? `<span class="w-1 h-1 rounded-full bg-slate-400"></span>` : ''}
+          </div>
+          <div class="sm:hidden text-[9px] font-extrabold ${isAllDone ? 'text-emerald-600 dark:text-emerald-400 font-black' : 'text-slate-400'} text-center leading-none">
+            ${tasks.length > 0 ? `${completedCount}/${tasks.length}` : ''}
+          </div>
+
+          <!-- Chi tiết thẻ trên Màn hình lớn (Desktop / Tablet) -->
+          <div class="hidden sm:block space-y-1.5 my-1.5 overflow-hidden">
             ${tasks.slice(0, 3).map(t => {
               let pillClasses = '';
               let pillStyle = '';
@@ -1694,7 +1728,6 @@ function renderMonthView() {
                 pillClasses = 'bg-slate-100 dark:bg-slate-700/80 text-slate-500 dark:text-slate-400 line-through border border-slate-200 dark:border-slate-600 font-medium';
                 prefixIcon = '<i data-lucide="check" class="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0 mr-1 inline-block"></i>';
               } else if (palette) {
-                // Áp dụng màu sắc thẻ đồng nhất với Tag của Task tổng
                 const isDark = document.documentElement.classList.contains('dark');
                 const rgb = hexToRgb(palette.hex);
                 const bgOpacity = isDark ? 0.22 : 0.14;
@@ -1726,7 +1759,7 @@ function renderMonthView() {
                   onclick="event.stopPropagation(); openTaskDetailModal('${t.id}')"
                   class="text-[11px] px-2 py-0.5 rounded-md truncate transition-colors flex items-center cursor-pointer hover:opacity-85 ${pillClasses}"
                   style="${pillStyle}"
-                  title="${escapeHtml(t.title)}${parent ? ` [${escapeHtml(parent.title)}]` : ''} (${isPast ? (t.completed ? 'Nhiệm vụ trong quá khứ đã hoàn thành (Chỉ xem)' : 'Nhiệm vụ quá hạn - Kéo thả để dời lịch (Replan)') : 'Bấm để xem chi tiết & tài liệu'})"
+                  title="${escapeHtml(t.title)}${parent ? ` [${escapeHtml(parent.title)}]` : ''}"
                 >
                   ${prefixIcon}
                   ${parentTag ? `<span class="font-mono font-black mr-1 text-[10px] opacity-90 shrink-0">[${escapeHtml(parentTag)}]</span>` : ''}
@@ -1739,17 +1772,121 @@ function renderMonthView() {
             ${tasks.length > 3 ? `<div class="text-[10px] text-slate-500 dark:text-slate-300 font-bold pl-1">+${tasks.length - 3} task nữa</div>` : ''}
           </div>
 
-          <div class="text-[11px] font-bold ${isAllDone ? 'text-emerald-600 dark:text-emerald-400 font-black' : 'text-slate-500 dark:text-slate-300'} text-right">
+          <div class="hidden sm:block text-[11px] font-bold ${isAllDone ? 'text-emerald-600 dark:text-emerald-400 font-black' : 'text-slate-500 dark:text-slate-300'} text-right">
             ${tasks.length > 0 ? `${completedCount}/${tasks.length}` : ''}
           </div>
         </div>
       `;
     } else {
-      html += `<div class="min-h-[115px] 2xl:min-h-[140px] p-2 bg-slate-50/40 dark:bg-slate-950/40 rounded-2xl border border-slate-100 dark:border-slate-800/40 opacity-30"></div>`;
+      html += `<div class="min-h-[50px] sm:min-h-[115px] 2xl:min-h-[140px] p-1 sm:p-2 bg-slate-50/40 dark:bg-slate-950/40 rounded-xl sm:rounded-2xl border border-dashed border-slate-200/50 dark:border-slate-800/50 opacity-30 select-none pointer-events-none"></div>`;
     }
   }
 
   container.innerHTML = html;
+  renderMonthSelectedDayTasks();
+  lucide.createIcons();
+}
+
+function handleMonthDateSelect(dateStr) {
+  if (window.innerWidth < 640) {
+    state.monthSelectedDate = dateStr;
+    renderMonthView();
+  } else {
+    openDayFromGrid(dateStr);
+  }
+}
+
+function renderMonthSelectedDayTasks() {
+  const section = document.getElementById('monthSelectedDaySection');
+  if (!section) return;
+
+  const dateStr = state.monthSelectedDate || getTodayStr();
+  const badge = document.getElementById('monthSelectedDateBadge');
+  const count = document.getElementById('monthSelectedTaskCount');
+  const list = document.getElementById('monthSelectedTaskList');
+  const btnGoDay = document.getElementById('btnMonthGoToDayView');
+
+  if (btnGoDay) {
+    btnGoDay.onclick = () => openDayFromGrid(dateStr);
+  }
+
+  const cellDate = parseDateStr(dateStr);
+  const dayName = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'][cellDate.getDay()];
+  const formattedDateLabel = `${dayName}, ${cellDate.getDate()}/${cellDate.getMonth() + 1}/${cellDate.getFullYear()}`;
+
+  if (badge) badge.textContent = formattedDateLabel;
+
+  const tasks = state.tasks.filter(t => t.date === dateStr);
+  const completedCount = tasks.filter(t => t.completed).length;
+
+  if (count) {
+    count.textContent = tasks.length > 0 
+      ? `${completedCount}/${tasks.length} hoàn thành` 
+      : 'Không có nhiệm vụ';
+  }
+
+  if (!list) return;
+
+  if (tasks.length === 0) {
+    list.innerHTML = `
+      <div class="py-5 px-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center">
+        <i data-lucide="calendar-check-2" class="w-7 h-7 text-slate-300 dark:text-slate-600 mx-auto mb-1.5"></i>
+        <div class="text-xs font-semibold text-slate-500 dark:text-slate-400">Không có nhiệm vụ nào cho ngày này</div>
+        ${state.isAdmin ? `
+        <button type="button" onclick="openAddTaskModalForDate('${dateStr}')" class="mt-2 text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline inline-flex items-center gap-1">
+          <i data-lucide="plus" class="w-3.5 h-3.5"></i> Thêm nhiệm vụ mới
+        </button>
+        ` : ''}
+      </div>
+    `;
+    lucide.createIcons();
+    return;
+  }
+
+  list.innerHTML = tasks.map(t => {
+    const parent = t.parentId ? getParentTask(t.parentId) : null;
+    const palette = parent ? getParentColorConfig(parent.color) : null;
+    const parentTag = parent ? getParentTag(parent) : '';
+
+    let tagStyle = '';
+    if (palette) {
+      const isDark = document.documentElement.classList.contains('dark');
+      const rgb = hexToRgb(palette.hex);
+      const bgOpacity = isDark ? 0.22 : 0.14;
+      const borderOpacity = isDark ? 0.45 : 0.35;
+      const textColor = isDark ? `rgb(${Math.min(255, rgb.r + 55)}, ${Math.min(255, rgb.g + 55)}, ${Math.min(255, rgb.b + 55)})` : palette.hex;
+      tagStyle = `background-color: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${bgOpacity}); color: ${textColor}; border-color: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${borderOpacity});`;
+    }
+
+    return `
+      <div 
+        onclick="openTaskDetailModal('${t.id}')"
+        class="p-3 bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-2xs flex items-center justify-between gap-3 active:scale-[0.99] transition cursor-pointer"
+      >
+        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+          <input 
+            type="checkbox" 
+            ${t.completed ? 'checked' : ''} 
+            onclick="event.stopPropagation()"
+            onchange="toggleTaskComplete('${t.id}')"
+            class="w-4.5 h-4.5 text-blue-600 rounded-md cursor-pointer shrink-0"
+          >
+          <div class="min-w-0 flex-1">
+            <div class="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 ${t.completed ? 'line-through text-slate-400 dark:text-slate-500' : ''} truncate">
+              ${escapeHtml(t.title)}
+            </div>
+            <div class="flex items-center gap-1.5 flex-wrap mt-1">
+              ${parentTag ? `<span class="text-[10px] font-bold px-1.5 py-0.2 rounded border font-mono" style="${tagStyle}">[${escapeHtml(parentTag)}]</span>` : ''}
+              ${t.priority === 'high' ? `<span class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900">Ưu tiên cao</span>` : ''}
+              ${(t.document && t.document.contentHtml) ? `<span class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 flex items-center gap-0.5"><i data-lucide="file-text" class="w-3 h-3"></i> DOCX</span>` : ''}
+            </div>
+          </div>
+        </div>
+        <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 shrink-0"></i>
+      </div>
+    `;
+  }).join('');
+
   lucide.createIcons();
 }
 
