@@ -1,17 +1,12 @@
-name: Weekly Plan Reminder (Tối Chủ Nhật 20h-21h)
+name: Weekly Plan Reminder (Tối Chủ Nhật 20h30 qua cron-job.org)
 
 on:
-  schedule:
-    # 🌿 NHẮC LÊN KẾ HOẠCH TUẦN MỚI (Tối Chủ nhật hàng tuần):
-    # Kích hoạt lúc 13:30 UTC Chủ nhật (tương đương 20:30 tối Chủ nhật giờ Việt Nam ICT UTC+7).
-    - cron: '30 13 * * 0'
-
-  # Cho phép bấm nút "Run workflow" thủ công trên GitHub Actions bất kỳ lúc nào để test
+  # Kích hoạt tức thì đúng từng giây bởi cron-job.org qua GitHub API
   workflow_dispatch:
     inputs:
       shift:
         description: 'Phiên gửi email'
-        required: true
+        required: false
         default: 'weekly'
         type: choice
         options:
