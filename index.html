@@ -413,7 +413,7 @@
     header {
       position: sticky;
       top: 0 !important;
-      padding-top: calc(env(safe-area-inset-top, 0px) + 14px) !important;
+      padding-top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
     }
 
     /* Ẩn mẹo kéo thả trên màn hình điện thoại để tối ưu không gian hiển thị */
@@ -572,20 +572,87 @@
       #taskDocToolbar::-webkit-scrollbar {
         display: none;
       }
-      /* Modal dạng Bottom Sheet vuốt lên trên iPhone */
-      .modal-dialog-animated:not(#taskDetailDialog) {
-        max-height: 92dvh !important;
+      /* Căn chỉnh Bottom Sheet & Modal hoàn hảo cho iPhone (iPhone 12 Pro Max & iPhone mới) */
+      #taskModal,
+      #taskManagerModal,
+      #parentTaskModal,
+      #quickScheduleModal,
+      #replanModal,
+      #reminderSettingsModal {
+        padding: 0 !important;
+        align-items: flex-end !important;
+        justify-content: flex-end !important;
+      }
+
+      #taskDialog,
+      #taskManagerDialog,
+      #parentTaskDialog,
+      #quickScheduleDialog,
+      #replanDialog,
+      #reminderSettingsDialog {
         width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
         margin-top: auto !important;
+        margin-bottom: 0 !important;
         border-bottom-left-radius: 0 !important;
         border-bottom-right-radius: 0 !important;
+        border-top-left-radius: 24px !important;
+        border-top-right-radius: 24px !important;
+        border-left: 0 !important;
+        border-right: 0 !important;
+        border-bottom: 0 !important;
+        max-height: 90dvh !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+        /* Dành khoảng trống an toàn chuẩn 34px cho thanh Home Indicator của iPhone */
+        padding-bottom: max(calc(env(safe-area-inset-bottom, 0px) + 16px), 24px) !important;
+        box-shadow: 0 -12px 36px -4px rgba(0, 0, 0, 0.35) !important;
+      }
+
+      /* Thanh kéo (Grabber Handle) tinh tế ở đầu Bottom Sheet chuẩn phong cách iOS Native */
+      #taskDialog::before,
+      #taskManagerDialog::before,
+      #parentTaskDialog::before,
+      #quickScheduleDialog::before,
+      #replanDialog::before,
+      #reminderSettingsDialog::before {
+        content: '';
+        display: block;
+        width: 38px;
+        height: 4px;
+        border-radius: 9999px;
+        background-color: rgba(148, 163, 184, 0.4);
+        margin: 0 auto 12px auto;
+      }
+
+      /* Modal tài liệu toàn màn hình chuẩn Native View Controller */
+      #taskDetailModal {
+        padding: 0 !important;
+        align-items: flex-end !important;
       }
       #taskDetailDialog {
-        height: 98dvh !important;
-        max-height: 98dvh !important;
+        width: 100% !important;
         max-width: 100vw !important;
-        border-radius: 20px 20px 0 0 !important;
-        padding-top: env(safe-area-inset-top, 0px) !important;
+        height: 96dvh !important;
+        max-height: 96dvh !important;
+        margin: 0 !important;
+        border-radius: 24px 24px 0 0 !important;
+        border-left: 0 !important;
+        border-right: 0 !important;
+        border-bottom: 0 !important;
+        padding-top: max(env(safe-area-inset-top, 0px), 12px) !important;
+        padding-bottom: max(calc(env(safe-area-inset-bottom, 0px) + 8px), 16px) !important;
+      }
+
+      /* Giữ nguyên dạng Card bo tròn 4 góc cho các popup nhỏ (Login, Đổi pass, Setup) */
+      #loginDialog,
+      #changePwDialog,
+      #firebaseSetupDialog {
+        border-radius: 20px !important;
+        margin: auto !important;
+        max-width: calc(100% - 32px) !important;
+        width: 380px !important;
       }
     }
   </style>
@@ -750,14 +817,14 @@
 
       <!-- Điều hướng ngày: Trước | Hôm nay | Sau -->
       <div class="flex items-center justify-between sm:justify-center gap-1.5 sm:gap-3 w-full md:w-auto">
-        <button id="btnPrevDate" title="Xem thời gian trước" class="group p-2 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 active:bg-blue-50 dark:active:bg-slate-750 rounded-xl text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 transition duration-150 shadow-2xs cursor-pointer shrink-0">
+        <button id="btnPrevDate" title="Xem thời gian trước" class="group p-2.5 sm:p-2 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 active:bg-blue-50 dark:active:bg-slate-750 rounded-xl text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 transition duration-150 shadow-2xs cursor-pointer shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center">
           <i data-lucide="chevron-left" class="w-4 h-4 sm:w-5 sm:h-5 transition-transform duration-150 group-hover:-translate-x-0.5"></i>
         </button>
-        <span id="currentDateDisplay" class="font-extrabold text-slate-800 dark:text-white text-xs sm:text-base xl:text-lg flex-1 sm:min-w-[200px] text-center tracking-tight inline-block select-none truncate">...</span>
-        <button id="btnNextDate" title="Xem thời gian tiếp theo" class="group p-2 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 active:bg-blue-50 dark:active:bg-slate-750 rounded-xl text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 transition duration-150 shadow-2xs cursor-pointer shrink-0">
+        <span id="currentDateDisplay" class="font-extrabold text-slate-800 dark:text-white text-sm sm:text-base xl:text-lg flex-1 sm:min-w-[200px] text-center tracking-tight inline-block select-none truncate">...</span>
+        <button id="btnNextDate" title="Xem thời gian tiếp theo" class="group p-2.5 sm:p-2 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 active:bg-blue-50 dark:active:bg-slate-750 rounded-xl text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 transition duration-150 shadow-2xs cursor-pointer shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center">
           <i data-lucide="chevron-right" class="w-4 h-4 sm:w-5 sm:h-5 transition-transform duration-150 group-hover:translate-x-0.5"></i>
         </button>
-        <button id="btnToday" title="Trở về thời gian hiện tại" class="px-2.5 sm:px-3.5 py-1.5 text-xs sm:text-sm font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 hover:border-blue-300 dark:hover:border-blue-700 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 text-slate-700 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-700 transition duration-150 shadow-2xs cursor-pointer shrink-0">
+        <button id="btnToday" title="Trở về thời gian hiện tại" class="px-3 sm:px-3.5 py-1.5 text-xs sm:text-sm font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 hover:border-blue-300 dark:hover:border-blue-700 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 text-slate-700 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-700 transition duration-150 shadow-2xs cursor-pointer shrink-0">
           Hôm nay
         </button>
       </div>
@@ -1304,9 +1371,10 @@
         </div>
 
         <div class="flex items-center gap-2">
-          <button id="btnOpenAddParentModal" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 shadow-2xs">
+          <button id="btnOpenAddParentModal" class="px-2.5 sm:px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 shadow-2xs shrink-0">
             <i data-lucide="folder-plus" class="w-4 h-4"></i>
-            <span>Thêm parentTask</span>
+            <span class="hidden sm:inline">Thêm parentTask</span>
+            <span class="sm:hidden">Mục tiêu</span>
           </button>
           <button id="btnCloseTaskManagerModal" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition">
             <i data-lucide="x" class="w-5 h-5"></i>
@@ -2321,8 +2389,8 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=8.0"></script>
-  <script src="app.js?v=8.0"></script>
+  <script src="firebase-config.js?v=8.1"></script>
+  <script src="app.js?v=8.1"></script>
 
   <!-- Đăng ký Service Worker cho Progressive Web App (PWA) -->
   <script>

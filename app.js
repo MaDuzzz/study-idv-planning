@@ -1703,7 +1703,7 @@ function renderMonthView() {
 
       html += `
         <div 
-          class="day-dropzone min-h-[50px] sm:min-h-[115px] 2xl:min-h-[140px] p-1 sm:p-2.5 rounded-xl sm:rounded-2xl border cursor-pointer transition-all duration-150 flex flex-col justify-between ${borderRingClass}"
+          class="day-dropzone min-h-[50px] sm:min-h-[115px] 2xl:min-h-[140px] p-1 sm:p-2.5 rounded-xl sm:rounded-2xl border cursor-pointer transition-all duration-150 flex flex-col justify-between active:scale-95 ${borderRingClass}"
           data-is-past="${isPast ? 'true' : 'false'}"
           data-is-today="${isToday ? 'true' : 'false'}"
           onclick="handleMonthDateSelect('${dateStr}')"
@@ -1833,6 +1833,15 @@ function handleMonthDateSelect(dateStr) {
   if (window.innerWidth < 640) {
     state.monthSelectedDate = dateStr;
     renderMonthView();
+    setTimeout(() => {
+      const section = document.getElementById('monthSelectedDaySection');
+      if (section) {
+        const rect = section.getBoundingClientRect();
+        if (rect.top > window.innerHeight - 200) {
+          section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+    }, 60);
   } else {
     openDayFromGrid(dateStr);
   }
