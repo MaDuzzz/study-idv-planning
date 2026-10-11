@@ -5034,10 +5034,164 @@ async function openReminderSettingsModal() {
     }
   }
 
+  // Kiểm tra trạng thái Push Notification trên thiết bị hiện tại
+  const isStandalone = isPwaStandalone();
+  const warningEl = document.getElementById('pushStandaloneWarning');
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if (warningEl) {
+    if (isIOS && !isStandalone) {
+      warningEl.classList.remove('hidden');
+    } else {
+      warningEl.classList.add('hidden');
+    }
+  }
+
+  if (state.currentUser && window.StudyPlannerFirebase && window.StudyPlannerFirebase.getUserPushStatus) {
+    try {
+      const pushStatus = await window.StudyPlannerFirebase.getUserPushStatus(state.currentUser.uid);
+      updatePushUiStatus(pushStatus.enabled && pushStatus.hasToken);
+    } catch (e) {
+      console.warn('Lỗi đọc push status:', e);
+    }
+  }
+
   modal.classList.remove('hidden');
   modal.classList.add('flex');
 }
 window.openReminderSettingsModal = openReminderSettingsModal;
+
+function isPwaStandalone() {
+  return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+}
+
+function updatePushUiStatus(isEnabled) {
+  const badge = document.getElementById('pushStatusBadge');
+  const btn = document.getElementById('btnTogglePushNotification');
+  const btnText = document.getElementById('btnTogglePushText');
+
+  if (badge) {
+    if (isEnabled) {
+      badge.textContent = 'Đang bật';
+      badge.className = 'text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300';
+    } else {
+      badge.textContent = 'Chưa bật';
+      badge.className = 'text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300';
+    }
+  }
+
+  if (btn && btnText) {
+    if (isEnabled) {
+      btnText.textContent = 'Tắt thông báo trên iPhone';
+      btn.className = 'w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs sm:text-sm font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs border border-slate-200 dark:border-slate-700';
+    } else {
+      btnText.textContent = 'Bật thông báo trên iPhone (23h30)';
+      btn.className = 'w-full py-2.5 px-3 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white rounded-xl text-xs sm:text-sm font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs';
+    }
+  }
+}
+
+async function handleTogglePushNotification() {
+  if (!state.currentUser) {
+    alert('Bạn cần đăng nhập tài khoản Google để kích hoạt thông báo nhắc việc!');
+    return;
+  }
+
+  const isStandalone = isPwaStandalone();
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+  if (isIOS && !isStandalone) {
+    const warning = document.getElementById('pushStandaloneWarning');
+    if (warning) warning.classList.remove('hidden');
+    alert('Trên iPhone, bạn cần bấm Chia sẻ (nút Share vuông có mũi tên lên) -> "Thêm vào MH chính" (Add to Home Screen) và mở app từ màn hình chính thì iOS mới cho phép bật thông báo.');
+    return;
+  }
+
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    alert('Trình duyệt hoặc phiên bản hệ điều hành hiện tại không hỗ trợ Web Push Notifications (Yêu cầu iOS 16.4+ trên iPhone).');
+    return;
+  }
+
+  const fb = window.StudyPlannerFirebase;
+  if (!fb) return;
+
+  const btn = document.getElementById('btnTogglePushNotification');
+  const btnText = document.getElementById('btnTogglePushText');
+
+  try {
+    if (btn) btn.disabled = true;
+    if (btnText) btnText.textContent = 'Đang xử lý...';
+
+    const currentStatus = await fb.getUserPushStatus(state.currentUser.uid);
+
+    // Nếu đang bật -> Bấm vào để tắt
+    if (currentStatus.enabled && currentStatus.hasToken) {
+      await fb.disableUserPushSubscription(state.currentUser.uid);
+      updatePushUiStatus(false);
+      showToast({
+        type: 'info',
+        title: 'Đã tắt thông báo',
+        message: 'Đã hủy nhận thông báo nhắc việc cuối ngày trên thiết bị này.'
+      });
+      return;
+    }
+
+    // Nếu đang tắt -> Bật lên
+    let permission = Notification.permission;
+    if (permission !== 'granted') {
+      permission = await Notification.requestPermission();
+    }
+
+    if (permission !== 'granted') {
+      showToast({
+        type: 'warning',
+        title: 'Chưa cấp quyền',
+        message: 'Bạn chưa cho phép quyền thông báo. Hãy vào Cài đặt iPhone -> Safari / Study Planner để mở quyền nhé!'
+      });
+      return;
+    }
+
+    // Lấy Service Worker registration
+    const reg = await navigator.serviceWorker.ready;
+    let subscription = await reg.pushManager.getSubscription();
+
+    // Nếu chưa có subscription thì tạo mới với VAPID Public Key
+    if (!subscription) {
+      const appServerKey = fb.urlBase64ToUint8Array(fb.VAPID_PUBLIC_KEY);
+      subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: appServerKey
+      });
+    }
+
+    if (!subscription) {
+      throw new Error('Không thể tạo Web Push Subscription với Apple APNs.');
+    }
+
+    // Mã hóa Subscription bằng AES-256-GCM trước khi lưu lên Firestore
+    const subJsonStr = JSON.stringify(subscription);
+    const encryptedToken = await fb.encryptPushSubscription(subJsonStr);
+
+    // Lưu vào Firestore
+    await fb.saveUserPushSubscription(state.currentUser.uid, encryptedToken);
+
+    updatePushUiStatus(true);
+    showToast({
+      type: 'success',
+      title: 'Đã bật thông báo 23h30',
+      message: 'Đã kích hoạt thành công! Dữ liệu token của bạn được mã hóa AES-256 an toàn trong database.'
+    });
+
+  } catch (err) {
+    console.error('Lỗi khi bật thông báo:', err);
+    showToast({
+      type: 'error',
+      title: 'Không thể kích hoạt',
+      message: 'Lỗi: ' + (err.message || 'Không xác định')
+    });
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
 
 function closeReminderSettingsModal() {
   const modal = document.getElementById('reminderSettingsModal');
@@ -5493,6 +5647,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnSaveReminder = document.getElementById('btnSaveReminderSettings');
   if (btnSaveReminder) btnSaveReminder.addEventListener('click', handleSaveReminderSettings);
+
+  const btnTogglePush = document.getElementById('btnTogglePushNotification');
+  if (btnTogglePush) btnTogglePush.addEventListener('click', handleTogglePushNotification);
 
   const btnPreviewReminder = document.getElementById('btnPreviewReminderEmail');
   if (btnPreviewReminder) {

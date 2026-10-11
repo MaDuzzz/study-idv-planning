@@ -849,6 +849,120 @@ async function uploadBinaryFileToGoogleDrive({ file, fileName, mimeType, folderP
   }
 }
 
+// --- WEB PUSH NOTIFICATION & TOKEN ENCRYPTION HELPERS ---
+
+const VAPID_PUBLIC_KEY = 'BBUNYEMncpGPKI6TSuk_xg7yLCXDi45GcYqVwkJljAVgQ_l3ORXbYhvVex-Lm3tal8R6az1ssPNP-_7LCsS3rYo';
+const DEFAULT_PUSH_ENCRYPTION_KEY = 'f4a6640c88eac566570725ccb52db366a95f6faeffbf5ae8900083bbd8119762';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+function hexToBytes(hex) {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+  }
+  return bytes;
+}
+
+function bytesToHex(bytes) {
+  return Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Mã hóa chuỗi Push Subscription bằng AES-256-GCM qua Web Crypto API
+ */
+async function encryptPushSubscription(subscriptionJsonStr, keyHex = DEFAULT_PUSH_ENCRYPTION_KEY) {
+  if (!window.crypto || !window.crypto.subtle) {
+    throw new Error('Trình duyệt không hỗ trợ Web Crypto API');
+  }
+
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const keyBytes = hexToBytes(keyHex);
+
+  const importedKey = await window.crypto.subtle.importKey(
+    'raw',
+    keyBytes,
+    { name: 'AES-GCM' },
+    false,
+    ['encrypt']
+  );
+
+  const encodedData = new TextEncoder().encode(subscriptionJsonStr);
+  const cipherBuffer = await window.crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    importedKey,
+    encodedData
+  );
+
+  const cipherBytes = new Uint8Array(cipherBuffer);
+  const ivHex = bytesToHex(iv);
+  const cipherHex = bytesToHex(cipherBytes);
+
+  return `${ivHex}:${cipherHex}`;
+}
+
+async function getUserPushStatus(userId) {
+  if (!firebaseDb || !userId) return { enabled: false, hasToken: false };
+  try {
+    const doc = await firebaseDb.collection('users').doc(userId).get();
+    if (doc.exists) {
+      const data = doc.data();
+      return {
+        enabled: data.pushEnabled === true,
+        hasToken: Boolean(data.pushSubscriptionEncrypted),
+        updatedAt: data.pushUpdatedAt || null
+      };
+    }
+  } catch (err) {
+    console.warn('Lỗi đọc push status:', err);
+  }
+  return { enabled: false, hasToken: false };
+}
+
+async function saveUserPushSubscription(userId, encryptedStr) {
+  if (!firebaseDb || !userId) return false;
+  try {
+    await firebaseDb.collection('users').doc(userId).set({
+      pushSubscriptionEncrypted: encryptedStr,
+      pushEnabled: true,
+      pushDevice: 'iPhone (PWA Standalone)',
+      pushUpdatedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (err) {
+    console.error('Lỗi lưu push subscription:', err);
+    return false;
+  }
+}
+
+async function disableUserPushSubscription(userId) {
+  if (!firebaseDb || !userId) return false;
+  try {
+    await firebaseDb.collection('users').doc(userId).set({
+      pushEnabled: false,
+      pushUpdatedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (err) {
+    console.error('Lỗi tắt push subscription:', err);
+    return false;
+  }
+}
+
 // Export các hàm và biến ra window để app.js truy cập trực tiếp
 window.StudyPlannerFirebase = {
   getStoredFirebaseConfig,
@@ -876,5 +990,11 @@ window.StudyPlannerFirebase = {
   uploadBinaryFileToGoogleDrive,
   syncUserProfileToFirestore,
   getUserRemindSettings,
-  saveUserRemindSettings
+  saveUserRemindSettings,
+  VAPID_PUBLIC_KEY,
+  urlBase64ToUint8Array,
+  encryptPushSubscription,
+  getUserPushStatus,
+  saveUserPushSubscription,
+  disableUserPushSubscription
 };

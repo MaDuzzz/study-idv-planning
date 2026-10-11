@@ -1,9 +1,9 @@
-const CACHE_NAME = 'study-planner-v7.7';
+const CACHE_NAME = 'study-planner-v7.8';
 const STATIC_ASSETS = [
   './',
   './index.html',
-  './app.js?v=7.7',
-  './firebase-config.js?v=7.7',
+  './app.js?v=7.8',
+  './firebase-config.js?v=7.8',
   './manifest.json',
   './logo/logo_idv_planner.png'
 ];
@@ -75,5 +75,61 @@ self.addEventListener('fetch', event => {
           }
         });
       })
+  );
+});
+
+// ==========================================
+// 4. WEB PUSH NOTIFICATION HANDLERS (iOS 16.4+ & Desktop)
+// ==========================================
+
+// Nhận payload thông báo từ Apple APNs / Web Push Server
+self.addEventListener('push', event => {
+  let data = {
+    title: 'Study & Life Planner ⏰ (23h30)',
+    body: 'Bạn có nhiệm vụ cần kiểm tra hôm nay!',
+    icon: './logo/logo_idv_planner.png',
+    badge: './logo/logo_idv_planner.png',
+    data: { url: './' }
+  };
+
+  if (event.data) {
+    try {
+      const parsed = event.data.json();
+      data = Object.assign(data, parsed);
+    } catch (e) {
+      data.body = event.data.text();
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: data.icon || './logo/logo_idv_planner.png',
+    badge: data.badge || './logo/logo_idv_planner.png',
+    vibrate: [150, 80, 150],
+    data: data.data || { url: './' },
+    actions: [
+      { action: 'open', title: 'Mở danh sách task' }
+    ]
+  };
+
+  event.waitUntil(self.registration.showNotification(data.title, options));
+});
+
+// Khi người dùng bấm / chạm vào thông báo trên màn hình khóa iPhone
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || './';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+      for (const client of clientList) {
+        if (client.url.includes(self.registration.scope) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
   );
 });
