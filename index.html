@@ -498,6 +498,30 @@
       -webkit-tap-highlight-color: transparent !important;
     }
 
+    /* Tùy chỉnh select dropdown sạch sẽ, loại bỏ triệt để mũi tên mặc định dính sát mép trên desktop */
+    select.appearance-none,
+    #selectDefinedTaskId,
+    #taskPriority,
+    #taskParentSelect {
+      -webkit-appearance: none !important;
+      -moz-appearance: none !important;
+      appearance: none !important;
+      background-image: none !important;
+    }
+
+    select.appearance-none::-ms-expand,
+    #selectDefinedTaskId::-ms-expand,
+    #taskPriority::-ms-expand,
+    #taskParentSelect::-ms-expand {
+      display: none !important;
+    }
+
+    /* Đảm bảo option trong select hiển thị đúng màu nền ở chế độ Dark Mode */
+    html.dark select option {
+      background-color: #0f172a;
+      color: #f8fafc;
+    }
+
     /* Tự động ẩn thanh Mobile Bottom Dock khi có bất kỳ modal nào đang mở (tránh đè giao diện) */
     body:has(#taskModal:not(.hidden)) #mobileBottomNav,
     body:has(#taskManagerModal:not(.hidden)) #mobileBottomNav,
@@ -1108,9 +1132,16 @@
             <i data-lucide="package" class="w-3.5 h-3.5 text-blue-500"></i>
             <span>Nhiệm vụ từ kho chưa lên lịch <span class="text-rose-500">*</span></span>
           </label>
-          <select id="selectDefinedTaskId" required class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
-            <!-- Dynamic optgroups populated in JS -->
-          </select>
+          <div class="relative w-full group">
+            <select id="selectDefinedTaskId" required class="w-full h-11 pl-3.5 pr-10 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition appearance-none cursor-pointer">
+              <!-- Dynamic optgroups populated in JS -->
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-400 dark:text-slate-400 group-focus-within:text-blue-500 transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+          </div>
           <div id="emptyDefinedHint" class="hidden text-xs text-amber-600 dark:text-amber-400 p-3 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-800 mt-2 flex items-start gap-2">
             <i data-lucide="alert-circle" class="w-4 h-4 shrink-0 mt-0.5"></i>
             <span>Kho task hiện không có task nào đang chờ xếp lịch. Bạn hãy chuyển sang tab <strong>"Tạo nhiệm vụ mới"</strong> hoặc mở <strong>Kho nhiệm vụ</strong> để thêm!</span>
@@ -1176,11 +1207,18 @@
               <i data-lucide="flag" class="w-3.5 h-3.5 text-amber-500 shrink-0"></i>
               <span>Mức độ ưu tiên</span>
             </label>
-            <select id="taskPriority" class="w-full h-11 px-3 sm:px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
-              <option value="medium">Bình thường</option>
-              <option value="high">🔥 Ưu tiên cao</option>
-              <option value="low">Thấp</option>
-            </select>
+            <div class="relative w-full group">
+              <select id="taskPriority" class="w-full h-11 pl-3 sm:pl-3.5 pr-10 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition appearance-none cursor-pointer">
+                <option value="medium">Bình thường</option>
+                <option value="high">🔥 Ưu tiên cao</option>
+                <option value="low">Thấp</option>
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 sm:pr-3.5 text-slate-400 dark:text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1189,10 +1227,17 @@
             <i data-lucide="folder-tree" class="w-3.5 h-3.5 text-indigo-500"></i>
             <span>Thuộc mục tiêu (Parent Task)</span>
           </label>
-          <select id="taskParentSelect" class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition">
-            <option value="">-- Nhiệm vụ độc lập (Tự sinh mã Tag) --</option>
-            <!-- Dynamic options of existing parent tasks -->
-          </select>
+          <div class="relative w-full group">
+            <select id="taskParentSelect" class="w-full h-11 pl-3.5 pr-10 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition appearance-none cursor-pointer">
+              <option value="">-- Nhiệm vụ độc lập (Tự sinh mã Tag) --</option>
+              <!-- Dynamic options of existing parent tasks -->
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-400 dark:text-slate-400 group-focus-within:text-blue-500 transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+          </div>
         </div>
 
         <!-- Ô Tag viết tắt khi chọn Parent Task -->
@@ -2145,20 +2190,6 @@
         </button>
       </div>
 
-      <!-- Hướng dẫn cấu hình GitHub Secrets (Accordion) -->
-      <details class="group p-3 bg-amber-50/80 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-900/50 text-xs text-amber-900 dark:text-amber-200">
-        <summary class="font-bold flex items-center justify-between cursor-pointer select-none">
-          <span class="flex items-center gap-1.5"><i data-lucide="key-round" class="w-4 h-4 text-amber-600"></i> Hướng dẫn cấu hình GitHub Secrets & cron-job.org</span>
-          <i data-lucide="chevron-down" class="w-4 h-4 transition-transform group-open:rotate-180"></i>
-        </summary>
-        <div class="mt-2.5 space-y-1.5 text-[11px] leading-relaxed border-t border-amber-200/60 dark:border-amber-900/60 pt-2">
-          <div>Vào repository GitHub &rarr; <strong>Settings</strong> &rarr; <strong>Secrets and variables</strong> &rarr; <strong>Actions</strong> &rarr; Cấu hình các Secrets:</div>
-          <div>1. <code class="font-mono bg-white dark:bg-slate-800 px-1 py-0.5 rounded font-bold">FIREBASE_SERVICE_ACCOUNT</code>: File JSON Private Key từ Firebase Console.</div>
-          <div>2. <code class="font-mono bg-white dark:bg-slate-800 px-1 py-0.5 rounded font-bold">VAPID_PUBLIC_KEY</code> &amp; <code class="font-mono bg-white dark:bg-slate-800 px-1 py-0.5 rounded font-bold">VAPID_PRIVATE_KEY</code>: Cặp khóa Web Push.</div>
-          <div>3. <code class="font-mono bg-white dark:bg-slate-800 px-1 py-0.5 rounded font-bold">PUSH_ENCRYPTION_KEY</code>: Khóa giải mã token mã hóa AES-256.</div>
-          <div>4. <strong>cron-job.org</strong>: Tạo job gọi webhook GitHub API lúc <strong>23:30 (Asia/Ho_Chi_Minh)</strong>.</div>
-        </div>
-      </details>
 
       <div class="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
         <button type="button" id="btnPreviewReminderEmail" class="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-center gap-1">
@@ -2290,8 +2321,8 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=7.8"></script>
-  <script src="app.js?v=7.8"></script>
+  <script src="firebase-config.js?v=8.0"></script>
+  <script src="app.js?v=8.0"></script>
 
   <!-- Đăng ký Service Worker cho Progressive Web App (PWA) -->
   <script>
