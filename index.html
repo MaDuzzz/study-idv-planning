@@ -2197,7 +2197,7 @@
       </div>
 
       <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-        Hệ thống tự động chạy ngầm qua <strong>GitHub Actions</strong> để gửi email nhắc nhở vào <strong>buổi sáng</strong> và tổng kết vào <strong>buổi tối</strong> (múi giờ Việt Nam). Ngày nào không có task sẽ thông báo ngày nghỉ thảnh thơi.
+        Hệ thống tự động kích hoạt qua <strong>cron-job.org</strong> & <strong>GitHub Actions</strong> để gửi email nhắc nhở vào <strong>buổi sáng</strong> và tổng kết vào <strong>buổi tối</strong> (múi giờ Việt Nam). Ngày nào không có task sẽ thông báo ngày nghỉ thảnh thơi.
       </p>
 
       <!-- Địa chỉ nhận mail -->
@@ -2239,12 +2239,12 @@
 
       <!-- TÙY CHỌN: THÔNG BÁO ĐẨY WEB PUSH IPHONE (23H30) -->
       <div class="p-3.5 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-950/40 dark:to-indigo-950/40 rounded-2xl border border-blue-200/80 dark:border-blue-900/60 space-y-2.5">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <i data-lucide="smartphone" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
-            <div class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">🔔 Thông báo đẩy trên iPhone (23h30)</div>
+        <div class="flex items-center justify-between gap-2.5">
+          <div class="flex items-center gap-2 min-w-0 flex-1">
+            <i data-lucide="smartphone" class="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0"></i>
+            <div class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">Thông báo đẩy iPhone (23h30)</div>
           </div>
-          <span id="pushStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">Chưa bật</span>
+          <span id="pushStatusBadge" class="text-[10px] px-2.5 py-0.5 rounded-full font-bold whitespace-nowrap shrink-0 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">Chưa bật</span>
         </div>
         <p class="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
           Kích hoạt qua <strong>cron-job.org</strong> đúng <strong>23h30</strong> mỗi tối: Nếu còn nhiệm vụ chưa hoàn thành, iPhone sẽ rung chuông và hiện thông báo màn hình khóa. Token được <strong>mã hóa AES-256</strong> trước khi lưu vào database.
@@ -2389,8 +2389,8 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=8.1"></script>
-  <script src="app.js?v=8.1"></script>
+  <script src="firebase-config.js?v=8.3"></script>
+  <script src="app.js?v=8.3"></script>
 
   <!-- Đăng ký Service Worker cho Progressive Web App (PWA) -->
   <script>

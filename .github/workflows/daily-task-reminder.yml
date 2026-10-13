@@ -1,19 +1,12 @@
-name: Daily Task Reminder (Sáng & Tối)
+name: Daily Task Reminder (Ca Sáng 06:30 & Ca Tối 18:00 qua cron-job.org)
 
 on:
-  schedule:
-    # 🌅 CA SÁNG: Kích hoạt lúc 18:40 UTC (01:40 AM VN) -> sau delay hàng đợi GitHub Actions (~4.5h - 5h) nhận mail loanh quanh ~06:00 - 06:30 AM VN.
-    - cron: '40 18 * * *'
-
-    # 🌙 CA TỐI: Kích hoạt lúc 05:30 UTC (12:30 PM VN) -> sau delay hàng đợi (~5.5h) nhận mail loanh quanh ~18:00 - 18:05 PM VN.
-    - cron: '30 5 * * *'
-
-  # Cho phép bấm nút "Run workflow" thủ công trên GitHub Actions bất kỳ lúc nào để test
+  # Kích hoạt tức thì đúng từng giây bởi cron-job.org qua GitHub API (workflow_dispatch)
   workflow_dispatch:
     inputs:
       shift:
-        description: 'Chọn phiên gửi email nhắc việc'
-        required: true
+        description: 'Chọn phiên gửi email nhắc việc (morning / evening / weekly / auto)'
+        required: false
         default: 'auto'
         type: choice
         options:

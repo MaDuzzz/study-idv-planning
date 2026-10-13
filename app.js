@@ -5081,10 +5081,10 @@ function updatePushUiStatus(isEnabled) {
   if (badge) {
     if (isEnabled) {
       badge.textContent = 'Đang bật';
-      badge.className = 'text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300';
+      badge.className = 'text-[10px] px-2.5 py-0.5 rounded-full font-bold whitespace-nowrap shrink-0 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800';
     } else {
       badge.textContent = 'Chưa bật';
-      badge.className = 'text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300';
+      badge.className = 'text-[10px] px-2.5 py-0.5 rounded-full font-bold whitespace-nowrap shrink-0 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300';
     }
   }
 
