@@ -1,12 +1,8 @@
-name: Nightly Task Reminder (Web Push to iPhone 23h30)
+name: Nightly Task Reminder (Web Push to iPhone 23h30 qua cron-job.org)
 
 on:
-  # Kích hoạt tức thì đúng từng giây bởi cron-job.org qua GitHub API
+  # Kích hoạt tức thì đúng từng giây bởi cron-job.org qua GitHub API (workflow_dispatch)
   workflow_dispatch:
-
-  # Lịch dự phòng nếu cron-job.org gặp sự cố (16:30 UTC = 23:30 giờ VN)
-  schedule:
-    - cron: '30 16 * * *'
 
 jobs:
   send-nightly-push:

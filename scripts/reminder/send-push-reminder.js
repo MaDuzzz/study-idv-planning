@@ -80,7 +80,16 @@ function decryptPushSubscription(encryptedPayloadStr, keyHex) {
 async function main() {
   console.log('=== BẮT ĐẦU CHU KỲ NHẮC VIỆC CUỐI NGÀY (23H30 VN) ===');
   const todayStr = getTodayStrVietnam();
-  console.log(`📅 Ngày thực hiện: ${todayStr} (Giờ VN: ${getVietnamNow().toLocaleTimeString('vi-VN')})`);
+  const vnNow = getVietnamNow();
+  const vnHour = vnNow.getHours();
+  console.log(`📅 Ngày thực hiện: ${todayStr} (Giờ VN: ${vnNow.toLocaleTimeString('vi-VN')})`);
+
+  // Chặn tuyệt đối gửi thông báo vào khung giờ đêm khuya / rạng sáng (00h00 - 06h59 VN)
+  // để bảo vệ giấc ngủ người dùng (tránh runner bị delay chạy nhầm lúc 2-3h sáng)
+  if (vnHour >= 0 && vnHour < 7) {
+    console.log(`⛔ Hiện tại là ${vnHour}h sáng giờ VN (khung giờ ngủ đêm). Hủy gửi Web Push để bảo vệ giấc ngủ người dùng.`);
+    return;
+  }
 
   // Kiểm tra VAPID Keys
   const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
@@ -122,6 +131,17 @@ async function main() {
     if (userData.pushEnabled === false) {
       console.log(`⏩ [${userEmail}]: Đã tắt nhận thông báo push. Bỏ qua.`);
       continue;
+    }
+
+    // Kiểm tra nếu user đã được gửi push trong vòng 12 giờ qua (chống gửi trùng lặp nếu có nhiều job chạy)
+    if (userData.lastPushSentAt) {
+      const lastSentTime = new Date(userData.lastPushSentAt).getTime();
+      const hoursSinceLastPush = (Date.now() - lastSentTime) / (1000 * 60 * 60);
+      if (hoursSinceLastPush < 12) {
+        console.log(`⏩ [${userEmail}]: Đã nhận thông báo cách đây ${hoursSinceLastPush.toFixed(1)} giờ. Bỏ qua để tránh gửi lặp.`);
+        totalSkipped++;
+        continue;
+      }
     }
 
     const encryptedToken = userData.pushSubscriptionEncrypted;
