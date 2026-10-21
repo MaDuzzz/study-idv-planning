@@ -3322,6 +3322,15 @@ function renderTaskManagerContent() {
   if (statUnscheduledEl) statUnscheduledEl.textContent = unscheduledSubtasks;
   if (statCompletedEl) statCompletedEl.textContent = `${pctDone}% (${completedSubtasks}/${totalSubtasks})`;
 
+  const mParents = document.getElementById('statTotalParentsMobile');
+  const mSubtasks = document.getElementById('statTotalSubtasksMobile');
+  const mUnscheduled = document.getElementById('statUnscheduledSubtasksMobile');
+  const mCompleted = document.getElementById('statCompletedSubtasksMobile');
+  if (mParents) mParents.textContent = totalParents;
+  if (mSubtasks) mSubtasks.textContent = totalSubtasks;
+  if (mUnscheduled) mUnscheduled.textContent = unscheduledSubtasks;
+  if (mCompleted) mCompleted.textContent = `${pctDone}%`;
+
   // Lọc nhiệm vụ
   const query = (state.taskManagerSearch || '').toLowerCase().trim();
   let filteredTasks = state.tasks.filter(t => {
