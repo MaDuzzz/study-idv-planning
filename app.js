@@ -705,13 +705,60 @@ function formatPrettyDate(dateStr) {
   }
 }
 
+function getDatesInRange(startDateStr, endDateStr) {
+  if (!startDateStr) return [];
+  if (!endDateStr || startDateStr === endDateStr) return [startDateStr];
+
+  const dates = [];
+  const start = new Date(startDateStr + 'T00:00:00');
+  const end = new Date(endDateStr + 'T00:00:00');
+
+  // Đảm bảo start <= end
+  const actualStart = start <= end ? start : end;
+  const actualEnd = start <= end ? end : start;
+
+  // Giới hạn an toàn tối đa 60 ngày để tránh spam database
+  const maxDays = 60;
+  let count = 0;
+  const cur = new Date(actualStart);
+
+  while (cur <= actualEnd && count < maxDays) {
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth() + 1).padStart(2, '0');
+    const d = String(cur.getDate()).padStart(2, '0');
+    dates.push(`${y}-${m}-${d}`);
+    cur.setDate(cur.getDate() + 1);
+    count++;
+  }
+  return dates;
+}
+
 function updateCustomDatePickerDisplay(inputId, displayId) {
   const input = document.getElementById(inputId);
   const display = document.getElementById(displayId);
   if (!input || !display) return;
-  const val = input.value;
-  if (val && val.trim()) {
-    display.textContent = formatPrettyDate(val);
+
+  let start = input.value;
+  let end = input.value;
+
+  if (inputId === 'taskDate') {
+    start = document.getElementById('taskStartDate')?.value || input.value;
+    end = document.getElementById('taskEndDate')?.value || start;
+  } else if (inputId === 'definedTaskDate') {
+    start = document.getElementById('definedTaskStartDate')?.value || input.value;
+    end = document.getElementById('definedTaskEndDate')?.value || start;
+  } else if (inputId === 'quickScheduleDateInput') {
+    start = document.getElementById('quickScheduleStartDate')?.value || input.value;
+    end = document.getElementById('quickScheduleEndDate')?.value || start;
+  }
+
+  if (start && start.trim()) {
+    if (end && end.trim() && start < end) {
+      const dates = getDatesInRange(start, end);
+      display.textContent = `${formatPrettyDate(start)} - ${formatPrettyDate(end)} (${dates.length} ngày)`;
+    } else {
+      display.textContent = formatPrettyDate(start);
+    }
     display.classList.remove('text-slate-400', 'dark:text-slate-500', 'font-normal');
     display.classList.add('text-slate-800', 'dark:text-white', 'font-medium');
   } else {
@@ -1158,10 +1205,13 @@ async function saveTaskFromForm(formData) {
     openLoginModal();
     return;
   }
-  const { id, title, date, priority, parentId: initialParentId, note, tag } = formData;
+  const { id, title, date, startDate, endDate, priority, parentId: initialParentId, note, tag } = formData;
+
+  const effectiveStart = startDate || date || '';
+  const effectiveEnd = endDate || effectiveStart;
 
   // Chặn tạo hoặc dời ngày về quá khứ
-  if (date && date < getTodayStr()) {
+  if (effectiveStart && effectiveStart < getTodayStr()) {
     showToast({
       type: 'error',
       title: 'Không hợp lệ',
@@ -1205,6 +1255,75 @@ async function saveTaskFromForm(formData) {
     }
   }
 
+  const isRange = Boolean(effectiveStart && effectiveEnd && effectiveStart < effectiveEnd);
+
+  // Nếu là dải ngày (Multi-day date range)
+  if (isRange) {
+    const dates = getDatesInRange(effectiveStart, effectiveEnd);
+    const seriesId = 'series_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+
+    if (id) {
+      targetTask = state.tasks.find(t => t.id === id);
+      if (targetTask) {
+        targetTask.title = title;
+        targetTask.date = dates[0];
+        targetTask.priority = priority;
+        targetTask.parentId = parentId || null;
+        targetTask.note = note;
+        targetTask.seriesId = seriesId;
+        targetTask.seriesRange = { start: effectiveStart, end: effectiveEnd, totalDays: dates.length };
+      }
+      for (let i = 1; i < dates.length; i++) {
+        const clone = {
+          id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4) + '_' + i,
+          title,
+          date: dates[i],
+          priority,
+          parentId: parentId || null,
+          category: '',
+          note,
+          completed: false,
+          replanCount: 0,
+          seriesId: seriesId,
+          seriesRange: { start: effectiveStart, end: effectiveEnd, totalDays: dates.length },
+          createdAt: new Date().toISOString()
+        };
+        state.tasks.push(clone);
+      }
+    } else {
+      for (let i = 0; i < dates.length; i++) {
+        const itemTask = {
+          id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4) + '_' + i,
+          title,
+          date: dates[i],
+          priority,
+          parentId: parentId || null,
+          category: '',
+          note,
+          completed: false,
+          replanCount: 0,
+          seriesId: seriesId,
+          seriesRange: { start: effectiveStart, end: effectiveEnd, totalDays: dates.length },
+          createdAt: new Date().toISOString()
+        };
+        state.tasks.push(itemTask);
+      }
+    }
+
+    await saveCurrentTasks();
+    showToast({
+      type: 'success',
+      title: 'Đã lên lịch chuỗi thành công',
+      message: `Đã tạo chuỗi <strong>${dates.length} nhiệm vụ</strong> từ ngày ${formatPrettyDate(effectiveStart)} đến ${formatPrettyDate(effectiveEnd)}!`
+    });
+    renderApp();
+    if (!document.getElementById('taskManagerModal').classList.contains('hidden')) {
+      renderTaskManagerContent();
+    }
+    return;
+  }
+
+  // Nếu là ngày đơn lẻ
   if (id) {
     targetTask = state.tasks.find(t => t.id === id);
     if (targetTask) {
@@ -1217,16 +1336,16 @@ async function saveTaskFromForm(formData) {
         });
         return;
       }
-      if (wasPast && date && date >= getTodayStr()) {
+      if (wasPast && effectiveStart && effectiveStart >= getTodayStr()) {
         targetTask.replanCount = (targetTask.replanCount || 0) + 1;
         showToast({
           type: 'success',
           title: 'Replan thành công',
-          message: `Nhiệm vụ đã được dời lịch sang ngày ${date} và mở khóa chỉnh sửa bình thường!`
+          message: `Nhiệm vụ đã được dời lịch sang ngày ${effectiveStart} và mở khóa chỉnh sửa bình thường!`
         });
       }
       targetTask.title = title;
-      targetTask.date = date || '';
+      targetTask.date = effectiveStart || '';
       targetTask.priority = priority;
       targetTask.parentId = parentId || null;
       targetTask.note = note;
@@ -1235,7 +1354,7 @@ async function saveTaskFromForm(formData) {
     targetTask = {
       id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
       title,
-      date: date || '',
+      date: effectiveStart || '',
       priority,
       parentId: parentId || null,
       category: '',
@@ -1512,6 +1631,7 @@ function renderDayView() {
           <div class="space-y-1.5 flex-1">
             <div class="flex items-center gap-2 flex-wrap">
               <span class="text-base font-bold ${task.completed ? 'line-through text-slate-500 dark:text-slate-300' : 'text-slate-900 dark:text-white'}">${escapeHtml(task.title)}</span>
+              ${task.seriesId ? `<span class="px-2 py-0.5 text-xs font-bold rounded-md bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1 shrink-0" title="Nhiệm vụ lặp theo chuỗi ngày (${task.seriesRange ? `${task.seriesRange.start} → ${task.seriesRange.end}` : 'Chuỗi'})">🔁 Lặp</span>` : ''}
               ${replanBadge}
               ${getParentBadgeHtml(task)}
               ${priorityBadge}
@@ -1672,6 +1792,7 @@ function renderWeekView() {
                       >
                         ${escapeHtml(t.title)}
                       </span>
+                      ${t.seriesId ? `<span class="text-xs shrink-0 mt-0.5" title="Nhiệm vụ lặp chuỗi ngày">🔁</span>` : ''}
                       ${t.replanCount > 0 ? `<span class="inline-flex items-center text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 transition-colors cursor-help shrink-0 mt-0.5" title="Nhiệm vụ này đã được dời lịch ${t.replanCount} lần. Cố gắng hoàn thành sớm nhé!"><i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i></span>` : ''}
                     </div>
                     
@@ -2296,6 +2417,7 @@ const parentTaskModal = document.getElementById('parentTaskModal');
 const formParentTask = document.getElementById('formParentTask');
 const quickScheduleModal = document.getElementById('quickScheduleModal');
 const formQuickSchedule = document.getElementById('formQuickSchedule');
+const rangeCalendarModal = document.getElementById('rangeCalendarModal');
 
 // --- MODAL STACKING & ANIMATION HELPERS (Hiệu ứng chuyển cảnh xếp lớp mượt mà) ---
 function pushModalStack(dialogId) {
@@ -2348,6 +2470,278 @@ function animateModalOpen(modalEl, dialogId) {
     });
   }
 }
+
+// ==========================================================================
+// 8.0. BỘ CHỌN KHOẢNG NGÀY TRỰC QUAN (GRAFANA DATE RANGE PICKER)
+// ==========================================================================
+const rangeCalState = {
+  start: null,
+  end: null,
+  hover: null,
+  year: new Date().getFullYear(),
+  month: new Date().getMonth(),
+  targetCallback: null
+};
+
+function formatVnDisplayDate(dateStr) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+function openRangeCalendarModal({ startDate, endDate, targetCallback }) {
+  if (!rangeCalendarModal) return;
+  rangeCalState.start = startDate || null;
+  rangeCalState.end = endDate || startDate || null;
+  rangeCalState.hover = null;
+  rangeCalState.targetCallback = targetCallback;
+
+  const baseDate = startDate || getTodayStr();
+  const [y, m] = baseDate.split('-').map(Number);
+  rangeCalState.year = y || new Date().getFullYear();
+  rangeCalState.month = (m ? m - 1 : new Date().getMonth());
+
+  renderRangeCalGrid();
+  updateRangeCalSummaryBanner();
+  animateModalOpen(rangeCalendarModal, 'rangeCalendarDialog');
+  lucide.createIcons();
+}
+
+function closeRangeCalendarModal() {
+  if (rangeCalendarModal) {
+    rangeCalendarModal.classList.add('hidden');
+    popModalStack('rangeCalendarDialog');
+    updateMobileNavVisibility();
+  }
+}
+
+function changeRangeCalMonth(delta) {
+  rangeCalState.month += delta;
+  if (rangeCalState.month < 0) {
+    rangeCalState.month = 11;
+    rangeCalState.year--;
+  } else if (rangeCalState.month > 11) {
+    rangeCalState.month = 0;
+    rangeCalState.year++;
+  }
+  renderRangeCalGrid();
+  updateRangeCalSummaryBanner();
+}
+
+function updateRangeCalSummaryBanner() {
+  const textEl = document.getElementById('rangeCalSelectionText');
+  const badgeEl = document.getElementById('rangeCalDaysBadge');
+  const monthYearEl = document.getElementById('rangeCalMonthYearDisplay');
+
+  if (monthYearEl) {
+    monthYearEl.textContent = `Tháng ${rangeCalState.month + 1} / ${rangeCalState.year}`;
+  }
+
+  const { start, end } = rangeCalState;
+  if (!textEl || !badgeEl) return;
+
+  if (!start) {
+    textEl.textContent = 'Chọn ngày bắt đầu...';
+    badgeEl.classList.add('hidden');
+  } else if (start && !end) {
+    textEl.textContent = `Bắt đầu: ${formatVnDisplayDate(start)} (Chọn tiếp ngày kết thúc, hoặc bấm lại để chọn 1 ngày)`;
+    badgeEl.textContent = '1 ngày';
+    badgeEl.classList.remove('hidden');
+  } else if (start === end) {
+    textEl.textContent = `Ngày thực hiện: ${formatVnDisplayDate(start)}`;
+    badgeEl.textContent = '1 ngày';
+    badgeEl.classList.remove('hidden');
+  } else {
+    const dates = getDatesInRange(start, end);
+    textEl.textContent = `${formatVnDisplayDate(start)} → ${formatVnDisplayDate(end)}`;
+    badgeEl.textContent = `${dates.length} ngày`;
+    badgeEl.classList.remove('hidden');
+  }
+}
+
+function handleRangeCalDayClick(dateStr) {
+  const todayStr = getTodayStr();
+  if (dateStr < todayStr) return; // Chặn ngày quá khứ
+
+  const { start, end } = rangeCalState;
+
+  if (!start) {
+    rangeCalState.start = dateStr;
+    rangeCalState.end = null;
+    rangeCalState.hover = null;
+  } else if (start && !end) {
+    if (dateStr === start) {
+      rangeCalState.end = start;
+    } else if (dateStr > start) {
+      rangeCalState.end = dateStr;
+    } else {
+      rangeCalState.end = start;
+      rangeCalState.start = dateStr;
+    }
+    rangeCalState.hover = null;
+  } else {
+    rangeCalState.start = dateStr;
+    rangeCalState.end = null;
+    rangeCalState.hover = null;
+  }
+
+  updateRangeCalSummaryBanner();
+  renderRangeCalGrid();
+}
+
+function handleRangeCalDayHover(dateStr) {
+  if (!rangeCalState.start || rangeCalState.end) return;
+  if (rangeCalState.hover !== dateStr) {
+    rangeCalState.hover = dateStr;
+    renderRangeCalGrid();
+  }
+}
+
+function renderRangeCalGrid() {
+  const grid = document.getElementById('rangeCalGrid');
+  if (!grid) return;
+
+  const { year, month, start, end, hover } = rangeCalState;
+  const todayStr = getTodayStr();
+
+  const firstDay = new Date(year, month, 1);
+  const startDayOfWeek = (firstDay.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  let effectiveEnd = end;
+  let effectiveStart = start;
+
+  if (start && !end && hover && hover >= todayStr) {
+    if (hover >= start) {
+      effectiveStart = start;
+      effectiveEnd = hover;
+    } else {
+      effectiveStart = hover;
+      effectiveEnd = start;
+    }
+  }
+
+  let html = '';
+
+  // 1. Ngày của tháng trước
+  for (let i = startDayOfWeek - 1; i >= 0; i--) {
+    const dayNum = daysInPrevMonth - i;
+    html += `
+      <div class="h-9 sm:h-10 flex items-center justify-center text-slate-300 dark:text-slate-700 text-xs font-normal select-none pointer-events-none">
+        ${dayNum}
+      </div>
+    `;
+  }
+
+  // 2. Ngày của tháng hiện tại
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dStr = String(day).padStart(2, '0');
+    const mStr = String(month + 1).padStart(2, '0');
+    const dateStr = `${year}-${mStr}-${dStr}`;
+
+    const isPast = dateStr < todayStr;
+    const isToday = dateStr === todayStr;
+    const isExactStart = dateStr === start;
+    const isExactEnd = dateStr === end;
+
+    let inRange = false;
+    if (effectiveStart && effectiveEnd && effectiveStart !== effectiveEnd) {
+      inRange = dateStr >= effectiveStart && dateStr <= effectiveEnd;
+    }
+
+    if (isPast) {
+      html += `
+        <div class="h-9 sm:h-10 flex items-center justify-center text-slate-300 dark:text-slate-700 text-xs select-none opacity-40 cursor-not-allowed">
+          ${day}
+        </div>
+      `;
+    } else if (isExactStart || isExactEnd) {
+      html += `
+        <button type="button" onclick="handleRangeCalDayClick('${dateStr}')" class="h-9 sm:h-10 w-full flex items-center justify-center font-bold text-xs bg-blue-600 text-white rounded-xl shadow-xs transition active:scale-95 cursor-pointer">
+          ${day}
+        </button>
+      `;
+    } else if (inRange) {
+      html += `
+        <button type="button" onclick="handleRangeCalDayClick('${dateStr}')" onmouseenter="handleRangeCalDayHover('${dateStr}')" class="h-9 sm:h-10 w-full flex items-center justify-center font-semibold text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 transition cursor-pointer">
+          ${day}
+        </button>
+      `;
+    } else if (isToday) {
+      html += `
+        <button type="button" onclick="handleRangeCalDayClick('${dateStr}')" onmouseenter="handleRangeCalDayHover('${dateStr}')" class="h-9 sm:h-10 w-full flex items-center justify-center font-bold text-xs text-blue-600 dark:text-blue-400 border border-blue-400/80 dark:border-blue-500 rounded-xl hover:bg-blue-50 dark:hover:bg-slate-800 transition cursor-pointer">
+          ${day}
+        </button>
+      `;
+    } else {
+      html += `
+        <button type="button" onclick="handleRangeCalDayClick('${dateStr}')" onmouseenter="handleRangeCalDayHover('${dateStr}')" class="h-9 sm:h-10 w-full flex items-center justify-center text-slate-700 dark:text-slate-200 text-xs rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+          ${day}
+        </button>
+      `;
+    }
+  }
+
+  // 3. Ngày của tháng sau
+  const totalCells = startDayOfWeek + daysInMonth;
+  const remaining = (7 - (totalCells % 7)) % 7;
+  for (let i = 1; i <= remaining; i++) {
+    html += `
+      <div class="h-9 sm:h-10 flex items-center justify-center text-slate-300 dark:text-slate-700 text-xs select-none pointer-events-none">
+        ${i}
+      </div>
+    `;
+  }
+
+  grid.innerHTML = html;
+}
+
+function setRangeCalToday() {
+  const todayStr = getTodayStr();
+  rangeCalState.start = todayStr;
+  rangeCalState.end = todayStr;
+  rangeCalState.hover = null;
+  const [y, m] = todayStr.split('-').map(Number);
+  rangeCalState.year = y;
+  rangeCalState.month = m - 1;
+  updateRangeCalSummaryBanner();
+  renderRangeCalGrid();
+}
+
+function clearRangeCalSelection() {
+  rangeCalState.start = null;
+  rangeCalState.end = null;
+  rangeCalState.hover = null;
+  updateRangeCalSummaryBanner();
+  renderRangeCalGrid();
+}
+
+function applyRangeCalSelection() {
+  const { start, end, targetCallback } = rangeCalState;
+  if (!start) {
+    showToast({
+      type: 'warning',
+      title: 'Chưa chọn ngày',
+      message: 'Vui lòng bấm chọn ít nhất một ngày trên lịch!'
+    });
+    return;
+  }
+  const finalEnd = end || start;
+  if (typeof targetCallback === 'function') {
+    targetCallback(start, finalEnd);
+  }
+  closeRangeCalendarModal();
+}
+
+window.handleRangeCalDayClick = handleRangeCalDayClick;
+window.handleRangeCalDayHover = handleRangeCalDayHover;
+window.changeRangeCalMonth = changeRangeCalMonth;
+window.closeRangeCalendarModal = closeRangeCalendarModal;
+window.setRangeCalToday = setRangeCalToday;
+window.clearRangeCalSelection = clearRangeCalSelection;
+window.applyRangeCalSelection = applyRangeCalSelection;
 
 let currentAddTaskTab = 'defined'; // 'defined' | 'others'
 
@@ -2435,7 +2829,10 @@ function openAddTaskModal(initialDate = null) {
 
   if (dateInputDefined) {
     dateInputDefined.value = targetDate;
-    dateInputDefined.min = todayStr;
+    const defStart = document.getElementById('definedTaskStartDate');
+    const defEnd = document.getElementById('definedTaskEndDate');
+    if (defStart) defStart.value = targetDate;
+    if (defEnd) defEnd.value = targetDate;
   }
 
   if (unscheduledTasks.length === 0) {
@@ -2489,8 +2886,12 @@ function openAddTaskModal(initialDate = null) {
   const taskDateInput = document.getElementById('taskDate');
   if (taskDateInput) {
     taskDateInput.value = targetDate;
-    taskDateInput.min = todayStr;
   }
+  const taskStartInput = document.getElementById('taskStartDate');
+  const taskEndInput = document.getElementById('taskEndDate');
+  if (taskStartInput) taskStartInput.value = targetDate;
+  if (taskEndInput) taskEndInput.value = targetDate;
+
   document.getElementById('taskPriority').value = 'medium';
   document.getElementById('taskNote').value = '';
   document.getElementById('modalTitle').textContent = 'Thêm nhiệm vụ vào lịch';
@@ -2542,6 +2943,10 @@ function openAddTaskModalForParent(parentId) {
   toggleTaskFormTagRow();
   // Để trống ngày để task mới lưu thẳng vào Kho (chờ xếp lịch)
   document.getElementById('taskDate').value = '';
+  const taskStartInput = document.getElementById('taskStartDate');
+  const taskEndInput = document.getElementById('taskEndDate');
+  if (taskStartInput) taskStartInput.value = '';
+  if (taskEndInput) taskEndInput.value = '';
   updateAllDatePickerDisplays();
   document.getElementById('taskTitle').focus();
 }
@@ -2624,6 +3029,15 @@ function openEditTaskModal(taskId) {
 
   titleInput.value = task.title;
   dateInput.value = task.date || '';
+  const taskStart = document.getElementById('taskStartDate');
+  const taskEnd = document.getElementById('taskEndDate');
+  if (task.seriesRange) {
+    if (taskStart) taskStart.value = task.seriesRange.start || task.date || '';
+    if (taskEnd) taskEnd.value = task.seriesRange.end || task.date || '';
+  } else {
+    if (taskStart) taskStart.value = task.date || '';
+    if (taskEnd) taskEnd.value = task.date || '';
+  }
   prioritySelect.value = task.priority || 'medium';
   noteInput.value = task.note || '';
   updateAllDatePickerDisplays();
@@ -2701,17 +3115,17 @@ async function handleAddDefinedTaskSubmit(e) {
     return;
   }
   const selectDefined = document.getElementById('selectDefinedTaskId');
-  const dateInput = document.getElementById('definedTaskDate');
   const selectedTaskId = selectDefined ? selectDefined.value : null;
-  const targetDate = dateInput ? dateInput.value : null;
+  const startDate = document.getElementById('definedTaskStartDate')?.value || document.getElementById('definedTaskDate')?.value;
+  const endDate = document.getElementById('definedTaskEndDate')?.value || startDate;
 
-  if (!selectedTaskId || !targetDate) {
+  if (!selectedTaskId || !startDate) {
     alert('Vui lòng chọn nhiệm vụ từ kho và ngày cần xếp lịch!');
     return;
   }
 
   // Chặn xếp lịch vào ngày quá khứ
-  if (targetDate < getTodayStr()) {
+  if (startDate < getTodayStr()) {
     showToast({
       type: 'error',
       title: 'Không hợp lệ',
@@ -2722,8 +3136,39 @@ async function handleAddDefinedTaskSubmit(e) {
 
   const task = state.tasks.find(t => t.id === selectedTaskId);
   if (task) {
-    task.date = targetDate;
-    await saveSingleTask(task);
+    if (endDate && startDate < endDate) {
+      const dates = getDatesInRange(startDate, endDate);
+      const seriesId = 'series_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+      task.date = dates[0];
+      task.seriesId = seriesId;
+      task.seriesRange = { start: startDate, end: endDate, totalDays: dates.length };
+
+      for (let i = 1; i < dates.length; i++) {
+        const clone = {
+          ...task,
+          id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4) + '_' + i,
+          date: dates[i],
+          completed: false,
+          replanCount: 0,
+          createdAt: new Date().toISOString()
+        };
+        state.tasks.push(clone);
+      }
+      await saveCurrentTasks();
+      showToast({
+        type: 'success',
+        title: 'Xếp lịch chuỗi thành công',
+        message: `Đã xếp nhiệm vụ "${escapeHtml(task.title)}" cho chuỗi ${dates.length} ngày từ ${formatPrettyDate(startDate)} đến ${formatPrettyDate(endDate)}!`
+      });
+    } else {
+      task.date = startDate;
+      await saveSingleTask(task);
+      showToast({
+        type: 'success',
+        title: 'Xếp lịch thành công',
+        message: `Đã xếp nhiệm vụ "${escapeHtml(task.title)}" vào ngày ${formatPrettyDate(startDate)}!`
+      });
+    }
     closeTaskModal();
     renderApp();
     if (!taskManagerModal.classList.contains('hidden')) {
@@ -3047,7 +3492,7 @@ function renderTaskManagerContent() {
             </div>
           ` : `
             <!-- 1. Danh sách nhiệm vụ đang thực hiện (Chưa xong) -->
-            ${activeSubtasks.length > 0 ? activeSubtasks.map(task => renderTaskManagerSubtaskRow(task)).join('') : `
+            ${activeSubtasks.length > 0 ? renderTaskManagerSubtaskList(activeSubtasks) : `
               <div class="p-4 text-center text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 flex items-center justify-center gap-2">
                 <i data-lucide="sparkles" class="w-4 h-4"></i>
                 <span class="font-semibold">Tất cả nhiệm vụ của mục tiêu này đã hoàn thành xuất sắc!</span>
@@ -3068,7 +3513,7 @@ function renderTaskManagerContent() {
                   </div>
                 </button>
                 <div id="tmCompleted_${parent.id}" class="${isCompletedExpanded ? '' : 'hidden'} divide-y divide-slate-100 dark:divide-slate-800 bg-slate-50/30 dark:bg-slate-900/30">
-                  ${completedSubtasks.map(task => renderTaskManagerSubtaskRow(task)).join('')}
+                  ${renderTaskManagerSubtaskList(completedSubtasks)}
                 </div>
               </div>
             ` : ''}
@@ -3101,7 +3546,7 @@ function renderTaskManagerContent() {
               Không có nhiệm vụ độc lập nào thỏa mãn bộ lọc.
             </div>
           ` : `
-            ${activeSubtasks.length > 0 ? activeSubtasks.map(task => renderTaskManagerSubtaskRow(task)).join('') : `
+            ${activeSubtasks.length > 0 ? renderTaskManagerSubtaskList(activeSubtasks) : `
               <div class="p-4 text-center text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 flex items-center justify-center gap-2">
                 <i data-lucide="sparkles" class="w-4 h-4"></i>
                 <span class="font-semibold">Tất cả nhiệm vụ độc lập đã hoàn thành!</span>
@@ -3121,7 +3566,7 @@ function renderTaskManagerContent() {
                   </div>
                 </button>
                 <div id="tmCompleted___unassigned__" class="${isCompletedExpanded ? '' : 'hidden'} divide-y divide-slate-100 dark:divide-slate-800 bg-slate-50/30 dark:bg-slate-900/30">
-                  ${completedSubtasks.map(task => renderTaskManagerSubtaskRow(task)).join('')}
+                  ${renderTaskManagerSubtaskList(completedSubtasks)}
                 </div>
               </div>
             ` : ''}
@@ -3253,6 +3698,184 @@ function renderTaskManagerSubtaskRow(task) {
     </div>
   `;
 }
+
+function toggleTaskManagerSeriesAccordion(seriesId) {
+  state.tmExpandedSeries = state.tmExpandedSeries || {};
+  state.tmExpandedSeries[seriesId] = !state.tmExpandedSeries[seriesId];
+  renderTaskManagerContent();
+}
+
+async function deleteTaskSeries(seriesId) {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+  const seriesTasks = state.tasks.filter(t => t.seriesId === seriesId);
+  if (seriesTasks.length === 0) return;
+  const sampleTitle = seriesTasks[0].title;
+  const count = seriesTasks.length;
+
+  if (!confirm(`Bạn có chắc chắn muốn xóa toàn bộ chuỗi ${count} ngày của nhiệm vụ "${sampleTitle}" không?`)) {
+    return;
+  }
+
+  const idsToDelete = seriesTasks.map(t => t.id);
+  state.tasks = state.tasks.filter(t => t.seriesId !== seriesId);
+  saveTasksToStorage(state.tasks);
+
+  if (state.currentUser && window.StudyPlannerFirebase) {
+    for (const tid of idsToDelete) {
+      try {
+        await window.StudyPlannerFirebase.deleteTaskFromFirestore(state.currentUser.uid, tid);
+      } catch (err) {
+        console.warn('Lỗi xóa task Firestore trong chuỗi:', tid, err);
+      }
+    }
+  }
+
+  renderApp();
+  renderTaskManagerContent();
+  showToast({
+    type: 'success',
+    title: 'Đã xóa chuỗi nhiệm vụ',
+    message: `Đã xóa toàn bộ ${count} ngày của nhiệm vụ "${escapeHtml(sampleTitle)}".`
+  });
+}
+
+function renderTaskManagerSeriesRow(seriesId, items) {
+  const allSeriesTasks = state.tasks.filter(t => t.seriesId === seriesId);
+  allSeriesTasks.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+  const sample = allSeriesTasks[0] || (items && items[0]);
+  if (!sample) return '';
+
+  const totalDays = allSeriesTasks.length;
+  const completedCount = allSeriesTasks.filter(t => t.completed).length;
+  const pct = totalDays > 0 ? Math.round((completedCount / totalDays) * 100) : 0;
+  const isAllDone = totalDays > 0 && completedCount === totalDays;
+
+  const startDate = allSeriesTasks[0]?.date || (sample.seriesRange ? sample.seriesRange.start : sample.date);
+  const endDate = allSeriesTasks[allSeriesTasks.length - 1]?.date || (sample.seriesRange ? sample.seriesRange.end : sample.date);
+
+  state.tmExpandedSeries = state.tmExpandedSeries || {};
+  const isExpanded = Boolean(state.tmExpandedSeries[seriesId]);
+
+  const priorityBadge = {
+    high: '<span class="px-2 py-0.5 text-[10px] sm:text-xs font-bold rounded-md bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-700 shrink-0">🔥 Cao</span>',
+    medium: '<span class="px-2 py-0.5 text-[10px] sm:text-xs font-semibold rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shrink-0">Bình thường</span>',
+    low: '<span class="px-2 py-0.5 text-[10px] sm:text-xs font-medium rounded-md bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 shrink-0">Thấp</span>'
+  }[sample.priority] || '';
+
+  return `
+    <div class="rounded-xl border border-indigo-200/90 dark:border-indigo-900/60 bg-gradient-to-r from-indigo-50/40 via-white to-blue-50/30 dark:from-indigo-950/30 dark:via-slate-900 dark:to-slate-900 shadow-2xs my-2 overflow-hidden transition-all duration-200">
+      <!-- Series Header Row -->
+      <div class="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-start gap-3 flex-1 min-w-0">
+          <!-- Icon lặp chuỗi -->
+          <div class="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-sm shrink-0 border border-indigo-200/70 dark:border-indigo-800/60 shadow-2xs mt-0.5">
+            🔁
+          </div>
+
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white leading-snug">
+                ${escapeHtml(sample.title)}
+              </span>
+              <span class="px-2 py-0.5 text-xs font-black rounded-lg bg-indigo-600 text-white shadow-2xs">
+                x${totalDays} ngày
+              </span>
+              ${getParentBadgeHtml(sample)}
+              ${priorityBadge}
+              <span class="px-2 py-0.5 text-xs font-bold rounded-lg ${isAllDone ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800' : 'bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800'}">
+                Tiến độ: ${completedCount}/${totalDays} (${pct}%)
+              </span>
+            </div>
+
+            <!-- Dải ngày thực hiện & Note -->
+            <div class="flex items-center gap-2 flex-wrap mt-1.5 text-xs text-slate-600 dark:text-slate-300">
+              <span class="inline-flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-700/80">
+                <i data-lucide="calendar-range" class="w-3.5 h-3.5 text-indigo-500"></i>
+                ${formatPrettyDate(startDate)} → ${formatPrettyDate(endDate)}
+              </span>
+              ${sample.note ? `<span class="truncate max-w-xs text-slate-500 dark:text-slate-400 italic">"${escapeHtml(sample.note)}"</span>` : ''}
+            </div>
+
+            <!-- Mini Progress Bar -->
+            <div class="w-full max-w-sm bg-slate-200/80 dark:bg-slate-700/80 h-1.5 rounded-full overflow-hidden mt-2">
+              <div class="h-full ${isAllDone ? 'bg-emerald-500' : 'bg-indigo-600'} rounded-full transition-all duration-300" style="width: ${pct}%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Series Action Controls -->
+        <div class="flex items-center gap-2 self-end sm:self-center shrink-0">
+          <button 
+            type="button"
+            onclick="toggleTaskManagerSeriesAccordion('${seriesId}')" 
+            class="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-indigo-400 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+          >
+            <span>${isExpanded ? 'Thu gọn' : `Xem chi tiết (${totalDays} ngày)`}</span>
+            <i data-lucide="${isExpanded ? 'chevron-up' : 'chevron-down'}" class="w-3.5 h-3.5 text-indigo-500"></i>
+          </button>
+          ${state.isAdmin ? `
+            <button 
+              type="button"
+              onclick="deleteTaskSeries('${seriesId}')" 
+              title="Xóa toàn bộ chuỗi ${totalDays} ngày của nhiệm vụ này" 
+              class="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+            >
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+          ` : ''}
+        </div>
+      </div>
+
+      <!-- Collapsible Detailed List of Days -->
+      <div id="tmSeriesDetail_${seriesId}" class="${isExpanded ? '' : 'hidden'} border-t border-indigo-100 dark:border-indigo-900/50 bg-slate-50/50 dark:bg-slate-900/40 divide-y divide-slate-100 dark:divide-slate-800">
+        <div class="px-4 py-2 bg-indigo-50/40 dark:bg-indigo-950/20 text-[11px] font-bold text-indigo-700 dark:text-indigo-300 flex items-center justify-between">
+          <span>Chi tiết từng ngày trong chuỗi:</span>
+          <span>${completedCount}/${totalDays} ngày đã xong</span>
+        </div>
+        ${allSeriesTasks.map(t => renderTaskManagerSubtaskRow(t)).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderTaskManagerSubtaskList(tasks) {
+  if (!tasks || tasks.length === 0) return '';
+  const seriesMap = new Map();
+  const renderedSeries = new Set();
+  let html = '';
+
+  tasks.forEach(t => {
+    if (t.seriesId) {
+      if (!seriesMap.has(t.seriesId)) {
+        seriesMap.set(t.seriesId, []);
+      }
+      seriesMap.get(t.seriesId).push(t);
+    }
+  });
+
+  tasks.forEach(t => {
+    if (t.seriesId) {
+      if (!renderedSeries.has(t.seriesId)) {
+        renderedSeries.add(t.seriesId);
+        const groupItems = seriesMap.get(t.seriesId);
+        html += renderTaskManagerSeriesRow(t.seriesId, groupItems);
+      }
+    } else {
+      html += renderTaskManagerSubtaskRow(t);
+    }
+  });
+
+  return html;
+}
+
+window.toggleTaskManagerSeriesAccordion = toggleTaskManagerSeriesAccordion;
+window.deleteTaskSeries = deleteTaskSeries;
+window.renderTaskManagerSeriesRow = renderTaskManagerSeriesRow;
+window.renderTaskManagerSubtaskList = renderTaskManagerSubtaskList;
 
 // --- 8.2. PARENT TASK ADD / EDIT MODAL & RGB COLOR PICKER ---
 function renderParentColorPicker(selectedColor = '#2563eb') {
@@ -3482,14 +4105,19 @@ function openQuickScheduleModal(taskId) {
 
   const todayStr = getTodayStr();
   const currentSelected = formatDate(state.currentDate);
+  const targetDate = currentSelected < todayStr ? todayStr : currentSelected;
 
   document.getElementById('quickScheduleTaskId').value = task.id;
   document.getElementById('quickScheduleTaskTitle').textContent = task.title;
   const dateInput = document.getElementById('quickScheduleDateInput');
   if (dateInput) {
-    dateInput.min = todayStr;
-    dateInput.value = currentSelected < todayStr ? todayStr : currentSelected;
+    dateInput.value = targetDate;
   }
+  const qsStart = document.getElementById('quickScheduleStartDate');
+  const qsEnd = document.getElementById('quickScheduleEndDate');
+  if (qsStart) qsStart.value = targetDate;
+  if (qsEnd) qsEnd.value = targetDate;
+
   updateAllDatePickerDisplays();
   if (!taskManagerModal.classList.contains('hidden')) {
     pushModalStack('taskManagerDialog');
@@ -3510,15 +4138,16 @@ async function handleQuickScheduleSubmit(e) {
     return;
   }
   const taskId = document.getElementById('quickScheduleTaskId').value;
-  const date = document.getElementById('quickScheduleDateInput').value;
+  const startDate = document.getElementById('quickScheduleStartDate')?.value || document.getElementById('quickScheduleDateInput')?.value;
+  const endDate = document.getElementById('quickScheduleEndDate')?.value || startDate;
 
-  if (!taskId || !date) {
+  if (!taskId || !startDate) {
     alert('Vui lòng chọn ngày thực hiện!');
     return;
   }
 
   // Chặn xếp lịch vào ngày quá khứ
-  if (date < getTodayStr()) {
+  if (startDate < getTodayStr()) {
     showToast({
       type: 'error',
       title: 'Không hợp lệ',
@@ -3538,16 +4167,43 @@ async function handleQuickScheduleSubmit(e) {
       });
       return;
     }
-    task.date = date;
-    if (wasPast && date >= getTodayStr()) {
-      task.replanCount = (task.replanCount || 0) + 1;
+
+    if (endDate && startDate < endDate) {
+      const dates = getDatesInRange(startDate, endDate);
+      const seriesId = 'series_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+      task.date = dates[0];
+      task.seriesId = seriesId;
+      task.seriesRange = { start: startDate, end: endDate, totalDays: dates.length };
+
+      for (let i = 1; i < dates.length; i++) {
+        const clone = {
+          ...task,
+          id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4) + '_' + i,
+          date: dates[i],
+          completed: false,
+          replanCount: 0,
+          createdAt: new Date().toISOString()
+        };
+        state.tasks.push(clone);
+      }
+      await saveCurrentTasks();
       showToast({
         type: 'success',
-        title: 'Replan thành công',
-        message: `Đã dời lịch nhiệm vụ "${task.title}" sang ngày ${date}! Bây giờ bạn có thể chỉnh sửa như bình thường.`
+        title: 'Xếp lịch chuỗi thành công',
+        message: `Đã xếp nhiệm vụ "${escapeHtml(task.title)}" cho chuỗi ${dates.length} ngày từ ${formatPrettyDate(startDate)} đến ${formatPrettyDate(endDate)}!`
       });
+    } else {
+      task.date = startDate;
+      if (wasPast && startDate >= getTodayStr()) {
+        task.replanCount = (task.replanCount || 0) + 1;
+        showToast({
+          type: 'success',
+          title: 'Replan thành công',
+          message: `Đã dời lịch nhiệm vụ "${task.title}" sang ngày ${startDate}! Bây giờ bạn có thể chỉnh sửa như bình thường.`
+        });
+      }
+      await saveSingleTask(task);
     }
-    await saveSingleTask(task);
     closeQuickScheduleModal();
     renderApp();
     renderTaskManagerContent();
@@ -6039,10 +6695,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const tagInput = document.getElementById('taskFormTagInput');
     const titleVal = document.getElementById('taskTitle').value.trim();
     const tagVal = (tagInput ? tagInput.value.trim() : '') || generateParentTaskTag(titleVal) || 'TASK';
+    const startVal = document.getElementById('taskStartDate')?.value || document.getElementById('taskDate')?.value || '';
+    const endVal = document.getElementById('taskEndDate')?.value || startVal;
     await saveTaskFromForm({
       id: document.getElementById('taskId').value,
       title: titleVal,
       date: document.getElementById('taskDate').value,
+      startDate: startVal,
+      endDate: endVal,
       priority: document.getElementById('taskPriority').value,
       parentId: parentSel ? parentSel.value : '',
       note: document.getElementById('taskNote').value.trim(),
@@ -6051,34 +6711,88 @@ document.addEventListener('DOMContentLoaded', () => {
     closeTaskModal();
   });
 
-  // Lắng nghe thay đổi trên các input[type="date"] để cập nhật custom display box
+  // Lắng nghe thay đổi trên các input để cập nhật custom display box
   ['taskDate', 'definedTaskDate', 'quickScheduleDateInput'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', updateAllDatePickerDisplays);
       el.addEventListener('change', updateAllDatePickerDisplays);
-      el.addEventListener('click', () => {
-        if (typeof el.showPicker === 'function') {
-          try { el.showPicker(); } catch (err) {}
-        }
-      });
     }
   });
 
-  ['taskDateContainer', 'definedTaskDateContainer', 'quickScheduleDateContainer'].forEach((containerId, idx) => {
-    const c = document.getElementById(containerId);
-    const inputId = ['taskDate', 'definedTaskDate', 'quickScheduleDateInput'][idx];
-    const input = document.getElementById(inputId);
-    if (c && input) {
-      c.addEventListener('click', () => {
-        if (typeof input.showPicker === 'function') {
-          try { input.showPicker(); } catch (err) {}
-        } else {
-          input.focus();
+  // Click vào các ô chọn ngày mở Bộ chọn khoảng ngày trực quan (Grafana Range Calendar)
+  const taskDateCont = document.getElementById('taskDateContainer');
+  if (taskDateCont) {
+    taskDateCont.addEventListener('click', () => {
+      openRangeCalendarModal({
+        startDate: document.getElementById('taskStartDate')?.value || document.getElementById('taskDate')?.value,
+        endDate: document.getElementById('taskEndDate')?.value || document.getElementById('taskStartDate')?.value || document.getElementById('taskDate')?.value,
+        targetCallback: (start, end) => {
+          const inputDate = document.getElementById('taskDate');
+          const inputStart = document.getElementById('taskStartDate');
+          const inputEnd = document.getElementById('taskEndDate');
+          if (inputDate) inputDate.value = start;
+          if (inputStart) inputStart.value = start;
+          if (inputEnd) inputEnd.value = end;
+          updateCustomDatePickerDisplay('taskDate', 'taskDateDisplay');
         }
       });
-    }
-  });
+    });
+  }
+
+  const definedDateCont = document.getElementById('definedTaskDateContainer');
+  if (definedDateCont) {
+    definedDateCont.addEventListener('click', () => {
+      openRangeCalendarModal({
+        startDate: document.getElementById('definedTaskStartDate')?.value || document.getElementById('definedTaskDate')?.value,
+        endDate: document.getElementById('definedTaskEndDate')?.value || document.getElementById('definedTaskStartDate')?.value || document.getElementById('definedTaskDate')?.value,
+        targetCallback: (start, end) => {
+          const inputDate = document.getElementById('definedTaskDate');
+          const inputStart = document.getElementById('definedTaskStartDate');
+          const inputEnd = document.getElementById('definedTaskEndDate');
+          if (inputDate) inputDate.value = start;
+          if (inputStart) inputStart.value = start;
+          if (inputEnd) inputEnd.value = end;
+          updateCustomDatePickerDisplay('definedTaskDate', 'definedTaskDateDisplay');
+        }
+      });
+    });
+  }
+
+  const quickSchedDateCont = document.getElementById('quickScheduleDateContainer');
+  if (quickSchedDateCont) {
+    quickSchedDateCont.addEventListener('click', () => {
+      openRangeCalendarModal({
+        startDate: document.getElementById('quickScheduleStartDate')?.value || document.getElementById('quickScheduleDateInput')?.value,
+        endDate: document.getElementById('quickScheduleEndDate')?.value || document.getElementById('quickScheduleStartDate')?.value || document.getElementById('quickScheduleDateInput')?.value,
+        targetCallback: (start, end) => {
+          const inputDate = document.getElementById('quickScheduleDateInput');
+          const inputStart = document.getElementById('quickScheduleStartDate');
+          const inputEnd = document.getElementById('quickScheduleEndDate');
+          if (inputDate) inputDate.value = start;
+          if (inputStart) inputStart.value = start;
+          if (inputEnd) inputEnd.value = end;
+          updateCustomDatePickerDisplay('quickScheduleDateInput', 'quickScheduleDateDisplay');
+        }
+      });
+    });
+  }
+
+  // Điều khiển Modal Range Calendar
+  document.getElementById('btnRangeCalPrevMonth')?.addEventListener('click', () => changeRangeCalMonth(-1));
+  document.getElementById('btnRangeCalNextMonth')?.addEventListener('click', () => changeRangeCalMonth(1));
+  document.getElementById('btnCloseRangeCalendar')?.addEventListener('click', closeRangeCalendarModal);
+  document.getElementById('btnRangeCalCancel')?.addEventListener('click', closeRangeCalendarModal);
+  document.getElementById('btnRangeCalToday')?.addEventListener('click', setRangeCalToday);
+  document.getElementById('btnRangeCalClear')?.addEventListener('click', clearRangeCalSelection);
+  document.getElementById('btnRangeCalApply')?.addEventListener('click', applyRangeCalSelection);
+  if (rangeCalendarModal) {
+    rangeCalendarModal.addEventListener('click', (e) => {
+      if (e.target === rangeCalendarModal) {
+        closeRangeCalendarModal();
+      }
+    });
+  }
 
   const taskParentSel = document.getElementById('taskParentSelect');
   if (taskParentSel) {
