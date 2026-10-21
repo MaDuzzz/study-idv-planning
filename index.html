@@ -428,18 +428,9 @@
       top: max(calc(env(safe-area-inset-top, 0px) + 12px), 1.25rem) !important;
     }
 
-    /* Đường viền uốn lượn (Curved Notch) cho nút (+) Dock Mobile */
-    .dock-wave-bg {
-      fill: #ffffff;
-    }
-    html.dark .dock-wave-bg {
-      fill: #0f172a;
-    }
-    .dock-wave-stroke {
-      stroke: #e2e8f0;
-    }
-    html.dark .dock-wave-stroke {
-      stroke: #1e293b;
+    /* Tối ưu khoảng trống an toàn dưới đáy cho Floating Bubble Dock iOS 18 */
+    #mobileBottomNav {
+      padding-bottom: max(env(safe-area-inset-bottom, 0px), 0px);
     }
 
     /* Chống lỗi tự động zoom lố trên iOS Safari khi focus vào input */
@@ -773,7 +764,7 @@
     }
   </style>
 </head>
-<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-[100dvh] flex flex-col font-sans antialiased text-sm pb-24 md:pb-0">
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-[100dvh] flex flex-col font-sans antialiased text-sm pb-16 md:pb-0">
 
   <!-- Header: Cố định top-0 & tràn nền dưới Status Bar / Dynamic Island chuẩn Native iOS -->
   <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 shadow-xs">
@@ -2490,55 +2481,49 @@
   </div>
 
   <!-- ======================================================== -->
-  <!-- MOBILE BOTTOM NAVIGATION DOCK (DÀNH RIÊNG CHO IPHONE & MOBILE) -->
+  <!-- MOBILE FLOATING BUBBLE DOCK (PHONG CÁCH LIQUID / BUBBLE iOS 18) -->
   <!-- ======================================================== -->
-  <nav id="mobileBottomNav" class="fixed bottom-0 inset-x-0 z-40 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 md:hidden transition-all duration-200 px-3 pt-1.5 pb-[max(env(safe-area-inset-bottom,0px),0.5rem)] shadow-lg shadow-slate-900/10">
-    <!-- SVG Curved Wave Notch (Uốn lượn ôm trọn nút + ở giữa phong cách hiện đại) -->
-    <div class="absolute -top-[27px] left-1/2 -translate-x-1/2 w-[140px] h-[30px] pointer-events-none overflow-visible select-none z-0">
-      <svg viewBox="0 0 140 30" class="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-        <path d="M 0,28 C 30,28 38,2 70,2 C 102,2 110,28 140,28 L 140,32 L 0,32 Z" class="dock-wave-bg" />
-        <path d="M 0,28 C 30,28 38,2 70,2 C 102,2 110,28 140,28" fill="none" class="dock-wave-stroke" stroke-width="1.25" stroke-linecap="round" />
-      </svg>
-    </div>
-
-    <div class="flex items-center justify-around max-w-lg mx-auto relative z-10">
+  <div id="mobileBottomNav" class="fixed bottom-2.5 inset-x-0 z-40 flex justify-center pointer-events-none md:hidden transition-all duration-300 px-3">
+    <nav class="pointer-events-auto flex items-center gap-1 sm:gap-1.5 px-2.5 py-1.5 rounded-full bg-white/85 dark:bg-slate-900/85 backdrop-blur-2xl border border-slate-200/80 dark:border-white/10 shadow-xl shadow-slate-950/15 dark:shadow-black/40 ring-1 ring-black/5 dark:ring-white/5">
+      
       <!-- Tab 1: Ngày -->
-      <button type="button" data-mobile-view="day" class="mobile-dock-btn flex-1 py-1 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 font-medium hover:text-slate-800 dark:hover:text-slate-200 transition">
-        <i data-lucide="calendar" class="w-5 h-5 mb-0.5"></i>
-        <span class="text-[11px] font-semibold leading-none">Ngày</span>
+      <button type="button" data-mobile-view="day" class="mobile-dock-btn px-2.5 sm:px-3 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-all active:scale-90 cursor-pointer">
+        <i data-lucide="calendar" class="w-4 h-4 shrink-0"></i>
+        <span class="text-[11px] font-semibold">Ngày</span>
       </button>
 
       <!-- Tab 2: Tuần (Mặc định) -->
-      <button type="button" data-mobile-view="week" class="mobile-dock-btn flex-1 py-1 flex flex-col items-center justify-center text-blue-600 dark:text-blue-400 font-bold transition">
-        <i data-lucide="columns" class="w-5 h-5 mb-0.5"></i>
-        <span class="text-[11px] font-semibold leading-none">Tuần</span>
+      <button type="button" data-mobile-view="week" class="mobile-dock-btn px-2.5 sm:px-3 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-bold bg-blue-600/10 dark:bg-blue-400/15 text-blue-600 dark:text-blue-400 shadow-2xs transition-all active:scale-90 cursor-pointer">
+        <i data-lucide="columns" class="w-4 h-4 shrink-0"></i>
+        <span class="text-[11px] font-bold">Tuần</span>
       </button>
 
-      <!-- Nút nổi bật: Thêm Task (+) Phong cách Soft Gradient FAB đồng bộ màu chủ đạo -->
-      <div class="flex-1 flex justify-center -mt-6 relative z-10">
+      <!-- Nút Thêm Task (+) Nổi bật ở chính giữa Capsule: Nút bong bóng tròn Gradient iOS 18 -->
+      <div class="px-0.5 sm:px-1 flex items-center">
         <button 
           type="button" 
           id="btnMobileQuickAdd" 
           title="Thêm nhiệm vụ mới" 
-          class="w-[52px] h-[52px] rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-400 text-white shadow-lg shadow-blue-500/35 dark:shadow-indigo-500/40 ring-4 ring-blue-500/15 dark:ring-blue-400/20 border border-white/30 flex items-center justify-center active:scale-90 hover:scale-105 transition-all duration-300 ease-out cursor-pointer"
+          class="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-400 text-white shadow-md shadow-blue-500/35 border border-white/30 flex items-center justify-center active:scale-85 hover:scale-105 transition-all duration-200 cursor-pointer"
         >
-          <i data-lucide="plus" class="w-6 h-6 stroke-[2.5] drop-shadow-xs"></i>
+          <i data-lucide="plus" class="w-5 h-5 stroke-[2.5]"></i>
         </button>
       </div>
 
       <!-- Tab 3: Tháng -->
-      <button type="button" data-mobile-view="month" class="mobile-dock-btn flex-1 py-1 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 font-medium hover:text-slate-800 dark:hover:text-slate-200 transition">
-        <i data-lucide="layout-grid" class="w-5 h-5 mb-0.5"></i>
-        <span class="text-[11px] font-semibold leading-none">Tháng</span>
+      <button type="button" data-mobile-view="month" class="mobile-dock-btn px-2.5 sm:px-3 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-all active:scale-90 cursor-pointer">
+        <i data-lucide="layout-grid" class="w-4 h-4 shrink-0"></i>
+        <span class="text-[11px] font-semibold">Tháng</span>
       </button>
 
       <!-- Tab 4: Năm -->
-      <button type="button" data-mobile-view="year" class="mobile-dock-btn flex-1 py-1 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 font-medium hover:text-slate-800 dark:hover:text-slate-200 transition">
-        <i data-lucide="flame" class="w-5 h-5 mb-0.5"></i>
-        <span class="text-[11px] font-semibold leading-none">Năm</span>
+      <button type="button" data-mobile-view="year" class="mobile-dock-btn px-2.5 sm:px-3 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-all active:scale-90 cursor-pointer">
+        <i data-lucide="flame" class="w-4 h-4 shrink-0"></i>
+        <span class="text-[11px] font-semibold">Năm</span>
       </button>
-    </div>
-  </nav>
+
+    </nav>
+  </div>
 
   <!-- MODAL / POPOVER: BỘ CHỌN KHOẢNG NGÀY (DATE RANGE PICKER PHONG CÁCH GRAFANA) -->
   <div id="rangeCalendarModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[100] modal-layer-child hidden flex items-center justify-center p-3 sm:p-4">
@@ -2604,8 +2589,8 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=8.10"></script>
-  <script src="app.js?v=8.10"></script>
+  <script src="firebase-config.js?v=8.11"></script>
+  <script src="app.js?v=8.11"></script>
 
   <!-- Đăng ký Service Worker cho Progressive Web App (PWA) -->
   <script>

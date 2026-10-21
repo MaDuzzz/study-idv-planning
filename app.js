@@ -1717,9 +1717,9 @@ function renderWeekView() {
           : 'bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-800 dark:text-slate-100 font-bold');
 
     return `
-      <!-- Cột ngày tràn vừa khít khoảng trống giữa màn hình trên iPhone (h-[calc(100dvh-280px)]), 530px trên desktop (2K: 610px) -->
+      <!-- Cột ngày tràn vừa khít khoảng trống giữa màn hình trên iPhone (h-[calc(100dvh-248px)]), 530px trên desktop (2K: 610px) -->
       <div 
-        class="day-dropzone rounded-2xl border transition-all duration-200 flex flex-col h-[calc(100dvh-280px)] sm:h-[530px] 2xl:h-[610px] min-h-[480px] snap-center shrink-0 ${dayCardClasses}"
+        class="day-dropzone rounded-2xl border transition-all duration-200 flex flex-col h-[calc(100dvh-248px)] sm:h-[530px] 2xl:h-[610px] min-h-[460px] snap-center shrink-0 ${dayCardClasses}"
         data-is-past="${isPast ? 'true' : 'false'}"
         data-is-today="${isToday ? 'true' : 'false'}"
         ${isPast ? '' : `
@@ -2261,13 +2261,13 @@ function switchView(viewName) {
     }
   });
 
-  // Đồng bộ trạng thái active trên Mobile Bottom Nav Dock
+  // Đồng bộ trạng thái active trên Mobile Bottom Nav Dock (Bubble Style iOS 18)
   document.querySelectorAll('.mobile-dock-btn').forEach(btn => {
     const isTarget = btn.getAttribute('data-mobile-view') === viewName;
     if (isTarget) {
-      btn.className = 'mobile-dock-btn flex-1 py-1 flex flex-col items-center justify-center text-blue-600 dark:text-blue-400 font-bold transition';
+      btn.className = 'mobile-dock-btn px-2.5 sm:px-3 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-bold bg-blue-600/10 dark:bg-blue-400/15 text-blue-600 dark:text-blue-400 shadow-2xs transition-all active:scale-90 cursor-pointer';
     } else {
-      btn.className = 'mobile-dock-btn flex-1 py-1 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 font-medium hover:text-slate-800 dark:hover:text-slate-200 transition';
+      btn.className = 'mobile-dock-btn px-2.5 sm:px-3 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-all active:scale-90 cursor-pointer';
     }
   });
 
