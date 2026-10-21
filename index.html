@@ -1423,7 +1423,7 @@
       </div>
 
       <!-- Thống kê nhanh trong kho -->
-      <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs sm:text-sm">
+      <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs sm:text-sm shrink-0">
         <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/80">
           <div class="text-slate-500 dark:text-slate-400 font-medium">Task tổng (Mục tiêu)</div>
           <div id="statTotalParents" class="text-xl font-black text-slate-900 dark:text-white mt-0.5">0</div>
@@ -1443,7 +1443,7 @@
       </div>
 
       <!-- Filter & Search Toolbar -->
-      <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-850 text-xs">
+      <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-850 text-xs shrink-0">
         <div class="flex items-center gap-1.5 flex-wrap" id="taskManagerFilterTabs">
           <button data-filter="all" class="tm-filter-btn px-3 py-1.5 rounded-lg font-bold bg-blue-600 text-white shadow-2xs">Tất cả</button>
           <button data-filter="unscheduled" class="tm-filter-btn px-3 py-1.5 rounded-lg font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700">⏳ Chưa lên lịch (Backlog)</button>
@@ -1457,15 +1457,36 @@
         </div>
       </div>
 
-      <!-- Scrollable Parent Task Cards Container -->
-      <div id="taskManagerCardsContainer" class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+      <!-- Thanh điều hướng Slide View (Mỗi Mục tiêu / Task tổng là 1 Slide) -->
+      <div id="taskManagerSlideNav" class="px-3.5 sm:px-6 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-850 flex items-center justify-between gap-2 shrink-0">
+        <!-- Nút Slide trước -->
+        <button type="button" id="btnPrevTaskManagerSlide" title="Mục tiêu trước (← hoặc vuốt phải)" class="w-8 h-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed shrink-0 shadow-2xs cursor-pointer">
+          <i data-lucide="chevron-left" class="w-4 h-4"></i>
+        </button>
+
+        <!-- Danh sách Slide Tabs cuộn ngang mượt mà trên iPhone & Web -->
+        <div id="taskManagerSlideTabsContainer" class="flex-1 flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5">
+          <!-- Rendered dynamically by JS -->
+        </div>
+
+        <!-- Chỉ số trang & Nút Slide tiếp theo -->
+        <div class="flex items-center gap-1.5 shrink-0">
+          <span id="taskManagerSlideCounter" class="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 hidden sm:inline-block px-1">1 / 1</span>
+          <button type="button" id="btnNextTaskManagerSlide" title="Mục tiêu tiếp theo (→ hoặc vuốt trái)" class="w-8 h-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed shrink-0 shadow-2xs cursor-pointer">
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Slide Card View Container (Mỗi mục tiêu là 1 Slide) -->
+      <div id="taskManagerCardsContainer" class="flex-1 min-h-0 overflow-y-auto p-3.5 sm:p-6 transition-all duration-200">
         <!-- Rendered by JS -->
       </div>
 
       <!-- Modal Footer -->
-      <div class="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-850">
-        <span class="text-xs text-slate-500 dark:text-slate-400">💡 Bấm vào tên sub-task để mở bộ soạn thảo Word (.docx) và quản lý tài liệu.</span>
-        <button id="btnCloseTaskManagerModalBtm" class="px-5 py-2 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition">
+      <div class="p-3.5 sm:p-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-slate-50/70 dark:bg-slate-850 shrink-0">
+        <span class="text-xs text-slate-500 dark:text-slate-400">💡 Vuốt ngang hoặc bấm mũi tên để chuyển mục tiêu. Bấm vào tên sub-task để mở Word (.docx).</span>
+        <button id="btnCloseTaskManagerModalBtm" class="px-5 py-2 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition self-end sm:self-auto cursor-pointer">
           Đóng kho
         </button>
       </div>
@@ -2429,8 +2450,8 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=8.5"></script>
-  <script src="app.js?v=8.5"></script>
+  <script src="firebase-config.js?v=8.6"></script>
+  <script src="app.js?v=8.6"></script>
 
   <!-- Đăng ký Service Worker cho Progressive Web App (PWA) -->
   <script>

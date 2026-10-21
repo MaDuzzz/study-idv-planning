@@ -2732,8 +2732,80 @@ async function handleAddDefinedTaskSubmit(e) {
   }
 }
 
-// --- 8.1. TASK MANAGER HUB (KHO NHIỆM VỤ & QUẢN LÝ TASK TỔNG) ---
-function openTaskManagerModal() {
+// --- 8.1. TASK MANAGER HUB (KHO NHIỆM VỤ & QUẢN LÝ TASK TỔNG DẠNG SLIDE VIEW) ---
+state.taskManagerActiveSlideIndex = 0;
+state.tmExpandedCompleted = {};
+
+function getTaskManagerSlides() {
+  const slides = [];
+  (state.parentTasks || []).forEach(parent => {
+    slides.push({
+      type: 'parent',
+      id: parent.id,
+      title: parent.title,
+      tag: getParentTag(parent),
+      color: parent.color,
+      parent: parent
+    });
+  });
+
+  const unassigned = (state.tasks || []).filter(t => !t.parentId || !getParentTask(t.parentId));
+  if (unassigned.length > 0 || (state.parentTasks || []).length === 0) {
+    slides.push({
+      type: 'unassigned',
+      id: '__unassigned__',
+      title: 'Nhiệm vụ độc lập',
+      tag: 'OTHER',
+      color: '#64748b',
+      parent: null
+    });
+  }
+  return slides;
+}
+
+function goToTaskManagerSlide(index) {
+  const slides = getTaskManagerSlides();
+  if (index >= 0 && index < slides.length) {
+    state.taskManagerActiveSlideIndex = index;
+    renderTaskManagerContent();
+  }
+}
+
+function prevTaskManagerSlide() {
+  if (state.taskManagerActiveSlideIndex > 0) {
+    state.taskManagerActiveSlideIndex--;
+    renderTaskManagerContent();
+  }
+}
+
+function nextTaskManagerSlide() {
+  const slides = getTaskManagerSlides();
+  if (state.taskManagerActiveSlideIndex < slides.length - 1) {
+    state.taskManagerActiveSlideIndex++;
+    renderTaskManagerContent();
+  }
+}
+
+function toggleTaskManagerCompletedSection(slideId) {
+  state.tmExpandedCompleted[slideId] = !state.tmExpandedCompleted[slideId];
+  const listEl = document.getElementById(`tmCompleted_${slideId}`);
+  const iconEl = document.getElementById(`tmCompletedIcon_${slideId}`);
+  const textEl = document.getElementById(`tmCompletedText_${slideId}`);
+  if (listEl) {
+    if (state.tmExpandedCompleted[slideId]) {
+      listEl.classList.remove('hidden');
+      if (iconEl) iconEl.setAttribute('data-lucide', 'chevron-up');
+      if (textEl) textEl.textContent = 'Thu gọn';
+    } else {
+      listEl.classList.add('hidden');
+      if (iconEl) iconEl.setAttribute('data-lucide', 'chevron-down');
+      if (textEl) textEl.textContent = 'Xem chi tiết';
+    }
+    lucide.createIcons();
+  }
+}
+
+function openTaskManagerModal(targetParentId) {
   if (!state.isAdmin) {
     openLoginModal();
     return;
@@ -2743,6 +2815,17 @@ function openTaskManagerModal() {
   const searchInput = document.getElementById('searchTaskManagerInput');
   if (searchInput) searchInput.value = '';
   updateTaskManagerFilterButtons();
+
+  const slides = getTaskManagerSlides();
+  if (targetParentId) {
+    const foundIdx = slides.findIndex(s => s.id === targetParentId);
+    if (foundIdx !== -1) {
+      state.taskManagerActiveSlideIndex = foundIdx;
+    }
+  } else if (typeof state.taskManagerActiveSlideIndex !== 'number' || state.taskManagerActiveSlideIndex >= slides.length) {
+    state.taskManagerActiveSlideIndex = 0;
+  }
+
   renderTaskManagerContent();
   animateModalOpen(taskManagerModal, 'taskManagerDialog');
   document.getElementById('userDropdown').classList.add('hidden');
@@ -2774,6 +2857,7 @@ function updateTaskManagerFilterButtons() {
 
 function renderTaskManagerContent() {
   const container = document.getElementById('taskManagerCardsContainer');
+  const slideNav = document.getElementById('taskManagerSlideNav');
   if (!container) return;
 
   // Thống kê toàn kho
@@ -2817,8 +2901,11 @@ function renderTaskManagerContent() {
     return true;
   });
 
-  // Render cards
+  const slides = getTaskManagerSlides();
+
+  // Kiểm tra kho trống
   if (state.parentTasks.length === 0 && state.tasks.length === 0) {
+    if (slideNav) slideNav.classList.add('hidden');
     container.innerHTML = `
       <div class="text-center py-16 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-8">
         <i data-lucide="layers" class="w-12 h-12 text-blue-500 mx-auto mb-3 opacity-80"></i>
@@ -2826,7 +2913,7 @@ function renderTaskManagerContent() {
         <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
           Tạo các Task tổng (mục tiêu lớn trong năm) và phân rã các nhiệm vụ con (sub-tasks) để chuẩn bị xếp vào lịch học tập & công việc.
         </p>
-        <button onclick="openAddParentTaskModal()" class="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition inline-flex items-center gap-2">
+        <button onclick="openAddParentTaskModal()" class="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition inline-flex items-center gap-2 cursor-pointer">
           <i data-lucide="plus" class="w-4 h-4"></i> Thêm parentTask đầu tiên
         </button>
       </div>
@@ -2835,17 +2922,76 @@ function renderTaskManagerContent() {
     return;
   }
 
-  let html = '';
+  if (slideNav) slideNav.classList.remove('hidden');
 
-  // Render từng Parent Task
-  state.parentTasks.forEach(parent => {
+  // Đảm bảo chỉ số slide luôn nằm trong dải hợp lệ
+  if (typeof state.taskManagerActiveSlideIndex !== 'number' || state.taskManagerActiveSlideIndex < 0) {
+    state.taskManagerActiveSlideIndex = 0;
+  }
+  if (state.taskManagerActiveSlideIndex >= slides.length) {
+    state.taskManagerActiveSlideIndex = Math.max(0, slides.length - 1);
+  }
+
+  // 1. Render Slide Tabs & Cập nhật Điều hướng Slide
+  const tabsContainer = document.getElementById('taskManagerSlideTabsContainer');
+  if (tabsContainer) {
+    tabsContainer.innerHTML = slides.map((s, idx) => {
+      const isActive = idx === state.taskManagerActiveSlideIndex;
+      const allSubtasks = s.type === 'parent'
+        ? state.tasks.filter(t => t.parentId === s.id)
+        : state.tasks.filter(t => !t.parentId || !getParentTask(t.parentId));
+      const completedCount = allSubtasks.filter(t => t.completed).length;
+      const totalCount = allSubtasks.length;
+      const palette = s.type === 'parent' ? getParentColorConfig(s.color) : { dot: 'bg-slate-400', badge: 'bg-slate-100 text-slate-700' };
+
+      return `
+        <button type="button" onclick="goToTaskManagerSlide(${idx})" class="tm-slide-tab px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 border cursor-pointer active:scale-95 ${
+          isActive
+            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/60'
+        }" data-slide-idx="${idx}">
+          <span class="w-2.5 h-2.5 rounded-full shrink-0 ${isActive ? 'bg-white' : palette.dot}" style="${!isActive && palette.dotStyle ? palette.dotStyle : ''}"></span>
+          <span class="truncate max-w-[110px] sm:max-w-[170px]">${escapeHtml(s.title)}</span>
+          <span class="px-1.5 py-0.5 text-[10px] font-mono font-bold rounded-md shrink-0 ${
+            isActive ? 'bg-blue-700/80 text-blue-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+          }">
+            ${completedCount}/${totalCount}
+          </span>
+        </button>
+      `;
+    }).join('');
+
+    // Tự động cuộn tab đang chọn vào vùng nhìn thấy của container
+    const activeTabEl = tabsContainer.querySelector(`.tm-slide-tab[data-slide-idx="${state.taskManagerActiveSlideIndex}"]`);
+    if (activeTabEl) {
+      activeTabEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }
+
+  const btnPrev = document.getElementById('btnPrevTaskManagerSlide');
+  const btnNext = document.getElementById('btnNextTaskManagerSlide');
+  const counterEl = document.getElementById('taskManagerSlideCounter');
+  if (btnPrev) btnPrev.disabled = state.taskManagerActiveSlideIndex === 0;
+  if (btnNext) btnNext.disabled = state.taskManagerActiveSlideIndex === slides.length - 1;
+  if (counterEl) counterEl.textContent = `${state.taskManagerActiveSlideIndex + 1} / ${slides.length}`;
+
+  // 2. Render Nội dung Slide hiện tại (Current Active Slide)
+  const curSlide = slides[state.taskManagerActiveSlideIndex];
+  let slideHtml = '';
+
+  if (curSlide.type === 'parent') {
+    const parent = curSlide.parent;
     const parentSubtasks = filteredTasks.filter(t => t.parentId === parent.id);
     const allParentSubtasks = state.tasks.filter(t => t.parentId === parent.id);
     const parentCompletedCount = allParentSubtasks.filter(t => t.completed).length;
     const parentPct = allParentSubtasks.length > 0 ? Math.round((parentCompletedCount / allParentSubtasks.length) * 100) : 0;
     const palette = getParentColorConfig(parent.color);
 
-    html += `
+    const activeSubtasks = parentSubtasks.filter(t => !t.completed);
+    const completedSubtasks = parentSubtasks.filter(t => t.completed);
+    const isCompletedExpanded = Boolean(state.taskManagerFilter === 'completed' || state.tmExpandedCompleted[parent.id]);
+
+    slideHtml = `
       <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden transition-all">
         <!-- Parent Card Header -->
         <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${palette.cardHeader}" style="${palette.cardHeaderStyle || ''}">
@@ -2862,19 +3008,24 @@ function renderTaskManagerContent() {
                 </span>
               </div>
               ${parent.description ? `<p class="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">${escapeHtml(parent.description)}</p>` : ''}
+              
+              <!-- Thanh tiến độ trực quan -->
+              <div class="w-full max-w-md bg-slate-200/80 dark:bg-slate-700/80 h-1.5 rounded-full overflow-hidden mt-2.5">
+                <div class="h-full bg-blue-600 dark:bg-blue-500 rounded-full transition-all duration-300" style="width: ${parentPct}%"></div>
+              </div>
             </div>
           </div>
 
           <!-- Parent Action Buttons -->
           <div class="flex items-center gap-1.5 self-end sm:self-center shrink-0">
-            <button onclick="openAddTaskModalForParent('${parent.id}')" title="Thêm subtask cho mục tiêu này" class="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs">
+            <button onclick="openAddTaskModalForParent('${parent.id}')" title="Thêm subtask cho mục tiêu này" class="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer">
               <i data-lucide="plus" class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400"></i>
               <span>Thêm subtask</span>
             </button>
-            <button onclick="openEditParentTaskModal('${parent.id}')" title="Sửa tên, tag hoặc màu Task tổng" class="p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 rounded-xl hover:bg-white/80 dark:hover:bg-slate-800 transition">
+            <button onclick="openEditParentTaskModal('${parent.id}')" title="Sửa tên, tag hoặc màu Task tổng" class="p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 rounded-xl hover:bg-white/80 dark:hover:bg-slate-800 transition cursor-pointer">
               <i data-lucide="edit-3" class="w-4 h-4"></i>
             </button>
-            <button onclick="deleteParentTask('${parent.id}')" title="Xóa Task tổng này" class="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition">
+            <button onclick="deleteParentTask('${parent.id}')" title="Xóa Task tổng này" class="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer">
               <i data-lucide="trash-2" class="w-4 h-4"></i>
             </button>
           </div>
@@ -2883,44 +3034,131 @@ function renderTaskManagerContent() {
         <!-- Subtasks List Container -->
         <div class="divide-y divide-slate-100 dark:divide-slate-800">
           ${parentSubtasks.length === 0 ? `
-            <div class="p-6 text-center text-xs text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-1.5">
+            <div class="p-8 text-center text-xs text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-2">
               ${allParentSubtasks.length === 0 ? `
-                <p>Chưa có subtask nào thuộc mục tiêu này.</p>
-                <button onclick="openAddTaskModalForParent('${parent.id}')" class="text-blue-600 dark:text-blue-400 font-bold hover:underline">
+                <i data-lucide="inbox" class="w-8 h-8 text-slate-300 dark:text-slate-600 mb-1"></i>
+                <p class="font-medium text-slate-600 dark:text-slate-300">Chưa có nhiệm vụ con nào thuộc mục tiêu này.</p>
+                <button onclick="openAddTaskModalForParent('${parent.id}')" class="mt-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer">
                   + Thêm subtask ngay
                 </button>
               ` : `
-                <p>Không có subtask nào thỏa mãn bộ lọc hiện tại.</p>
+                <p>Không có nhiệm vụ con nào thỏa mãn bộ lọc hiện tại.</p>
               `}
             </div>
-          ` : parentSubtasks.map(task => renderTaskManagerSubtaskRow(task)).join('')}
+          ` : `
+            <!-- 1. Danh sách nhiệm vụ đang thực hiện (Chưa xong) -->
+            ${activeSubtasks.length > 0 ? activeSubtasks.map(task => renderTaskManagerSubtaskRow(task)).join('') : `
+              <div class="p-4 text-center text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 flex items-center justify-center gap-2">
+                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                <span class="font-semibold">Tất cả nhiệm vụ của mục tiêu này đã hoàn thành xuất sắc!</span>
+              </div>
+            `}
+
+            <!-- 2. Nhóm nhiệm vụ đã hoàn thành (Thu gọn để tránh cuộn dài) -->
+            ${completedSubtasks.length > 0 ? `
+              <div class="border-t-2 border-slate-100 dark:border-slate-800">
+                <button type="button" onclick="toggleTaskManagerCompletedSection('${parent.id}')" class="w-full px-4 py-3 bg-slate-50/80 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300 transition cursor-pointer">
+                  <span class="flex items-center gap-2">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>
+                    <span>Đã hoàn thành (${completedSubtasks.length} nhiệm vụ)</span>
+                  </span>
+                  <div class="flex items-center gap-1.5 text-slate-400">
+                    <span id="tmCompletedText_${parent.id}" class="text-[11px] font-normal">${isCompletedExpanded ? 'Thu gọn' : 'Xem chi tiết'}</span>
+                    <i id="tmCompletedIcon_${parent.id}" data-lucide="${isCompletedExpanded ? 'chevron-up' : 'chevron-down'}" class="w-4 h-4"></i>
+                  </div>
+                </button>
+                <div id="tmCompleted_${parent.id}" class="${isCompletedExpanded ? '' : 'hidden'} divide-y divide-slate-100 dark:divide-slate-800 bg-slate-50/30 dark:bg-slate-900/30">
+                  ${completedSubtasks.map(task => renderTaskManagerSubtaskRow(task)).join('')}
+                </div>
+              </div>
+            ` : ''}
+          `}
         </div>
       </div>
     `;
-  });
+  } else {
+    // Unassigned slide
+    const unassignedSubtasks = filteredTasks.filter(t => !t.parentId || !getParentTask(t.parentId));
+    const allUnassigned = state.tasks.filter(t => !t.parentId || !getParentTask(t.parentId));
+    const activeSubtasks = unassignedSubtasks.filter(t => !t.completed);
+    const completedSubtasks = unassignedSubtasks.filter(t => t.completed);
+    const isCompletedExpanded = Boolean(state.taskManagerFilter === 'completed' || state.tmExpandedCompleted['__unassigned__']);
 
-  // Nhiệm vụ độc lập / Chưa phân loại parent
-  const unassignedSubtasks = filteredTasks.filter(t => !t.parentId || !getParentTask(t.parentId));
-  if (unassignedSubtasks.length > 0) {
-    html += `
+    slideHtml = `
       <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden transition-all">
         <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-100/70 dark:bg-slate-800/60">
           <div class="flex items-center gap-2.5">
             <span class="w-3 h-3 rounded-full bg-slate-400 shrink-0"></span>
             <div>
               <h3 class="text-base font-bold text-slate-800 dark:text-slate-100">Nhiệm vụ độc lập (Chưa gán Task tổng)</h3>
-              <p class="text-xs text-slate-500 dark:text-slate-400">${unassignedSubtasks.length} nhiệm vụ</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">${allUnassigned.length} nhiệm vụ độc lập</p>
             </div>
           </div>
         </div>
         <div class="divide-y divide-slate-100 dark:divide-slate-800">
-          ${unassignedSubtasks.map(task => renderTaskManagerSubtaskRow(task)).join('')}
+          ${unassignedSubtasks.length === 0 ? `
+            <div class="p-8 text-center text-xs text-slate-400 dark:text-slate-500">
+              Không có nhiệm vụ độc lập nào thỏa mãn bộ lọc.
+            </div>
+          ` : `
+            ${activeSubtasks.length > 0 ? activeSubtasks.map(task => renderTaskManagerSubtaskRow(task)).join('') : `
+              <div class="p-4 text-center text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 flex items-center justify-center gap-2">
+                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                <span class="font-semibold">Tất cả nhiệm vụ độc lập đã hoàn thành!</span>
+              </div>
+            `}
+
+            ${completedSubtasks.length > 0 ? `
+              <div class="border-t-2 border-slate-100 dark:border-slate-800">
+                <button type="button" onclick="toggleTaskManagerCompletedSection('__unassigned__')" class="w-full px-4 py-3 bg-slate-50/80 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300 transition cursor-pointer">
+                  <span class="flex items-center gap-2">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>
+                    <span>Đã hoàn thành (${completedSubtasks.length} nhiệm vụ)</span>
+                  </span>
+                  <div class="flex items-center gap-1.5 text-slate-400">
+                    <span id="tmCompletedText___unassigned__" class="text-[11px] font-normal">${isCompletedExpanded ? 'Thu gọn' : 'Xem chi tiết'}</span>
+                    <i id="tmCompletedIcon___unassigned__" data-lucide="${isCompletedExpanded ? 'chevron-up' : 'chevron-down'}" class="w-4 h-4"></i>
+                  </div>
+                </button>
+                <div id="tmCompleted___unassigned__" class="${isCompletedExpanded ? '' : 'hidden'} divide-y divide-slate-100 dark:divide-slate-800 bg-slate-50/30 dark:bg-slate-900/30">
+                  ${completedSubtasks.map(task => renderTaskManagerSubtaskRow(task)).join('')}
+                </div>
+              </div>
+            ` : ''}
+          `}
         </div>
       </div>
     `;
   }
 
-  container.innerHTML = html;
+  container.innerHTML = slideHtml;
+
+  // Gắn Touch Swipe listener cho iPhone 12 Pro Max & iPhone 17 Pro Max
+  if (!container._hasTmSwipe) {
+    container._hasTmSwipe = true;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    container.addEventListener('touchstart', e => {
+      if (e.changedTouches && e.changedTouches[0]) {
+        touchStartX = e.changedTouches[0].screenX;
+        touchStartY = e.changedTouches[0].screenY;
+      }
+    }, { passive: true });
+
+    container.addEventListener('touchend', e => {
+      if (!e.changedTouches || !e.changedTouches[0]) return;
+      const diffX = e.changedTouches[0].screenX - touchStartX;
+      const diffY = e.changedTouches[0].screenY - touchStartY;
+      if (Math.abs(diffX) > 45 && Math.abs(diffX) > Math.abs(diffY) * 1.4) {
+        if (diffX < 0) {
+          nextTaskManagerSlide();
+        } else {
+          prevTaskManagerSlide();
+        }
+      }
+    }, { passive: true });
+  }
+
   lucide.createIcons();
 }
 
@@ -5885,6 +6123,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnCloseTaskMgrBtm = document.getElementById('btnCloseTaskManagerModalBtm');
   if (btnCloseTaskMgrBtm) btnCloseTaskMgrBtm.addEventListener('click', closeTaskManagerModal);
+
+  // Điều hướng Slide View trong Kho nhiệm vụ
+  const btnPrevSlide = document.getElementById('btnPrevTaskManagerSlide');
+  if (btnPrevSlide) btnPrevSlide.addEventListener('click', prevTaskManagerSlide);
+
+  const btnNextSlide = document.getElementById('btnNextTaskManagerSlide');
+  if (btnNextSlide) btnNextSlide.addEventListener('click', nextTaskManagerSlide);
+
+  // Phím mũi tên Trái / Phải trên bàn phím máy tính để chuyển Slide
+  document.addEventListener('keydown', (e) => {
+    const modal = document.getElementById('taskManagerModal');
+    if (modal && !modal.classList.contains('hidden')) {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        prevTaskManagerSlide();
+      } else if (e.key === 'ArrowRight') {
+        nextTaskManagerSlide();
+      }
+    }
+  });
 
   document.querySelectorAll('.tm-filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
