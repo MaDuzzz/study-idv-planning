@@ -141,22 +141,82 @@ function updateThemeColorMeta(isDark) {
   });
 }
 
-function initTheme() {
-  const savedTheme = localStorage.getItem(THEME_KEY);
-  const isDark = savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+function applyTheme(isDark) {
   if (isDark) {
     document.documentElement.classList.add('dark');
   } else {
     document.documentElement.classList.remove('dark');
   }
-  updateThemeColorMeta(isDark);
-}
-
-function toggleTheme() {
-  const isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
   updateThemeColorMeta(isDark);
-  lucide.createIcons();
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    window.lucide.createIcons();
+  }
+}
+
+function initTheme() {
+  const savedTheme = localStorage.getItem(THEME_KEY);
+  const isDark = savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  applyTheme(isDark);
+}
+
+function toggleTheme(e) {
+  const isDarkCurrent = document.documentElement.classList.contains('dark');
+  const willBeDark = !isDarkCurrent;
+
+  // 1. View Transitions API mượt mà chuẩn hiện đại (Chrome 111+, Edge, Arc, Safari 18+)
+  const supportsViewTransition = typeof document.startViewTransition === 'function' &&
+    !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (supportsViewTransition) {
+    const btn = document.getElementById('btnThemeToggle');
+    let x = window.innerWidth / 2;
+    let y = 0;
+
+    if (e && typeof e.clientX === 'number' && e.clientX > 0) {
+      x = e.clientX;
+      y = e.clientY;
+    } else if (btn) {
+      const rect = btn.getBoundingClientRect();
+      x = rect.left + rect.width / 2;
+      y = rect.top + rect.height / 2;
+    }
+
+    const endRadius = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y)
+    );
+
+    const transition = document.startViewTransition(() => {
+      applyTheme(willBeDark);
+    });
+
+    transition.ready.then(() => {
+      const clipPath = [
+        `circle(0px at ${x}px ${y}px)`,
+        `circle(${endRadius}px at ${x}px ${y}px)`
+      ];
+      document.documentElement.animate(
+        {
+          clipPath: clipPath
+        },
+        {
+          duration: 380,
+          easing: 'ease-out',
+          pseudoElement: '::view-transition-new(root)'
+        }
+      );
+    });
+    return;
+  }
+
+  // 2. Fallback cho trình duyệt cũ (iOS Safari < 18):
+  // Thêm class .theme-transition trong 350ms để tất cả các thành phần đổi màu mượt mà đồng bộ, sau đó tự gỡ bỏ
+  document.documentElement.classList.add('theme-transition');
+  applyTheme(willBeDark);
+  setTimeout(() => {
+    document.documentElement.classList.remove('theme-transition');
+  }, 350);
 }
 
 // Kiểm tra trạng thái đăng nhập Local
