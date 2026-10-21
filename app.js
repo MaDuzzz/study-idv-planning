@@ -301,6 +301,8 @@ window.handleAuthStateChange = (user) => {
     console.log('Multi-tenant: Đã đăng nhập người dùng', user.email, 'UID:', user.uid);
 
     updateAuthUI();
+    syncViewButtonsUI();
+    setTimeout(() => updateMobileDockGlider(), 60);
 
     // Hủy đăng ký listener cũ nếu có
     if (state.firestoreUnsubscribe) {
@@ -1408,7 +1410,11 @@ function updateAuthUI() {
     if (topNav) topNav.classList.remove('hidden');
     if (authView) authView.classList.remove('hidden');
     if (guestPortal) guestPortal.classList.add('hidden');
-    if (mobileNav) mobileNav.classList.remove('hidden');
+    if (mobileNav) {
+      mobileNav.classList.remove('hidden');
+      requestAnimationFrame(() => updateMobileDockGlider());
+      setTimeout(() => updateMobileDockGlider(), 50);
+    }
 
     adminGroup.classList.remove('hidden');
     adminGroup.classList.add('flex');
@@ -2256,17 +2262,26 @@ function updateMobileDockGlider(activeBtn) {
   if (!activeBtn) {
     activeBtn = document.querySelector(`.mobile-dock-btn[data-mobile-view="${state.currentView}"]`);
   }
-  if (!activeBtn || !activeBtn.offsetParent) {
+  if (!activeBtn) return;
+
+  // Nếu dock chưa hiển thị hoặc chưa kịp đo kích thước layout
+  if (!activeBtn.offsetParent || activeBtn.offsetWidth === 0) {
+    if (!window._gliderRetryCount) window._gliderRetryCount = 0;
+    if (window._gliderRetryCount < 8) {
+      window._gliderRetryCount++;
+      setTimeout(() => updateMobileDockGlider(), 80);
+    }
     return;
   }
+  window._gliderRetryCount = 0;
+
   glider.style.left = `${activeBtn.offsetLeft}px`;
   glider.style.width = `${activeBtn.offsetWidth}px`;
   glider.style.opacity = '1';
+  glider.classList.remove('opacity-0');
 }
 
-function switchView(viewName) {
-  state.currentView = viewName;
-
+function syncViewButtonsUI(viewName = state.currentView) {
   document.querySelectorAll('.view-btn').forEach(btn => {
     if (btn.getAttribute('data-view') === viewName) {
       btn.className = 'view-btn px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-700 shadow-xs scale-[1.02]';
@@ -2304,7 +2319,11 @@ function switchView(viewName) {
   });
 
   updateMobileDockGlider(activeMobileBtn);
-  requestAnimationFrame(() => updateMobileDockGlider(activeMobileBtn));
+}
+
+function switchView(viewName) {
+  state.currentView = viewName;
+  syncViewButtonsUI(viewName);
 
   document.getElementById('viewDay').classList.toggle('hidden', viewName !== 'day');
   document.getElementById('viewWeek').classList.toggle('hidden', viewName !== 'week');
@@ -6523,6 +6542,7 @@ function renderApp() {
   updateAuthUI();
   updateHeaderDisplay();
   updateNotificationBell();
+  syncViewButtonsUI();
 
   // Chỉ render các views task nếu người dùng đã đăng nhập (tránh render lộ thông tin cho khách)
   if (state.isAdmin || state.currentUser) {
@@ -6532,6 +6552,7 @@ function renderApp() {
     else if (state.currentView === 'year') renderYearView();
   }
   lucide.createIcons();
+  requestAnimationFrame(() => updateMobileDockGlider());
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -6563,8 +6584,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Căn chỉnh vị trí Glider trượt cho Mobile Bottom Nav khi khởi động & khi xoay màn hình
-  setTimeout(() => updateMobileDockGlider(), 150);
+  syncViewButtonsUI();
+  requestAnimationFrame(() => updateMobileDockGlider());
+  setTimeout(() => updateMobileDockGlider(), 60);
+  setTimeout(() => updateMobileDockGlider(), 200);
+  setTimeout(() => updateMobileDockGlider(), 600);
   window.addEventListener('resize', () => updateMobileDockGlider());
+  window.addEventListener('load', () => {
+    syncViewButtonsUI();
+    setTimeout(() => updateMobileDockGlider(), 50);
+  });
 
   // Khởi tạo cử chỉ vuốt chạm iPhone & Mobile
   initMobileTouchGestures();
