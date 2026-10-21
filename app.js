@@ -1717,9 +1717,9 @@ function renderWeekView() {
           : 'bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-800 dark:text-slate-100 font-bold');
 
     return `
-      <!-- Cột ngày tràn vừa khít khoảng trống giữa màn hình trên iPhone (h-[calc(100dvh-236px)]), 530px trên desktop (2K: 610px) -->
+      <!-- Cột ngày tràn vừa khít khoảng trống giữa màn hình trên iPhone (h-[calc(100dvh-300px)]), 530px trên desktop (2K: 610px) -->
       <div 
-        class="day-dropzone rounded-2xl border transition-all duration-200 flex flex-col h-[calc(100dvh-236px)] sm:h-[530px] 2xl:h-[610px] min-h-[440px] snap-center shrink-0 ${dayCardClasses}"
+        class="day-dropzone rounded-2xl border transition-all duration-200 flex flex-col h-[calc(100dvh-300px)] min-h-[350px] max-h-[calc(100dvh-285px)] sm:h-[530px] sm:min-h-[460px] sm:max-h-none 2xl:h-[610px] snap-center shrink-0 ${dayCardClasses}"
         data-is-past="${isPast ? 'true' : 'false'}"
         data-is-today="${isToday ? 'true' : 'false'}"
         ${isPast ? '' : `
