@@ -3179,6 +3179,7 @@ async function handleAddDefinedTaskSubmit(e) {
 
 // --- 8.1. TASK MANAGER HUB (KHO NHIỆM VỤ & QUẢN LÝ TASK TỔNG DẠNG SLIDE VIEW) ---
 state.taskManagerActiveSlideIndex = 0;
+state.taskManagerSlideDirection = 'none';
 state.tmExpandedCompleted = {};
 
 function getTaskManagerSlides() {
@@ -3211,6 +3212,13 @@ function getTaskManagerSlides() {
 function goToTaskManagerSlide(index) {
   const slides = getTaskManagerSlides();
   if (index >= 0 && index < slides.length) {
+    if (index > state.taskManagerActiveSlideIndex) {
+      state.taskManagerSlideDirection = 'next';
+    } else if (index < state.taskManagerActiveSlideIndex) {
+      state.taskManagerSlideDirection = 'prev';
+    } else {
+      state.taskManagerSlideDirection = 'none';
+    }
     state.taskManagerActiveSlideIndex = index;
     renderTaskManagerContent();
   }
@@ -3218,6 +3226,7 @@ function goToTaskManagerSlide(index) {
 
 function prevTaskManagerSlide() {
   if (state.taskManagerActiveSlideIndex > 0) {
+    state.taskManagerSlideDirection = 'prev';
     state.taskManagerActiveSlideIndex--;
     renderTaskManagerContent();
   }
@@ -3226,6 +3235,7 @@ function prevTaskManagerSlide() {
 function nextTaskManagerSlide() {
   const slides = getTaskManagerSlides();
   if (state.taskManagerActiveSlideIndex < slides.length - 1) {
+    state.taskManagerSlideDirection = 'next';
     state.taskManagerActiveSlideIndex++;
     renderTaskManagerContent();
   }
@@ -3257,6 +3267,7 @@ function openTaskManagerModal(targetParentId) {
   }
   state.taskManagerFilter = 'all';
   state.taskManagerSearch = '';
+  state.taskManagerSlideDirection = 'fade';
   const searchInput = document.getElementById('searchTaskManagerInput');
   if (searchInput) searchInput.value = '';
   updateTaskManagerFilterButtons();
@@ -3585,7 +3596,18 @@ function renderTaskManagerContent() {
     `;
   }
 
-  container.innerHTML = slideHtml;
+  const animClass = state.taskManagerSlideDirection === 'next'
+    ? 'tm-slide-anim-next'
+    : (state.taskManagerSlideDirection === 'prev'
+        ? 'tm-slide-anim-prev'
+        : (state.taskManagerSlideDirection === 'fade' ? 'tm-slide-anim-fade' : ''));
+
+  if (animClass) {
+    container.scrollTop = 0;
+  }
+  state.taskManagerSlideDirection = 'none';
+
+  container.innerHTML = `<div class="tm-slide-stage ${animClass}">${slideHtml}</div>`;
 
   // Gắn Touch Swipe listener cho iPhone 12 Pro Max & iPhone 17 Pro Max
   if (!container._hasTmSwipe) {
