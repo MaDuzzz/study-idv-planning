@@ -1717,9 +1717,9 @@ function renderWeekView() {
           : 'bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-800 dark:text-slate-100 font-bold');
 
     return `
-      <!-- Cột ngày tràn vừa khít khoảng trống giữa màn hình trên iPhone (h-[calc(100dvh-248px)]), 530px trên desktop (2K: 610px) -->
+      <!-- Cột ngày tràn vừa khít khoảng trống giữa màn hình trên iPhone (h-[calc(100dvh-236px)]), 530px trên desktop (2K: 610px) -->
       <div 
-        class="day-dropzone rounded-2xl border transition-all duration-200 flex flex-col h-[calc(100dvh-248px)] sm:h-[530px] 2xl:h-[610px] min-h-[460px] snap-center shrink-0 ${dayCardClasses}"
+        class="day-dropzone rounded-2xl border transition-all duration-200 flex flex-col h-[calc(100dvh-236px)] sm:h-[530px] 2xl:h-[610px] min-h-[440px] snap-center shrink-0 ${dayCardClasses}"
         data-is-past="${isPast ? 'true' : 'false'}"
         data-is-today="${isToday ? 'true' : 'false'}"
         ${isPast ? '' : `
@@ -2212,7 +2212,7 @@ function triggerSlideAnimation(direction) {
   const dateDisplay = document.getElementById('currentDateDisplay');
 
   if (mainView) {
-    mainView.classList.remove('slide-in-right', 'slide-in-left', 'date-pulse', 'view-fade-in');
+    mainView.classList.remove('slide-in-right', 'slide-in-left', 'date-pulse', 'view-fade-in', 'view-tab-transition');
     void mainView.offsetWidth; // Buộc reflow để kích hoạt lại animation mượt mà ngay lập tức
     if (direction === 'next') {
       mainView.classList.add('slide-in-right');
@@ -2221,11 +2221,11 @@ function triggerSlideAnimation(direction) {
     } else if (direction === 'pulse') {
       mainView.classList.add('date-pulse');
     } else if (direction === 'fade') {
-      mainView.classList.add('view-fade-in');
+      mainView.classList.add('view-tab-transition');
     }
 
     const onAnimEnd = () => {
-      mainView.classList.remove('slide-in-right', 'slide-in-left', 'date-pulse', 'view-fade-in');
+      mainView.classList.remove('slide-in-right', 'slide-in-left', 'date-pulse', 'view-fade-in', 'view-tab-transition');
       mainView.removeEventListener('animationend', onAnimEnd);
     };
     mainView.addEventListener('animationend', onAnimEnd);
@@ -2250,26 +2250,61 @@ function triggerSlideAnimation(direction) {
   }
 }
 
+function updateMobileDockGlider(activeBtn) {
+  const glider = document.getElementById('mobileDockGlider');
+  if (!glider) return;
+  if (!activeBtn) {
+    activeBtn = document.querySelector(`.mobile-dock-btn[data-mobile-view="${state.currentView}"]`);
+  }
+  if (!activeBtn || !activeBtn.offsetParent) {
+    return;
+  }
+  glider.style.left = `${activeBtn.offsetLeft}px`;
+  glider.style.width = `${activeBtn.offsetWidth}px`;
+  glider.style.opacity = '1';
+}
+
 function switchView(viewName) {
   state.currentView = viewName;
 
   document.querySelectorAll('.view-btn').forEach(btn => {
     if (btn.getAttribute('data-view') === viewName) {
-      btn.className = 'view-btn px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-700 shadow-xs';
+      btn.className = 'view-btn px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-700 shadow-xs scale-[1.02]';
     } else {
-      btn.className = 'view-btn px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-transparent';
+      btn.className = 'view-btn px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-transparent';
     }
   });
 
-  // Đồng bộ trạng thái active trên Mobile Bottom Nav Dock (Bubble Style iOS 18)
+  // Đồng bộ trạng thái active trên Mobile Bottom Nav Dock (Liquid Glider iOS 18)
+  let activeMobileBtn = null;
   document.querySelectorAll('.mobile-dock-btn').forEach(btn => {
     const isTarget = btn.getAttribute('data-mobile-view') === viewName;
+    const icon = btn.querySelector('svg, i');
+    const label = btn.querySelector('span');
     if (isTarget) {
-      btn.className = 'mobile-dock-btn px-2.5 sm:px-3 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-bold bg-blue-600/10 dark:bg-blue-400/15 text-blue-600 dark:text-blue-400 shadow-2xs transition-all active:scale-90 cursor-pointer';
+      activeMobileBtn = btn;
+      btn.className = 'mobile-dock-btn relative z-10 px-2.5 sm:px-3 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 transition-all duration-200 active:scale-90 cursor-pointer';
+      if (icon) {
+        icon.classList.add('scale-110');
+      }
+      if (label) {
+        label.classList.add('font-bold');
+        label.classList.remove('font-semibold');
+      }
     } else {
-      btn.className = 'mobile-dock-btn px-2.5 sm:px-3 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-all active:scale-90 cursor-pointer';
+      btn.className = 'mobile-dock-btn relative z-10 px-2.5 sm:px-3 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-all duration-200 active:scale-90 cursor-pointer';
+      if (icon) {
+        icon.classList.remove('scale-110');
+      }
+      if (label) {
+        label.classList.remove('font-bold');
+        label.classList.add('font-semibold');
+      }
     }
   });
+
+  updateMobileDockGlider(activeMobileBtn);
+  requestAnimationFrame(() => updateMobileDockGlider(activeMobileBtn));
 
   document.getElementById('viewDay').classList.toggle('hidden', viewName !== 'day');
   document.getElementById('viewWeek').classList.toggle('hidden', viewName !== 'week');
@@ -6526,6 +6561,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnMobileAdd) {
     btnMobileAdd.addEventListener('click', () => openAddTaskModal());
   }
+
+  // Căn chỉnh vị trí Glider trượt cho Mobile Bottom Nav khi khởi động & khi xoay màn hình
+  setTimeout(() => updateMobileDockGlider(), 150);
+  window.addEventListener('resize', () => updateMobileDockGlider());
 
   // Khởi tạo cử chỉ vuốt chạm iPhone & Mobile
   initMobileTouchGestures();
