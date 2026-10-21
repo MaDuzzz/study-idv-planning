@@ -704,13 +704,13 @@
   <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 shadow-xs">
     <div class="max-w-[2000px] w-full mx-auto px-3.5 sm:px-6 lg:px-8 2xl:px-12 h-14 sm:h-18 flex items-center justify-between">
       
-      <!-- Logo & Tiêu đề -->
-      <div class="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
-        <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl overflow-hidden shadow-md shadow-blue-500/20 shrink-0 border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800 flex items-center justify-center">
+      <!-- Logo & Tiêu đề (Bấm vào để reload tải lại trang) -->
+      <div id="appBrandLogo" onclick="window.location.reload()" class="flex items-center gap-2.5 sm:gap-3.5 min-w-0 cursor-pointer select-none group active:scale-95 transition-transform" title="Bấm vào logo để tải lại trang">
+        <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl overflow-hidden shadow-md shadow-blue-500/20 shrink-0 border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800 flex items-center justify-center group-hover:ring-2 group-hover:ring-blue-500/50 transition">
           <img src="logo/logo_idv_planner.png" alt="Study & Life Planner Logo" class="w-full h-full object-cover">
         </div>
         <div class="min-w-0">
-          <h1 class="font-bold text-base sm:text-xl text-slate-900 dark:text-white leading-tight truncate">Study & Life Planner</h1>
+          <h1 class="font-bold text-base sm:text-xl text-slate-900 dark:text-white leading-tight truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Study & Life Planner</h1>
           <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block truncate">Kế hoạch cá nhân & Theo dõi mục tiêu</p>
         </div>
       </div>
@@ -975,7 +975,7 @@
       <!-- 1. HERO SECTION -->
       <div class="text-center space-y-5 px-4">
         <div class="flex justify-center mb-2">
-          <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl overflow-hidden shadow-xl shadow-blue-500/25 border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-800 p-1 hover:scale-105 transition-transform duration-200">
+          <div onclick="window.location.reload()" class="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl overflow-hidden shadow-xl shadow-blue-500/25 border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-800 p-1 hover:scale-105 transition-transform duration-200 cursor-pointer" title="Bấm vào logo để tải lại trang">
             <img src="logo/logo_idv_planner.png" alt="Study & Life Planner" class="w-full h-full object-cover rounded-2xl">
           </div>
         </div>
@@ -2529,8 +2529,8 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=8.8"></script>
-  <script src="app.js?v=8.8"></script>
+  <script src="firebase-config.js?v=8.9"></script>
+  <script src="app.js?v=8.9"></script>
 
   <!-- Đăng ký Service Worker cho Progressive Web App (PWA) -->
   <script>
