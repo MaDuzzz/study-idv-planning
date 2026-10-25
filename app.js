@@ -785,8 +785,103 @@ function isOverdue(task) {
   return task.date < getTodayStr() && !task.completed;
 }
 
-// --- 3. DRAG AND DROP ENGINE (KÉO THẢ NHIỆM VỤ GIỮA CÁC NGÀY) ---
+// --- 3. TASK REORDER & DRAG AND DROP ENGINE (SẮP XẾP & KÉO THẢ NHIỆM VỤ) ---
 let draggedTaskId = null;
+
+function getSortedTasksForDay(dateStr) {
+  const dayTasks = state.tasks.filter(t => t.date === dateStr);
+  const hasCustomOrder = dayTasks.some(t => typeof t.order === 'number');
+
+  if (hasCustomOrder) {
+    dayTasks.sort((a, b) => {
+      const orderA = typeof a.order === 'number' ? a.order : 9999;
+      const orderB = typeof b.order === 'number' ? b.order : 9999;
+      if (orderA !== orderB) return orderA - orderB;
+
+      // Khi cùng order hoặc chưa có order: xếp theo giờ từ thấp đến cao
+      const timeA = a.time ? a.time.trim() : '';
+      const timeB = b.time ? b.time.trim() : '';
+      if (timeA && timeB) {
+        const cmp = timeA.localeCompare(timeB);
+        if (cmp !== 0) return cmp;
+      } else if (timeA && !timeB) {
+        return -1;
+      } else if (!timeA && timeB) {
+        return 1;
+      }
+      return (a.title || '').localeCompare(b.title || '');
+    });
+  } else {
+    // Sắp xếp mặc định: mốc giờ từ thấp đến cao, sau đó đến mức độ ưu tiên
+    dayTasks.sort((a, b) => {
+      const timeA = a.time ? a.time.trim() : '';
+      const timeB = b.time ? b.time.trim() : '';
+      if (timeA && timeB) {
+        const cmp = timeA.localeCompare(timeB);
+        if (cmp !== 0) return cmp;
+      } else if (timeA && !timeB) {
+        return -1;
+      } else if (!timeA && timeB) {
+        return 1;
+      }
+      const priorityScore = { high: 3, medium: 2, low: 1 };
+      const priDiff = (priorityScore[b.priority] || 2) - (priorityScore[a.priority] || 2);
+      if (priDiff !== 0) return priDiff;
+      return (a.title || '').localeCompare(b.title || '');
+    });
+  }
+
+  return dayTasks;
+}
+
+function reorderTasksForDay(dateStr, orderedIds) {
+  orderedIds.forEach((id, index) => {
+    const t = state.tasks.find(task => task.id === id);
+    if (t) {
+      t.order = index;
+    }
+  });
+  saveCurrentTasks();
+  renderApp();
+  if (!document.getElementById('taskManagerModal').classList.contains('hidden')) {
+    renderTaskManagerContent();
+  }
+  if (!document.getElementById('taskDetailModal').classList.contains('hidden') && state.activeDetailTaskId) {
+    openTaskDetailModal(state.activeDetailTaskId);
+  }
+}
+
+function moveTaskInDay(taskId, direction) {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task || !task.date) return;
+
+  if (task.date < getTodayStr() && task.completed) {
+    showToast({
+      type: 'warning',
+      title: 'Chỉ xem',
+      message: 'Nhiệm vụ trong quá khứ đã hoàn thành, không thể sắp xếp!'
+    });
+    return;
+  }
+
+  const dateStr = task.date;
+  const dayTasks = getSortedTasksForDay(dateStr);
+  const currentIndex = dayTasks.findIndex(t => t.id === taskId);
+  if (currentIndex === -1) return;
+
+  const targetIndex = currentIndex + direction;
+  if (targetIndex < 0 || targetIndex >= dayTasks.length) return;
+
+  const [movedItem] = dayTasks.splice(currentIndex, 1);
+  dayTasks.splice(targetIndex, 0, movedItem);
+
+  const orderedIds = dayTasks.map(t => t.id);
+  reorderTasksForDay(dateStr, orderedIds);
+}
 
 function handleDragStart(e, taskId) {
   if (!state.isAdmin) return;
@@ -810,7 +905,9 @@ function handleDragStart(e, taskId) {
 
 function handleDragEnd(e) {
   draggedTaskId = null;
-  document.querySelectorAll('.task-card').forEach(el => el.classList.remove('dragging'));
+  document.querySelectorAll('.task-card, .day-task-item').forEach(el => {
+    el.classList.remove('dragging', 'task-drop-above', 'task-drop-below');
+  });
   document.querySelectorAll('.day-dropzone').forEach(el => el.classList.remove('drag-over'));
 }
 
@@ -839,9 +936,114 @@ function handleDragLeave(e) {
   }
 }
 
+function handleTaskDragOver(e) {
+  if (!state.isAdmin) return;
+  e.preventDefault();
+  e.stopPropagation();
+  e.dataTransfer.dropEffect = 'move';
+
+  const card = e.currentTarget;
+  const rect = card.getBoundingClientRect();
+  const isAfter = (e.clientY - rect.top) > (rect.height / 2);
+
+  document.querySelectorAll('.task-drop-above, .task-drop-below').forEach(el => {
+    if (el !== card) {
+      el.classList.remove('task-drop-above', 'task-drop-below');
+    }
+  });
+
+  if (isAfter) {
+    card.classList.remove('task-drop-above');
+    card.classList.add('task-drop-below');
+  } else {
+    card.classList.remove('task-drop-below');
+    card.classList.add('task-drop-above');
+  }
+}
+
+function handleTaskDragLeave(e) {
+  const card = e.currentTarget;
+  if (!card.contains(e.relatedTarget)) {
+    card.classList.remove('task-drop-above', 'task-drop-below');
+  }
+}
+
+function handleTaskDrop(e, targetTaskId, targetDateStr) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  document.querySelectorAll('.task-drop-above, .task-drop-below').forEach(el => {
+    el.classList.remove('task-drop-above', 'task-drop-below');
+  });
+  document.querySelectorAll('.day-dropzone').forEach(el => el.classList.remove('drag-over'));
+
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+
+  // Chặn thả vào ngày trong quá khứ
+  if (targetDateStr < getTodayStr()) {
+    showToast({
+      type: 'warning',
+      title: 'Không thể chuyển',
+      message: 'Không thể chuyển nhiệm vụ vào ngày trong quá khứ!'
+    });
+    return;
+  }
+
+  const sourceTaskId = e.dataTransfer.getData('text/plain') || draggedTaskId;
+  if (!sourceTaskId) return;
+
+  const sourceTask = state.tasks.find(t => t.id === sourceTaskId);
+  if (!sourceTask) return;
+
+  if (sourceTask.date && sourceTask.date < getTodayStr() && sourceTask.completed) {
+    showToast({
+      type: 'warning',
+      title: 'Chỉ xem',
+      message: 'Nhiệm vụ trong quá khứ đã hoàn thành, không thể di chuyển!'
+    });
+    return;
+  }
+
+  const rect = e.currentTarget.getBoundingClientRect();
+  const isAfter = (e.clientY - rect.top) > (rect.height / 2);
+
+  const isDifferentDate = sourceTask.date !== targetDateStr;
+  if (isDifferentDate) {
+    const isPastTask = Boolean(sourceTask.date && sourceTask.date < getTodayStr());
+    if (isPastTask && targetDateStr >= getTodayStr()) {
+      sourceTask.replanCount = (sourceTask.replanCount || 0) + 1;
+      showToast({
+        type: 'success',
+        title: 'Replan thành công',
+        message: `Đã dời lịch nhiệm vụ "${sourceTask.title}" sang ngày ${targetDateStr}!`
+      });
+    }
+    sourceTask.date = targetDateStr;
+  }
+
+  let dayTasks = getSortedTasksForDay(targetDateStr).filter(t => t.id !== sourceTaskId);
+  const targetIdx = dayTasks.findIndex(t => t.id === targetTaskId);
+
+  if (targetIdx !== -1) {
+    const insertIdx = isAfter ? targetIdx + 1 : targetIdx;
+    dayTasks.splice(insertIdx, 0, sourceTask);
+  } else {
+    dayTasks.push(sourceTask);
+  }
+
+  const orderedIds = dayTasks.map(t => t.id);
+  reorderTasksForDay(targetDateStr, orderedIds);
+}
+
 function handleDrop(e, targetDateStr) {
   e.preventDefault();
   document.querySelectorAll('.day-dropzone').forEach(el => el.classList.remove('drag-over'));
+  document.querySelectorAll('.task-drop-above, .task-drop-below').forEach(el => {
+    el.classList.remove('task-drop-above', 'task-drop-below');
+  });
 
   if (!state.isAdmin) {
     openLoginModal();
@@ -874,7 +1076,8 @@ function handleDrop(e, targetDateStr) {
     return;
   }
 
-  if (task.date !== targetDateStr) {
+  const isDifferentDate = task.date !== targetDateStr;
+  if (isDifferentDate) {
     const isPastTask = Boolean(task.date && task.date < getTodayStr());
     if (isPastTask && targetDateStr >= getTodayStr()) {
       task.replanCount = (task.replanCount || 0) + 1;
@@ -885,15 +1088,13 @@ function handleDrop(e, targetDateStr) {
       });
     }
     task.date = targetDateStr;
-    saveCurrentTasks();
-    renderApp();
-    if (!document.getElementById('taskManagerModal').classList.contains('hidden')) {
-      renderTaskManagerContent();
-    }
-    if (!document.getElementById('taskDetailModal').classList.contains('hidden') && state.activeDetailTaskId === task.id) {
-      openTaskDetailModal(task.id);
-    }
   }
+
+  let dayTasks = getSortedTasksForDay(targetDateStr).filter(t => t.id !== taskId);
+  dayTasks.push(task);
+
+  const orderedIds = dayTasks.map(t => t.id);
+  reorderTasksForDay(targetDateStr, orderedIds);
 }
 
 // --- 4. NOTIFICATION BELL HUB (TRUNG TÂM THÔNG BÁO DUY NHẤT) ---
@@ -1542,7 +1743,7 @@ function renderDayView() {
   const targetDateStr = formatDate(state.currentDate);
   const isPast = targetDateStr < getTodayStr();
 
-  const tasksForDay = state.tasks.filter(t => t.date === targetDateStr);
+  const tasksForDay = getSortedTasksForDay(targetDateStr);
 
   const dayHeader = document.getElementById('dayViewHeader');
   if (dayHeader) {
@@ -1572,21 +1773,12 @@ function renderDayView() {
 
   emptyState.classList.add('hidden');
 
-  const priorityScore = { high: 3, medium: 2, low: 1 };
-  tasksForDay.sort((a, b) => {
-    if (a.completed !== b.completed) return a.completed ? 1 : -1;
-    const timeA = a.time ? a.time.trim() : '';
-    const timeB = b.time ? b.time.trim() : '';
-    if (timeA && timeB) {
-      const cmp = timeA.localeCompare(timeB);
-      if (cmp !== 0) return cmp;
-    } else if (timeA && !timeB) {
-      return -1;
-    } else if (!timeA && timeB) {
-      return 1;
-    }
-    return (priorityScore[b.priority] || 0) - (priorityScore[a.priority] || 0);
-  });
+  listContainer.classList.add('day-dropzone');
+  listContainer.setAttribute('data-is-past', isPast ? 'true' : 'false');
+  listContainer.setAttribute('ondragover', 'handleDragOver(event)');
+  listContainer.setAttribute('ondragenter', 'handleDragEnter(event)');
+  listContainer.setAttribute('ondragleave', 'handleDragLeave(event)');
+  listContainer.setAttribute('ondrop', `handleDrop(event, '${targetDateStr}')`);
 
   const todayStr = getTodayStr();
   const tomorrowStr = getTomorrowStr();
@@ -1601,6 +1793,19 @@ function renderDayView() {
 
   listContainer.innerHTML = pastNoticeBanner + tasksForDay.map(task => {
     const taskIsOverdue = isOverdue(task);
+    const canDrag = state.isAdmin && (!isPast || !task.completed);
+    const canReorder = canDrag && tasksForDay.length > 1;
+    const reorderButtons = canReorder ? `
+      <div class="flex items-center gap-0.5 mr-1" onclick="event.stopPropagation()">
+        <button onclick="moveTaskInDay('${task.id}', -1)" title="Chuyển lên trên" class="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer">
+          <i data-lucide="chevron-up" class="w-4 h-4"></i>
+        </button>
+        <button onclick="moveTaskInDay('${task.id}', 1)" title="Chuyển xuống dưới" class="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer">
+          <i data-lucide="chevron-down" class="w-4 h-4"></i>
+        </button>
+      </div>
+    ` : '';
+
     const priorityBadge = {
       high: '<span class="px-2 py-0.5 text-xs font-bold rounded-md bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700">🔥 Ưu tiên cao</span>',
       medium: '<span class="px-2 py-0.5 text-xs font-semibold rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600">Bình thường</span>',
@@ -1652,12 +1857,13 @@ function renderDayView() {
 
     const adminActionTools = state.isAdmin
       ? `<div class="flex items-center gap-1.5 self-end sm:self-start">
+          ${reorderButtons}
           ${(!isPast || !task.completed) ? `
-          <button onclick="openEditTaskModal('${task.id}')" title="${isPast ? 'Dời lịch (Replan)' : 'Chỉnh sửa'}" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+          <button onclick="openEditTaskModal('${task.id}')" title="${isPast ? 'Dời lịch (Replan)' : 'Chỉnh sửa'}" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer">
             <i data-lucide="${isPast ? 'calendar-cog' : 'edit-3'}" class="w-4 h-4 ${isPast ? 'text-amber-500' : ''}"></i>
           </button>` : ''}
           ${!isPast ? `
-          <button onclick="deleteTask('${task.id}')" title="Xóa" class="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/40 transition">
+          <button onclick="deleteTask('${task.id}')" title="Xóa" class="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/40 transition cursor-pointer">
             <i data-lucide="trash-2" class="w-4 h-4"></i>
           </button>
           ` : ''}
@@ -1677,7 +1883,18 @@ function renderDayView() {
       : '';
 
     return `
-      <div onclick="openTaskDetailModal('${task.id}')" class="cursor-pointer rounded-2xl p-4 sm:p-5 border transition duration-200 hover:shadow-md hover:border-blue-400 dark:hover:border-blue-400 flex flex-col sm:flex-row sm:items-start justify-between gap-3.5 ${taskIsOverdue ? 'border-amber-300 dark:border-amber-600/80 bg-amber-50/70 dark:bg-amber-950/40' : 'bg-white dark:bg-slate-800/95 border-slate-200 dark:border-slate-700'} ${task.completed ? 'bg-slate-50/80 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/60' : ''}">
+      <div 
+        draggable="${canDrag ? 'true' : 'false'}"
+        ${canDrag ? `
+        ondragstart="handleDragStart(event, '${task.id}')"
+        ondragend="handleDragEnd(event)"
+        ondragover="handleTaskDragOver(event)"
+        ondragleave="handleTaskDragLeave(event)"
+        ondrop="handleTaskDrop(event, '${task.id}', '${targetDateStr}')"
+        ` : ''}
+        onclick="openTaskDetailModal('${task.id}')" 
+        class="day-task-item cursor-pointer rounded-2xl p-4 sm:p-5 border transition duration-200 hover:shadow-md hover:border-blue-400 dark:hover:border-blue-400 flex flex-col sm:flex-row sm:items-start justify-between gap-3.5 ${taskIsOverdue ? 'border-amber-300 dark:border-amber-600/80 bg-amber-50/70 dark:bg-amber-950/40' : 'bg-white dark:bg-slate-800/95 border-slate-200 dark:border-slate-700'} ${task.completed ? 'bg-slate-50/80 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/60' : ''}"
+      >
         <div class="flex items-start gap-3.5 flex-1">
           <div onclick="event.stopPropagation()">${checkboxHtml}</div>
           
@@ -1729,23 +1946,7 @@ function renderWeekView() {
     const dateStr = formatDate(dayDate);
     const isToday = dateStr === getTodayStr();
     const isPast = dateStr < getTodayStr();
-    const tasks = state.tasks.filter(t => t.date === dateStr);
-    tasks.sort((a, b) => {
-      const timeA = a.time ? a.time.trim() : '';
-      const timeB = b.time ? b.time.trim() : '';
-      if (timeA && timeB) {
-        const cmp = timeA.localeCompare(timeB);
-        if (cmp !== 0) return cmp;
-      } else if (timeA && !timeB) {
-        return -1;
-      } else if (!timeA && timeB) {
-        return 1;
-      }
-      const priorityScore = { high: 3, medium: 2, low: 1 };
-      const priDiff = (priorityScore[b.priority] || 2) - (priorityScore[a.priority] || 2);
-      if (priDiff !== 0) return priDiff;
-      return (a.title || '').localeCompare(b.title || '');
-    });
+    const tasks = getSortedTasksForDay(dateStr);
     const completedCount = tasks.filter(t => t.completed).length;
 
     const addBtnHtml = (state.isAdmin && !isPast)
@@ -1847,10 +2048,13 @@ function renderWeekView() {
                 ${canDrag ? `
                 ondragstart="handleDragStart(event, '${t.id}')"
                 ondragend="handleDragEnd(event)"
+                ondragover="handleTaskDragOver(event)"
+                ondragleave="handleTaskDragLeave(event)"
+                ondrop="handleTaskDrop(event, '${t.id}', '${dateStr}')"
                 ` : ''}
                 onclick="openTaskDetailModal('${t.id}')" 
                 class="task-card h-[96px] shrink-0 p-3 rounded-xl border transition-all duration-150 select-none flex flex-col justify-between ${canDrag ? 'cursor-grab active:cursor-grabbing hover:border-blue-400 dark:hover:border-blue-400 hover:shadow-md' : 'cursor-pointer hover:border-slate-300 dark:hover:border-slate-600'} ${taskIsOverdue ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-600/80' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:dark:border-slate-600'} ${t.completed ? 'bg-slate-50/90 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60' : ''}"
-                title="${escapeHtml(t.title)} • ${isPast ? (t.completed ? 'Nhiệm vụ trong quá khứ đã hoàn thành (Bấm để thay đổi)' : 'Nhiệm vụ quá hạn - Bấm ô vuông để hoàn thành bù (Backdate), hoặc kéo thả để dời lịch') : (state.isAdmin ? 'Bấm để xem chi tiết & tài liệu, hoặc kéo thả để đổi ngày' : 'Bấm để xem chi tiết')}"
+                title="${escapeHtml(t.title)} • ${isPast ? (t.completed ? 'Nhiệm vụ trong quá khứ đã hoàn thành (Bấm để thay đổi)' : 'Nhiệm vụ quá hạn - Bấm ô vuông để hoàn thành bù (Backdate), hoặc kéo thả để dời lịch') : (state.isAdmin ? 'Bấm để xem chi tiết & tài liệu, hoặc kéo thả / bấm mũi tên để sắp xếp' : 'Bấm để xem chi tiết')}"
               >
                 <div class="flex items-start gap-2.5 h-full">
                   <!-- Checkbox -->
@@ -1877,10 +2081,20 @@ function renderWeekView() {
                     </div>
                   </div>
 
-                  <!-- Grip Handle Icon -->
-                  ${canDrag ? `
+                  <!-- Reorder Controls & Grip Handle Icon -->
+                  ${canDrag && tasks.length > 1 ? `
+                    <div class="flex flex-col items-center justify-between shrink-0 h-full py-0.5 -my-0.5" onclick="event.stopPropagation()">
+                      <button onclick="moveTaskInDay('${t.id}', -1)" title="Chuyển lên trên" class="w-4.5 h-4.5 flex items-center justify-center text-slate-300 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 rounded transition cursor-pointer">
+                        <i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
+                      </button>
+                      <i data-lucide="grip-vertical" class="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 my-auto cursor-grab"></i>
+                      <button onclick="moveTaskInDay('${t.id}', 1)" title="Chuyển xuống dưới" class="w-4.5 h-4.5 flex items-center justify-center text-slate-300 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 rounded transition cursor-pointer">
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                      </button>
+                    </div>
+                  ` : (canDrag ? `
                     <i data-lucide="grip-vertical" class="w-3.5 h-3.5 text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0 mt-0.5"></i>
-                  ` : ''}
+                  ` : '')}
                 </div>
               </div>
             `;
@@ -2125,16 +2339,7 @@ function renderMonthSelectedDayTasks() {
     }
   }
 
-  const tasks = state.tasks.filter(t => t.date === dateStr);
-  tasks.sort((a, b) => {
-    if (a.completed !== b.completed) return a.completed ? 1 : -1;
-    const timeA = a.time ? a.time.trim() : '';
-    const timeB = b.time ? b.time.trim() : '';
-    if (timeA && timeB) return timeA.localeCompare(timeB);
-    if (timeA && !timeB) return -1;
-    if (!timeA && timeB) return 1;
-    return 0;
-  });
+  const tasks = getSortedTasksForDay(dateStr);
   const completedCount = tasks.filter(t => t.completed).length;
 
   if (count) {
