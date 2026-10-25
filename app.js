@@ -1797,17 +1797,6 @@ function renderDayView() {
   listContainer.innerHTML = pastNoticeBanner + tasksForDay.map(task => {
     const taskIsOverdue = isOverdue(task);
     const canDrag = state.isAdmin && (!isPast || !task.completed);
-    const canReorder = canDrag && tasksForDay.length > 1;
-    const reorderButtons = canReorder ? `
-      <div class="flex items-center gap-0.5 mr-1" onclick="event.stopPropagation()">
-        <button onclick="moveTaskInDay('${task.id}', -1)" title="Chuyển lên trên" class="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer">
-          <i data-lucide="chevron-up" class="w-4 h-4"></i>
-        </button>
-        <button onclick="moveTaskInDay('${task.id}', 1)" title="Chuyển xuống dưới" class="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer">
-          <i data-lucide="chevron-down" class="w-4 h-4"></i>
-        </button>
-      </div>
-    ` : '';
 
     const priorityBadge = {
       high: '<span class="px-2 py-0.5 text-xs font-bold rounded-md bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-200 border border-red-200 dark:border-red-700">🔥 Ưu tiên cao</span>',
@@ -1860,7 +1849,6 @@ function renderDayView() {
 
     const adminActionTools = state.isAdmin
       ? `<div class="flex items-center gap-1.5 self-end sm:self-start">
-          ${reorderButtons}
           ${(!isPast || !task.completed) ? `
           <button onclick="openEditTaskModal('${task.id}')" title="${isPast ? 'Dời lịch (Replan)' : 'Chỉnh sửa'}" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer">
             <i data-lucide="${isPast ? 'calendar-cog' : 'edit-3'}" class="w-4 h-4 ${isPast ? 'text-amber-500' : ''}"></i>
@@ -2084,20 +2072,10 @@ function renderWeekView() {
                     </div>
                   </div>
 
-                  <!-- Reorder Controls & Grip Handle Icon -->
-                  ${canDrag && tasks.length > 1 ? `
-                    <div class="flex flex-col items-center justify-between shrink-0 h-full py-0.5 -my-0.5" onclick="event.stopPropagation()">
-                      <button onclick="moveTaskInDay('${t.id}', -1)" title="Chuyển lên trên" class="w-4.5 h-4.5 flex items-center justify-center text-slate-300 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 rounded transition cursor-pointer">
-                        <i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
-                      </button>
-                      <i data-lucide="grip-vertical" class="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 my-auto cursor-grab"></i>
-                      <button onclick="moveTaskInDay('${t.id}', 1)" title="Chuyển xuống dưới" class="w-4.5 h-4.5 flex items-center justify-center text-slate-300 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 rounded transition cursor-pointer">
-                        <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
-                      </button>
-                    </div>
-                  ` : (canDrag ? `
+                  <!-- Grip Handle Icon -->
+                  ${canDrag ? `
                     <i data-lucide="grip-vertical" class="w-3.5 h-3.5 text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0 mt-0.5"></i>
-                  ` : '')}
+                  ` : ''}
                 </div>
               </div>
             `;
