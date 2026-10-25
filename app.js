@@ -563,6 +563,7 @@ function initSampleDataIfEmpty() {
         id: 'sample-1',
         title: 'Đọc 1 bài báo nghiên cứu / Chapter 1',
         date: formatDate(yesterday),
+        time: '15:00',
         priority: 'high',
         parentId: 'parent-1',
         category: 'Học tập',
@@ -575,6 +576,7 @@ function initSampleDataIfEmpty() {
         id: 'sample-2',
         title: 'Luyện 30 từ vựng chuyên ngành',
         date: formatDate(today),
+        time: '08:30',
         priority: 'high',
         parentId: 'parent-2',
         category: 'Ngoại ngữ',
@@ -587,6 +589,7 @@ function initSampleDataIfEmpty() {
         id: 'sample-3',
         title: 'Lập dàn ý bài luận / Dự án mới',
         date: formatDate(today),
+        time: '14:00',
         priority: 'medium',
         parentId: 'parent-3',
         category: 'Dự án',
@@ -599,6 +602,7 @@ function initSampleDataIfEmpty() {
         id: 'sample-4',
         title: 'Tổng kết tuần & lên lịch tuần mới',
         date: formatDate(tomorrow),
+        time: '09:00',
         priority: 'medium',
         parentId: 'parent-1',
         category: 'Kế hoạch',
@@ -1227,7 +1231,8 @@ async function saveTaskFromForm(formData) {
     openLoginModal();
     return;
   }
-  const { id, title, date, startDate, endDate, priority, parentId: initialParentId, note, tag } = formData;
+  const { id, title, date, time, startDate, endDate, priority, parentId: initialParentId, note, tag } = formData;
+  const cleanTime = time ? time.trim() : null;
 
   const effectiveStart = startDate || date || '';
   const effectiveEnd = endDate || effectiveStart;
@@ -1289,6 +1294,7 @@ async function saveTaskFromForm(formData) {
       if (targetTask) {
         targetTask.title = title;
         targetTask.date = dates[0];
+        targetTask.time = cleanTime;
         targetTask.priority = priority;
         targetTask.parentId = parentId || null;
         targetTask.note = note;
@@ -1300,6 +1306,7 @@ async function saveTaskFromForm(formData) {
           id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4) + '_' + i,
           title,
           date: dates[i],
+          time: cleanTime,
           priority,
           parentId: parentId || null,
           category: '',
@@ -1318,6 +1325,7 @@ async function saveTaskFromForm(formData) {
           id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4) + '_' + i,
           title,
           date: dates[i],
+          time: cleanTime,
           priority,
           parentId: parentId || null,
           category: '',
@@ -1368,6 +1376,7 @@ async function saveTaskFromForm(formData) {
       }
       targetTask.title = title;
       targetTask.date = effectiveStart || '';
+      targetTask.time = cleanTime;
       targetTask.priority = priority;
       targetTask.parentId = parentId || null;
       targetTask.note = note;
@@ -1377,6 +1386,7 @@ async function saveTaskFromForm(formData) {
       id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
       title,
       date: effectiveStart || '',
+      time: cleanTime,
       priority,
       parentId: parentId || null,
       category: '',
@@ -1565,6 +1575,16 @@ function renderDayView() {
   const priorityScore = { high: 3, medium: 2, low: 1 };
   tasksForDay.sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1;
+    const timeA = a.time ? a.time.trim() : '';
+    const timeB = b.time ? b.time.trim() : '';
+    if (timeA && timeB) {
+      const cmp = timeA.localeCompare(timeB);
+      if (cmp !== 0) return cmp;
+    } else if (timeA && !timeB) {
+      return -1;
+    } else if (!timeA && timeB) {
+      return 1;
+    }
     return (priorityScore[b.priority] || 0) - (priorityScore[a.priority] || 0);
   });
 
@@ -1663,7 +1683,7 @@ function renderDayView() {
           
           <div class="space-y-1.5 flex-1">
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="text-base font-bold ${task.completed ? 'line-through text-slate-500 dark:text-slate-300' : 'text-slate-900 dark:text-white'}">${escapeHtml(task.title)}</span>
+              <span class="text-base font-bold ${task.completed ? 'line-through text-slate-500 dark:text-slate-300' : 'text-slate-900 dark:text-white'}">${task.time ? `<span class="font-mono font-bold ${task.completed ? 'text-slate-400 dark:text-slate-500' : 'text-blue-600 dark:text-blue-400'} mr-1.5 select-none">${escapeHtml(task.time)}</span><span class="text-slate-400 dark:text-slate-500 font-normal mr-2 select-none">-</span>` : ''}${escapeHtml(task.title)}</span>
               ${task.seriesId ? `<span class="px-2 py-0.5 text-xs font-bold rounded-md bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1 shrink-0" title="Nhiệm vụ lặp theo chuỗi ngày (${task.seriesRange ? `${task.seriesRange.start} → ${task.seriesRange.end}` : 'Chuỗi'})">🔁 Lặp</span>` : ''}
               ${replanBadge}
               ${getParentBadgeHtml(task)}
@@ -1710,6 +1730,22 @@ function renderWeekView() {
     const isToday = dateStr === getTodayStr();
     const isPast = dateStr < getTodayStr();
     const tasks = state.tasks.filter(t => t.date === dateStr);
+    tasks.sort((a, b) => {
+      const timeA = a.time ? a.time.trim() : '';
+      const timeB = b.time ? b.time.trim() : '';
+      if (timeA && timeB) {
+        const cmp = timeA.localeCompare(timeB);
+        if (cmp !== 0) return cmp;
+      } else if (timeA && !timeB) {
+        return -1;
+      } else if (!timeA && timeB) {
+        return 1;
+      }
+      const priorityScore = { high: 3, medium: 2, low: 1 };
+      const priDiff = (priorityScore[b.priority] || 2) - (priorityScore[a.priority] || 2);
+      if (priDiff !== 0) return priDiff;
+      return (a.title || '').localeCompare(b.title || '');
+    });
     const completedCount = tasks.filter(t => t.completed).length;
 
     const addBtnHtml = (state.isAdmin && !isPast)
@@ -1825,9 +1861,9 @@ function renderWeekView() {
                     <div class="flex items-start gap-1.5 min-w-0 h-[36px] sm:h-[40px]">
                       <span 
                         class="text-xs sm:text-sm font-semibold leading-snug line-clamp-2 flex-1 min-w-0 ${t.completed ? 'line-through text-slate-500 dark:text-slate-300' : 'text-slate-900 dark:text-slate-100 font-bold'}"
-                        title="${escapeHtml(t.title)}"
+                        title="${t.time ? `[${escapeHtml(t.time)}] ` : ''}${escapeHtml(t.title)}"
                       >
-                        ${escapeHtml(t.title)}
+                        ${t.time ? `<span class="font-mono font-bold ${t.completed ? 'text-slate-400 dark:text-slate-500' : 'text-blue-600 dark:text-blue-400'} mr-1 select-none">${escapeHtml(t.time)}</span><span class="text-slate-400 dark:text-slate-500 font-normal mr-1.5 select-none">-</span>` : ''}${escapeHtml(t.title)}
                       </span>
                       ${t.seriesId ? `<span class="text-xs shrink-0 mt-0.5" title="Nhiệm vụ lặp chuỗi ngày">🔁</span>` : ''}
                       ${t.replanCount > 0 ? `<span class="inline-flex items-center text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 transition-colors cursor-help shrink-0 mt-0.5" title="Nhiệm vụ này đã được dời lịch ${t.replanCount} lần. Cố gắng hoàn thành sớm nhé!"><i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i></span>` : ''}
@@ -2019,10 +2055,11 @@ function renderMonthView() {
                   onclick="event.stopPropagation(); openTaskDetailModal('${t.id}')"
                   class="text-[11px] px-2 py-0.5 rounded-md truncate transition-colors flex items-center cursor-pointer hover:opacity-85 ${pillClasses}"
                   style="${pillStyle}"
-                  title="${escapeHtml(t.title)}${parent ? ` [${escapeHtml(parent.title)}]` : ''}"
+                  title="${t.time ? `[${escapeHtml(t.time)}] ` : ''}${escapeHtml(t.title)}${parent ? ` [${escapeHtml(parent.title)}]` : ''}"
                 >
                   ${prefixIcon}
                   ${parentTag ? `<span class="font-mono font-black mr-1 text-[10px] opacity-90 shrink-0">[${escapeHtml(parentTag)}]</span>` : ''}
+                  ${t.time ? `<span class="font-mono font-bold mr-1 opacity-90 shrink-0">${escapeHtml(t.time)}</span>` : ''}
                   <span class="truncate flex-1">${escapeHtml(t.title)}</span>
                   ${docIndicator}
                   ${linkIndicator}
@@ -2089,6 +2126,15 @@ function renderMonthSelectedDayTasks() {
   }
 
   const tasks = state.tasks.filter(t => t.date === dateStr);
+  tasks.sort((a, b) => {
+    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+    const timeA = a.time ? a.time.trim() : '';
+    const timeB = b.time ? b.time.trim() : '';
+    if (timeA && timeB) return timeA.localeCompare(timeB);
+    if (timeA && !timeB) return -1;
+    if (!timeA && timeB) return 1;
+    return 0;
+  });
   const completedCount = tasks.filter(t => t.completed).length;
 
   if (count) {
@@ -2145,7 +2191,7 @@ function renderMonthSelectedDayTasks() {
           >
           <div class="min-w-0 flex-1">
             <div class="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 ${t.completed ? 'line-through text-slate-400 dark:text-slate-500' : ''} truncate">
-              ${escapeHtml(t.title)}
+              ${t.time ? `<span class="font-mono font-bold ${t.completed ? 'text-slate-400' : 'text-blue-600 dark:text-blue-400'} mr-1 select-none">${escapeHtml(t.time)}</span><span class="text-slate-400 font-normal mr-1.5 select-none">-</span>` : ''}${escapeHtml(t.title)}
             </div>
             <div class="flex items-center gap-1.5 flex-wrap mt-1">
               ${parentTag ? `<span class="text-[10px] font-bold px-1.5 py-0.2 rounded border font-mono" style="${tagStyle}">[${escapeHtml(parentTag)}]</span>` : ''}
@@ -2977,6 +3023,11 @@ function openAddTaskModal(initialDate = null) {
   if (taskStartInput) taskStartInput.value = targetDate;
   if (taskEndInput) taskEndInput.value = targetDate;
 
+  const taskTimeInput = document.getElementById('taskTime');
+  if (taskTimeInput) taskTimeInput.value = '';
+  const defTimeInput = document.getElementById('definedTaskTime');
+  if (defTimeInput) defTimeInput.value = '';
+
   document.getElementById('taskPriority').value = 'medium';
   document.getElementById('taskNote').value = '';
   document.getElementById('modalTitle').textContent = 'Thêm nhiệm vụ vào lịch';
@@ -3032,6 +3083,8 @@ function openAddTaskModalForParent(parentId) {
   const taskEndInput = document.getElementById('taskEndDate');
   if (taskStartInput) taskStartInput.value = '';
   if (taskEndInput) taskEndInput.value = '';
+  const taskTimeInput = document.getElementById('taskTime');
+  if (taskTimeInput) taskTimeInput.value = '';
   updateAllDatePickerDisplays();
   document.getElementById('taskTitle').focus();
 }
@@ -3039,6 +3092,7 @@ function openAddTaskModalForParent(parentId) {
 function resetTaskFormState() {
   const titleInput = document.getElementById('taskTitle');
   const dateInput = document.getElementById('taskDate');
+  const timeInput = document.getElementById('taskTime');
   const prioritySelect = document.getElementById('taskPriority');
   const noteInput = document.getElementById('taskNote');
   const parentSelect = document.getElementById('taskParentSelect');
@@ -3051,6 +3105,11 @@ function resetTaskFormState() {
   }
   if (dateInput) {
     dateInput.min = '';
+  }
+  if (timeInput) {
+    timeInput.value = '';
+    timeInput.disabled = false;
+    timeInput.classList.remove('bg-slate-100', 'dark:bg-slate-750', 'opacity-75');
   }
   if (prioritySelect) {
     prioritySelect.disabled = false;
@@ -3107,6 +3166,7 @@ function openEditTaskModal(taskId) {
 
   const titleInput = document.getElementById('taskTitle');
   const dateInput = document.getElementById('taskDate');
+  const timeInput = document.getElementById('taskTime');
   const prioritySelect = document.getElementById('taskPriority');
   const noteInput = document.getElementById('taskNote');
   const parentSelect = document.getElementById('taskParentSelect');
@@ -3114,6 +3174,7 @@ function openEditTaskModal(taskId) {
 
   titleInput.value = task.title;
   dateInput.value = task.date || '';
+  if (timeInput) timeInput.value = task.time || '';
   const taskStart = document.getElementById('taskStartDate');
   const taskEnd = document.getElementById('taskEndDate');
   if (task.seriesRange) {
@@ -3134,6 +3195,10 @@ function openEditTaskModal(taskId) {
     dateInput.min = getTodayStr();
     titleInput.readOnly = true;
     titleInput.classList.add('bg-slate-100', 'dark:bg-slate-750', 'opacity-75');
+    if (timeInput) {
+      timeInput.disabled = true;
+      timeInput.classList.add('bg-slate-100', 'dark:bg-slate-750', 'opacity-75');
+    }
     prioritySelect.disabled = true;
     prioritySelect.classList.add('bg-slate-100', 'dark:bg-slate-750', 'opacity-75');
     noteInput.readOnly = true;
@@ -3221,6 +3286,10 @@ async function handleAddDefinedTaskSubmit(e) {
 
   const task = state.tasks.find(t => t.id === selectedTaskId);
   if (task) {
+    const defTime = document.getElementById('definedTaskTime')?.value;
+    if (defTime) {
+      task.time = defTime.trim();
+    }
     if (endDate && startDate < endDate) {
       const dates = getDatesInRange(startDate, endDate);
       const seriesId = 'series_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
@@ -3736,7 +3805,7 @@ function renderTaskManagerSubtaskRow(task) {
 
   const scheduleBadge = task.date && task.date.trim() !== ''
     ? `<span ${canReplanThisTask ? `onclick="openQuickScheduleModal('${task.id}')" title="Bấm để dời lịch (Replan) sang ngày mới"` : ''} class="px-2.5 py-1 text-xs font-semibold rounded-lg ${isPast ? (task.completed ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700' : 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800 cursor-pointer hover:border-amber-400 hover:shadow-2xs') : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'} border flex items-center gap-1.5 shrink-0">
-        <i data-lucide="calendar" class="w-3.5 h-3.5 ${isPast ? (task.completed ? 'text-slate-400' : 'text-amber-500') : 'text-blue-500'}"></i> ${task.date}
+        <i data-lucide="calendar" class="w-3.5 h-3.5 ${isPast ? (task.completed ? 'text-slate-400' : 'text-amber-500') : 'text-blue-500'}"></i> ${task.date}${task.time ? ` • <i data-lucide="clock" class="w-3 h-3 text-blue-500 inline"></i> ${task.time}` : ''}
         ${canReplanThisTask ? `<i data-lucide="calendar-sync" class="w-3 h-3 text-amber-500 ml-0.5" title="Replan"></i>` : ''}
       </span>`
     : `<div class="flex items-center gap-1.5 shrink-0">
@@ -3784,7 +3853,7 @@ function renderTaskManagerSubtaskRow(task) {
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
             <span onclick="openTaskDetailModal('${task.id}')" class="text-sm font-bold cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 break-words ${task.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-slate-100'}">
-              ${escapeHtml(task.title)}
+              ${task.time ? `<span class="font-mono font-bold ${task.completed ? 'text-slate-400' : 'text-blue-600 dark:text-blue-400'} mr-1 select-none">${escapeHtml(task.time)}</span><span class="text-slate-400 font-normal mr-1.5 select-none">-</span>` : ''}${escapeHtml(task.title)}
             </span>
             ${getParentBadgeHtml(task)}
             ${priorityBadge}
@@ -4244,6 +4313,10 @@ function openQuickScheduleModal(taskId) {
   const qsEnd = document.getElementById('quickScheduleEndDate');
   if (qsStart) qsStart.value = targetDate;
   if (qsEnd) qsEnd.value = targetDate;
+  const qsTime = document.getElementById('quickScheduleTimeInput');
+  if (qsTime) {
+    qsTime.value = task.time || '';
+  }
 
   updateAllDatePickerDisplays();
   if (!taskManagerModal.classList.contains('hidden')) {
@@ -4285,6 +4358,10 @@ async function handleQuickScheduleSubmit(e) {
 
   const task = state.tasks.find(t => t.id === taskId);
   if (task) {
+    const quickTime = document.getElementById('quickScheduleTimeInput')?.value;
+    if (quickTime !== undefined && quickTime !== null) {
+      task.time = quickTime ? quickTime.trim() : null;
+    }
     const wasPast = Boolean(task.date && task.date < getTodayStr());
     if (wasPast && task.completed) {
       showToast({
@@ -4402,8 +4479,8 @@ function renderReplanModalContent() {
       <div class="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 shadow-2xs">
         <div>
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base">${escapeHtml(task.title)}</span>
-            <span class="text-xs px-2.5 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 font-bold border border-rose-200 dark:border-rose-700">Ngày cũ: ${task.date}</span>
+            <span class="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base">${task.time ? `<span class="font-mono text-blue-600 dark:text-blue-400 mr-1 select-none">${escapeHtml(task.time)}</span><span class="text-slate-400 font-normal mr-1.5 select-none">-</span>` : ''}${escapeHtml(task.title)}</span>
+            <span class="text-xs px-2.5 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 font-bold border border-rose-200 dark:border-rose-700">Ngày cũ: ${task.date}${task.time ? ` (${task.time})` : ''}</span>
             ${task.replanCount > 0 ? `<span class="text-xs px-2.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 font-bold border border-amber-200 dark:border-amber-700">Đã dời ${task.replanCount} lần</span>` : ''}
           </div>
           ${task.note ? `<p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1">${escapeHtml(task.note)}</p>` : ''}
@@ -4610,7 +4687,7 @@ function openTaskDetailModal(taskId) {
   // Header data
   document.getElementById('detailTaskTitle').textContent = task.title;
   document.getElementById('detailTaskDate').innerHTML = task.date 
-    ? `<i data-lucide="calendar" class="w-3.5 h-3.5 inline"></i> ${task.date}`
+    ? `<i data-lucide="calendar" class="w-3.5 h-3.5 inline"></i> ${task.date}${task.time ? ` • <i data-lucide="clock" class="w-3.5 h-3.5 inline text-blue-500"></i> <strong class="font-mono text-blue-600 dark:text-blue-400">${escapeHtml(task.time)}</strong>` : ''}`
     : `<span class="text-amber-600 dark:text-amber-400 font-bold">⏳ Chưa lên lịch (Kho Backlog)</span>`;
 
   const priorityEl = document.getElementById('detailPriorityBadge');
@@ -6852,10 +6929,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const tagVal = (tagInput ? tagInput.value.trim() : '') || generateParentTaskTag(titleVal) || 'TASK';
     const startVal = document.getElementById('taskStartDate')?.value || document.getElementById('taskDate')?.value || '';
     const endVal = document.getElementById('taskEndDate')?.value || startVal;
+    const timeVal = document.getElementById('taskTime')?.value || '';
     await saveTaskFromForm({
       id: document.getElementById('taskId').value,
       title: titleVal,
       date: document.getElementById('taskDate').value,
+      time: timeVal,
       startDate: startVal,
       endDate: endVal,
       priority: document.getElementById('taskPriority').value,
