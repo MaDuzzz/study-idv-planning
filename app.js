@@ -1305,6 +1305,17 @@ function toggleTaskComplete(taskId) {
   if (!task) return;
 
   const isPast = Boolean(task.date && task.date < getTodayStr());
+
+  // Task đã hoàn thành trong quá khứ thì không cho phép bỏ tích (chỉ xem, không có chiều ngược lại)
+  if (isPast && task.completed) {
+    showToast({
+      type: 'warning',
+      title: 'Chỉ xem',
+      message: 'Nhiệm vụ trong quá khứ đã hoàn thành, không thể bỏ tích hoàn thành!'
+    });
+    return;
+  }
+
   const willBeCompleted = !task.completed;
 
   task.completed = willBeCompleted;
@@ -1325,20 +1336,12 @@ function toggleTaskComplete(taskId) {
   }
   renderApp();
 
-  if (isPast) {
-    if (willBeCompleted) {
-      showToast({
-        type: 'success',
-        title: 'Hoàn thành bù (Backdate)',
-        message: `Đã đánh dấu hoàn thành nhiệm vụ "${escapeHtml(task.title)}" cho ngày ${formatPrettyDate(task.date)}!`
-      });
-    } else {
-      showToast({
-        type: 'info',
-        title: 'Bỏ hoàn thành',
-        message: `Đã chuyển nhiệm vụ "${escapeHtml(task.title)}" về trạng thái chưa hoàn thành.`
-      });
-    }
+  if (isPast && willBeCompleted) {
+    showToast({
+      type: 'success',
+      title: 'Hoàn thành bù (Backdate)',
+      message: `Đã đánh dấu hoàn thành nhiệm vụ "${escapeHtml(task.title)}" cho ngày ${formatPrettyDate(task.date)}!`
+    });
   }
 }
 
@@ -1821,9 +1824,9 @@ function renderDayView() {
     const checkboxHtml = state.isAdmin
       ? (isPast
           ? (task.completed
-              ? `<button onclick="toggleTaskComplete('${task.id}')" title="Đã hoàn thành trong quá khứ (Bấm để thay đổi)" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border transition bg-slate-400 hover:bg-slate-500 border-slate-400 text-white shadow-xs cursor-pointer">
+              ? `<div title="Đã hoàn thành trong quá khứ (Chỉ xem, không thể bỏ tích)" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border transition bg-slate-400 dark:bg-slate-600 border-slate-400 dark:border-slate-600 text-white shadow-xs cursor-default">
                   <i data-lucide="check" class="w-4 h-4"></i>
-                </button>`
+                </div>`
               : `<button onclick="toggleTaskComplete('${task.id}')" title="Bấm để đánh dấu hoàn thành bù (Backdate)" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border transition border-amber-400 dark:border-amber-500 hover:border-emerald-500 hover:bg-emerald-500 hover:text-white bg-white dark:bg-slate-700 text-amber-500 shadow-xs cursor-pointer">
                   <i data-lucide="check" class="w-4 h-4 opacity-0 hover:opacity-100 transition-opacity"></i>
                 </button>`)
@@ -2029,9 +2032,9 @@ function renderWeekView() {
             const checkboxHtml = state.isAdmin
               ? (isPast
                   ? (t.completed
-                      ? `<button onclick="event.stopPropagation(); toggleTaskComplete('${t.id}')" title="Đã hoàn thành trong quá khứ (Bấm để thay đổi)" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 bg-slate-400 hover:bg-slate-500 border-slate-400 text-white shadow-2xs cursor-pointer">
+                      ? `<div onclick="event.stopPropagation()" title="Đã hoàn thành trong quá khứ (Chỉ xem, không thể bỏ tích)" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 bg-slate-400 dark:bg-slate-600 border-slate-400 dark:border-slate-600 text-white shadow-2xs cursor-default">
                           <i data-lucide="check" class="w-3.5 h-3.5"></i>
-                        </button>`
+                        </div>`
                       : `<button onclick="event.stopPropagation(); toggleTaskComplete('${t.id}')" title="Bấm để đánh dấu hoàn thành bù (Backdate)" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 border-amber-400 dark:border-amber-500 hover:border-emerald-500 hover:bg-emerald-500 hover:text-white bg-white dark:bg-slate-700 text-amber-500 shadow-2xs cursor-pointer">
                           <i data-lucide="check" class="w-3.5 h-3.5 opacity-0 hover:opacity-100 transition-opacity"></i>
                         </button>`)
@@ -2054,7 +2057,7 @@ function renderWeekView() {
                 ` : ''}
                 onclick="openTaskDetailModal('${t.id}')" 
                 class="task-card h-[96px] shrink-0 p-3 rounded-xl border transition-all duration-150 select-none flex flex-col justify-between ${canDrag ? 'cursor-grab active:cursor-grabbing hover:border-blue-400 dark:hover:border-blue-400 hover:shadow-md' : 'cursor-pointer hover:border-slate-300 dark:hover:border-slate-600'} ${taskIsOverdue ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-600/80' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:dark:border-slate-600'} ${t.completed ? 'bg-slate-50/90 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60' : ''}"
-                title="${escapeHtml(t.title)} • ${isPast ? (t.completed ? 'Nhiệm vụ trong quá khứ đã hoàn thành (Bấm để thay đổi)' : 'Nhiệm vụ quá hạn - Bấm ô vuông để hoàn thành bù (Backdate), hoặc kéo thả để dời lịch') : (state.isAdmin ? 'Bấm để xem chi tiết & tài liệu, hoặc kéo thả / bấm mũi tên để sắp xếp' : 'Bấm để xem chi tiết')}"
+                title="${escapeHtml(t.title)} • ${isPast ? (t.completed ? 'Nhiệm vụ trong quá khứ đã hoàn thành (Chỉ xem)' : 'Nhiệm vụ quá hạn - Bấm ô vuông để hoàn thành bù (Backdate), hoặc kéo thả để dời lịch') : (state.isAdmin ? 'Bấm để xem chi tiết & tài liệu, hoặc kéo thả / bấm mũi tên để sắp xếp' : 'Bấm để xem chi tiết')}"
               >
                 <div class="flex items-start gap-2.5 h-full">
                   <!-- Checkbox -->
@@ -2326,6 +2329,7 @@ function renderMonthSelectedDayTasks() {
   const list = document.getElementById('monthSelectedTaskList');
 
   const isSelectedToday = dateStr === getTodayStr();
+  const isPast = dateStr < getTodayStr();
   const cellDate = parseDateStr(dateStr);
   const dayName = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'][cellDate.getDay()];
   const formattedDateLabel = `${dayName}, ${cellDate.getDate()}/${cellDate.getMonth() + 1}/${cellDate.getFullYear()}`;
@@ -2390,9 +2394,11 @@ function renderMonthSelectedDayTasks() {
           <input 
             type="checkbox" 
             ${t.completed ? 'checked' : ''} 
+            ${(isPast && t.completed) || !state.isAdmin ? 'disabled' : ''}
             onclick="event.stopPropagation()"
             onchange="toggleTaskComplete('${t.id}')"
-            class="w-4.5 h-4.5 text-blue-600 rounded-md cursor-pointer shrink-0"
+            title="${isPast && t.completed ? 'Đã hoàn thành trong quá khứ (Chỉ xem, không thể bỏ tích)' : ''}"
+            class="w-4.5 h-4.5 text-blue-600 rounded-md ${(isPast && t.completed) || !state.isAdmin ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'} shrink-0"
           >
           <div class="min-w-0 flex-1">
             <div class="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 ${t.completed ? 'line-through text-slate-400 dark:text-slate-500' : ''} truncate">
@@ -4037,9 +4043,9 @@ function renderTaskManagerSubtaskRow(task) {
   const checkboxHtml = state.isAdmin
     ? (isPast
         ? (task.completed
-            ? `<button onclick="toggleTaskComplete('${task.id}')" title="Đã hoàn thành trong quá khứ (Bấm để thay đổi)" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 bg-slate-400 hover:bg-slate-500 border-slate-400 text-white shadow-2xs cursor-pointer">
+            ? `<div title="Đã hoàn thành trong quá khứ (Chỉ xem, không thể bỏ tích)" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 bg-slate-400 dark:bg-slate-600 border-slate-400 dark:border-slate-600 text-white shadow-2xs cursor-default">
                 <i data-lucide="check" class="w-3.5 h-3.5"></i>
-              </button>`
+              </div>`
             : `<button onclick="toggleTaskComplete('${task.id}')" title="Bấm để đánh dấu hoàn thành bù (Backdate)" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 border-amber-400 dark:border-amber-500 hover:border-emerald-500 hover:bg-emerald-500 hover:text-white bg-white dark:bg-slate-800 text-amber-500 shadow-2xs cursor-pointer">
                 <i data-lucide="check" class="w-3.5 h-3.5 opacity-0 hover:opacity-100 transition-opacity"></i>
               </button>`)
@@ -4872,15 +4878,20 @@ function updateDetailModalCompletion(isCompleted) {
 
   if (isCompleted) {
     checkIcon.classList.remove('hidden');
-    btnToggle.className = `mt-1 w-6 h-6 rounded-lg flex items-center justify-center border transition shrink-0 ${isPast ? 'bg-slate-400 hover:bg-slate-500 border-slate-400 text-white' : 'bg-blue-600 border-blue-600 text-white'} shadow-2xs ${state.isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`;
+    const isLockedPastDone = isPast;
+    btnToggle.className = `mt-1 w-6 h-6 rounded-lg flex items-center justify-center border transition shrink-0 ${isPast ? 'bg-slate-400 dark:bg-slate-600 border-slate-400 dark:border-slate-600 text-white' : 'bg-blue-600 border-blue-600 text-white'} shadow-2xs ${state.isAdmin && !isLockedPastDone ? 'cursor-pointer' : 'cursor-default opacity-80'}`;
+    btnToggle.disabled = !state.isAdmin || isLockedPastDone;
+    btnToggle.title = isPast 
+      ? 'Đã hoàn thành trong quá khứ (Chỉ xem, không thể bỏ tích)'
+      : 'Bỏ đánh dấu hoàn thành';
   } else {
     checkIcon.classList.add('hidden');
     btnToggle.className = `mt-1 w-6 h-6 rounded-lg flex items-center justify-center border transition shrink-0 ${isPast ? 'border-amber-400 dark:border-amber-500 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-amber-500' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-blue-500'} shadow-2xs ${state.isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`;
+    btnToggle.disabled = !state.isAdmin;
+    btnToggle.title = isPast 
+      ? 'Bấm để đánh dấu hoàn thành bù (Backdate)' 
+      : 'Đánh dấu hoàn thành';
   }
-  btnToggle.disabled = !state.isAdmin;
-  btnToggle.title = isPast 
-    ? (isCompleted ? 'Đã hoàn thành trong quá khứ (Bấm để thay đổi)' : 'Bấm để đánh dấu hoàn thành bù (Backdate)')
-    : (isCompleted ? 'Bỏ đánh dấu hoàn thành' : 'Đánh dấu hoàn thành');
 }
 
 function openTaskDetailModal(taskId) {
@@ -5006,11 +5017,6 @@ function openTaskDetailModal(taskId) {
               <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950 px-2.5 py-1 rounded-lg flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
                 <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Đã hoàn thành
               </span>
-              ${state.isAdmin ? `
-                <button onclick="toggleTaskComplete('${task.id}')" class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg font-semibold text-xs transition cursor-pointer" title="Bỏ đánh dấu hoàn thành nếu tích nhầm">
-                  Bỏ tích
-                </button>
-              ` : ''}
             </div>
           </div>
         `;
