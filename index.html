@@ -495,7 +495,51 @@
       padding: 0 !important;
     }
 
-    html.dark input[type="date"]::-webkit-calendar-picker-indicator {
+    /* Đảm bảo chữ hiển thị giờ giấc (input type="time") căn giữa hoàn hảo cả ngang lẫn dọc trên iOS Safari & mọi thiết bị */
+    input[type="time"] {
+      text-align: center !important;
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
+
+    /* Trên iOS Safari: Căn giữa tuyệt đối text giờ cả chiều ngang và chiều dọc */
+    input[type="time"]::-webkit-date-and-time-value {
+      text-align: center !important;
+      min-height: 1.5em !important;
+      line-height: 42px !important;
+      height: 42px !important;
+      width: 100% !important;
+      margin: 0 auto !important;
+      padding: 0 !important;
+      display: block !important;
+    }
+
+    /* Hỗ trợ căn giữa trên Chromium (Chrome, Edge, Cốc Cốc, Samsung Internet...) */
+    input[type="time"]::-webkit-datetime-edit {
+      display: inline-flex !important;
+      justify-content: center !important;
+      width: 100% !important;
+      text-align: center !important;
+      margin: 0 auto !important;
+      padding: 0 !important;
+    }
+
+    input[type="time"]::-webkit-datetime-edit-fields-wrapper {
+      display: inline-flex !important;
+      justify-content: center !important;
+      margin: 0 auto !important;
+      padding: 0 !important;
+    }
+
+    /* Căn chỉnh icon đồng hồ trên desktop */
+    input[type="time"]::-webkit-calendar-picker-indicator {
+      margin: 0 !important;
+      padding: 0 4px !important;
+      cursor: pointer !important;
+    }
+
+    html.dark input[type="date"]::-webkit-calendar-picker-indicator,
+    html.dark input[type="time"]::-webkit-calendar-picker-indicator {
       filter: invert(1);
       opacity: 0.7;
       cursor: pointer;
@@ -1496,7 +1540,7 @@
             <input 
               type="time" 
               id="definedTaskTime" 
-              class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold font-mono text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition cursor-pointer"
+              class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold font-mono text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition cursor-pointer text-center"
             >
           </div>
         </div>
@@ -1552,7 +1596,7 @@
               <input 
                 type="time" 
                 id="taskTime" 
-                class="w-full h-11 px-3 sm:px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold font-mono text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition cursor-pointer"
+                class="w-full h-11 px-3 sm:px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold font-mono text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition cursor-pointer text-center"
               >
             </div>
           </div>
@@ -1914,7 +1958,7 @@
             <input 
               type="time" 
               id="quickScheduleTimeInput" 
-              class="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold font-mono text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition cursor-pointer"
+              class="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold font-mono text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition cursor-pointer text-center"
             >
           </div>
         </div>
@@ -2784,8 +2828,8 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=8.17"></script>
-  <script src="app.js?v=8.17"></script>
+  <script src="firebase-config.js?v=8.18"></script>
+  <script src="app.js?v=8.18"></script>
 
   <!-- Đăng ký Service Worker cho Progressive Web App (PWA) -->
   <script>
