@@ -1099,22 +1099,42 @@ function toggleTaskComplete(taskId) {
   const task = state.tasks.find(t => t.id === taskId);
   if (!task) return;
 
-  // Chặn đổi trạng thái nếu nhiệm vụ thuộc ngày quá khứ
-  if (task.date && task.date < getTodayStr()) {
-    showToast({
-      type: 'warning',
-      title: 'Chỉ xem',
-      message: 'Nhiệm vụ thuộc ngày trong quá khứ, không thể thay đổi trạng thái!'
-    });
-    return;
+  const isPast = Boolean(task.date && task.date < getTodayStr());
+  const willBeCompleted = !task.completed;
+
+  task.completed = willBeCompleted;
+  if (willBeCompleted) {
+    task.completedAt = new Date().toISOString();
+  } else {
+    delete task.completedAt;
   }
 
-  task.completed = !task.completed;
   saveSingleTask(task);
   if (state.activeDetailTaskId === taskId) {
     updateDetailModalCompletion(task.completed);
+    // Làm mới banner thông báo trong Task Detail nếu modal đang mở
+    const pastNotice = document.getElementById('detailPastNotice');
+    if (pastNotice && isPast) {
+      openTaskDetailModal(taskId);
+    }
   }
   renderApp();
+
+  if (isPast) {
+    if (willBeCompleted) {
+      showToast({
+        type: 'success',
+        title: 'Hoàn thành bù (Backdate)',
+        message: `Đã đánh dấu hoàn thành nhiệm vụ "${escapeHtml(task.title)}" cho ngày ${formatPrettyDate(task.date)}!`
+      });
+    } else {
+      showToast({
+        type: 'info',
+        title: 'Bỏ hoàn thành',
+        message: `Đã chuyển nhiệm vụ "${escapeHtml(task.title)}" về trạng thái chưa hoàn thành.`
+      });
+    }
+  }
 }
 
 async function deleteTask(taskId) {
@@ -1573,21 +1593,28 @@ function renderDayView() {
         </span>`
       : '';
 
-    const checkboxHtml = isPast
-      ? `<div title="Ngày đã qua - Không thể thay đổi trạng thái" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border ${task.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-750'} cursor-not-allowed opacity-60">
+    const checkboxHtml = state.isAdmin
+      ? (isPast
+          ? (task.completed
+              ? `<button onclick="toggleTaskComplete('${task.id}')" title="Đã hoàn thành trong quá khứ (Bấm để thay đổi)" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border transition bg-slate-400 hover:bg-slate-500 border-slate-400 text-white shadow-xs cursor-pointer">
+                  <i data-lucide="check" class="w-4 h-4"></i>
+                </button>`
+              : `<button onclick="toggleTaskComplete('${task.id}')" title="Bấm để đánh dấu hoàn thành bù (Backdate)" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border transition border-amber-400 dark:border-amber-500 hover:border-emerald-500 hover:bg-emerald-500 hover:text-white bg-white dark:bg-slate-700 text-amber-500 shadow-xs cursor-pointer">
+                  <i data-lucide="check" class="w-4 h-4 opacity-0 hover:opacity-100 transition-opacity"></i>
+                </button>`)
+          : `<button onclick="toggleTaskComplete('${task.id}')" title="${task.completed ? 'Bỏ đánh dấu hoàn thành' : 'Bấm để đánh dấu hoàn thành'}" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border transition ${task.completed ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'border-slate-300 dark:border-slate-500 hover:border-blue-500 bg-white dark:bg-slate-700'} cursor-pointer">
+              ${task.completed ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
+            </button>`)
+      : `<button onclick="openLoginModal()" title="Chỉ đọc - Đăng nhập Admin để tích hoàn thành" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border ${task.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-750 hover:border-blue-400'} cursor-pointer">
           ${task.completed ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
-        </div>`
-      : (state.isAdmin
-          ? `<button onclick="toggleTaskComplete('${task.id}')" title="Bấm để đánh dấu hoàn thành" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border transition ${task.completed ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'border-slate-300 dark:border-slate-500 hover:border-blue-500 bg-white dark:bg-slate-700'}">
-              ${task.completed ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
-            </button>`
-          : `<button onclick="openLoginModal()" title="Chỉ đọc - Đăng nhập Admin để tích hoàn thành" class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center border ${task.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-750 hover:border-blue-400'} cursor-pointer">
-              ${task.completed ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
-            </button>`);
+        </button>`;
 
     const replanToolbar = (taskIsOverdue && state.isAdmin)
       ? `<div class="pt-2.5 flex items-center gap-2 flex-wrap">
-          <span class="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1">
+          <button onclick="toggleTaskComplete('${task.id}')" title="Đánh dấu hoàn thành bù cho ngày này" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer transition">
+            <i data-lucide="check" class="w-3.5 h-3.5"></i> Hoàn thành bù
+          </button>
+          <span class="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1 ml-1">
             <i data-lucide="calendar-sync" class="w-4 h-4"></i> Dời lịch sang:
           </span>
           <button onclick="replanTask('${task.id}', '${todayStr}')" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-2xs">
@@ -1762,17 +1789,21 @@ function renderWeekView() {
             const taskIsOverdue = isOverdue(t);
             const canDrag = state.isAdmin && (!isPast || !t.completed);
 
-            const checkboxHtml = isPast 
-              ? `<div title="Ngày đã qua - Không thể thay đổi trạng thái" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${t.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800'} cursor-not-allowed opacity-60">
+            const checkboxHtml = state.isAdmin
+              ? (isPast
+                  ? (t.completed
+                      ? `<button onclick="event.stopPropagation(); toggleTaskComplete('${t.id}')" title="Đã hoàn thành trong quá khứ (Bấm để thay đổi)" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 bg-slate-400 hover:bg-slate-500 border-slate-400 text-white shadow-2xs cursor-pointer">
+                          <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                        </button>`
+                      : `<button onclick="event.stopPropagation(); toggleTaskComplete('${t.id}')" title="Bấm để đánh dấu hoàn thành bù (Backdate)" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 border-amber-400 dark:border-amber-500 hover:border-emerald-500 hover:bg-emerald-500 hover:text-white bg-white dark:bg-slate-700 text-amber-500 shadow-2xs cursor-pointer">
+                          <i data-lucide="check" class="w-3.5 h-3.5 opacity-0 hover:opacity-100 transition-opacity"></i>
+                        </button>`)
+                  : `<button onclick="event.stopPropagation(); toggleTaskComplete('${t.id}')" title="${t.completed ? 'Bỏ đánh dấu hoàn thành' : 'Tích hoàn thành'}" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 ${t.completed ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'border-slate-300 dark:border-slate-500 hover:border-blue-500 bg-white dark:bg-slate-700'} cursor-pointer">
+                      ${t.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
+                    </button>`)
+              : `<button onclick="event.stopPropagation(); openLoginModal()" title="Chỉ đọc - Đăng nhập để thay đổi task" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${t.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-750 hover:border-blue-400'} cursor-pointer">
                   ${t.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
-                </div>`
-              : (state.isAdmin 
-                  ? `<button onclick="event.stopPropagation(); toggleTaskComplete('${t.id}')" title="Tích hoàn thành" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 ${t.completed ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'border-slate-300 dark:border-slate-500 hover:border-blue-500 bg-white dark:bg-slate-700'}">
-                      ${t.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
-                    </button>`
-                  : `<button onclick="event.stopPropagation(); openLoginModal()" title="Chỉ đọc - Đăng nhập để hoàn thành task" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${t.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-750 hover:border-blue-400'} cursor-pointer">
-                      ${t.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
-                    </button>`);
+                </button>`;
 
             return `
               <div 
@@ -1783,7 +1814,7 @@ function renderWeekView() {
                 ` : ''}
                 onclick="openTaskDetailModal('${t.id}')" 
                 class="task-card h-[96px] shrink-0 p-3 rounded-xl border transition-all duration-150 select-none flex flex-col justify-between ${canDrag ? 'cursor-grab active:cursor-grabbing hover:border-blue-400 dark:hover:border-blue-400 hover:shadow-md' : 'cursor-pointer hover:border-slate-300 dark:hover:border-slate-600'} ${taskIsOverdue ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-600/80' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:dark:border-slate-600'} ${t.completed ? 'bg-slate-50/90 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60' : ''}"
-                title="${escapeHtml(t.title)} • ${isPast ? (t.completed ? 'Nhiệm vụ trong quá khứ đã hoàn thành (Chỉ xem)' : 'Nhiệm vụ quá hạn - Kéo thả sang ngày mới để dời lịch (Replan)') : (state.isAdmin ? 'Bấm để xem chi tiết & tài liệu, hoặc kéo thả để đổi ngày' : 'Bấm để xem chi tiết')}"
+                title="${escapeHtml(t.title)} • ${isPast ? (t.completed ? 'Nhiệm vụ trong quá khứ đã hoàn thành (Bấm để thay đổi)' : 'Nhiệm vụ quá hạn - Bấm ô vuông để hoàn thành bù (Backdate), hoặc kéo thả để dời lịch') : (state.isAdmin ? 'Bấm để xem chi tiết & tài liệu, hoặc kéo thả để đổi ngày' : 'Bấm để xem chi tiết')}"
               >
                 <div class="flex items-start gap-2.5 h-full">
                   <!-- Checkbox -->
@@ -3729,11 +3760,19 @@ function renderTaskManagerSubtaskRow(task) {
       </span>`
     : '';
 
-  const checkboxHtml = isPast
-    ? `<div title="Ngày đã qua - Không thể thay đổi trạng thái" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${task.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800'} cursor-not-allowed opacity-60">
-        ${task.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
-      </div>`
-    : `<button onclick="toggleTaskComplete('${task.id}')" title="Đánh dấu hoàn thành" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 ${task.completed ? 'bg-blue-600 border-blue-600 text-white shadow-2xs' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:border-blue-500'}">
+  const checkboxHtml = state.isAdmin
+    ? (isPast
+        ? (task.completed
+            ? `<button onclick="toggleTaskComplete('${task.id}')" title="Đã hoàn thành trong quá khứ (Bấm để thay đổi)" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 bg-slate-400 hover:bg-slate-500 border-slate-400 text-white shadow-2xs cursor-pointer">
+                <i data-lucide="check" class="w-3.5 h-3.5"></i>
+              </button>`
+            : `<button onclick="toggleTaskComplete('${task.id}')" title="Bấm để đánh dấu hoàn thành bù (Backdate)" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 border-amber-400 dark:border-amber-500 hover:border-emerald-500 hover:bg-emerald-500 hover:text-white bg-white dark:bg-slate-800 text-amber-500 shadow-2xs cursor-pointer">
+                <i data-lucide="check" class="w-3.5 h-3.5 opacity-0 hover:opacity-100 transition-opacity"></i>
+              </button>`)
+        : `<button onclick="toggleTaskComplete('${task.id}')" title="${task.completed ? 'Bỏ hoàn thành' : 'Đánh dấu hoàn thành'}" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 ${task.completed ? 'bg-blue-600 border-blue-600 text-white shadow-2xs' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:border-blue-500'} cursor-pointer">
+            ${task.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
+          </button>`)
+    : `<button onclick="openLoginModal()" title="Chỉ đọc - Đăng nhập để thay đổi" class="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border shrink-0 ${task.completed ? 'bg-slate-400 border-slate-400 text-white' : 'border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800'} cursor-pointer">
         ${task.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
       </button>`;
 
@@ -3768,10 +3807,13 @@ function renderTaskManagerSubtaskRow(task) {
             <i data-lucide="trash-2" class="w-4 h-4"></i>
           </button>
         ` : (canReplanThisTask ? `
-          <button onclick="openQuickScheduleModal('${task.id}')" title="Dời lịch (Replan) sang ngày hôm nay hoặc tương lai" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
+          <button onclick="toggleTaskComplete('${task.id}')" title="Đánh dấu hoàn thành bù cho ngày ${formatPrettyDate(task.date)}" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer">
+            <i data-lucide="check" class="w-3.5 h-3.5"></i> Hoàn thành bù
+          </button>
+          <button onclick="openQuickScheduleModal('${task.id}')" title="Dời lịch (Replan) sang ngày hôm nay hoặc tương lai" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer">
             <i data-lucide="calendar-sync" class="w-3.5 h-3.5"></i> Replan
           </button>
-          <button onclick="openEditTaskModal('${task.id}')" title="Dời ngày qua form chỉnh sửa" class="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          <button onclick="openEditTaskModal('${task.id}')" title="Dời ngày qua form chỉnh sửa" class="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
             <i data-lucide="calendar-cog" class="w-4 h-4 text-amber-500"></i>
           </button>
         ` : `
@@ -4548,13 +4590,15 @@ function updateDetailModalCompletion(isCompleted) {
 
   if (isCompleted) {
     checkIcon.classList.remove('hidden');
-    btnToggle.className = `mt-1 w-6 h-6 rounded-lg flex items-center justify-center border transition shrink-0 bg-blue-600 border-blue-600 text-white shadow-2xs ${isPast ? 'cursor-not-allowed opacity-60' : ''}`;
+    btnToggle.className = `mt-1 w-6 h-6 rounded-lg flex items-center justify-center border transition shrink-0 ${isPast ? 'bg-slate-400 hover:bg-slate-500 border-slate-400 text-white' : 'bg-blue-600 border-blue-600 text-white'} shadow-2xs ${state.isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`;
   } else {
     checkIcon.classList.add('hidden');
-    btnToggle.className = `mt-1 w-6 h-6 rounded-lg flex items-center justify-center border transition shrink-0 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-blue-500 shadow-2xs ${isPast ? 'cursor-not-allowed opacity-60' : ''}`;
+    btnToggle.className = `mt-1 w-6 h-6 rounded-lg flex items-center justify-center border transition shrink-0 ${isPast ? 'border-amber-400 dark:border-amber-500 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-amber-500' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:border-blue-500'} shadow-2xs ${state.isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`;
   }
-  btnToggle.disabled = isPast;
-  btnToggle.title = isPast ? 'Nhiệm vụ thuộc ngày trong quá khứ - Không thể thay đổi trạng thái' : 'Đánh dấu hoàn thành';
+  btnToggle.disabled = !state.isAdmin;
+  btnToggle.title = isPast 
+    ? (isCompleted ? 'Đã hoàn thành trong quá khứ (Bấm để thay đổi)' : 'Bấm để đánh dấu hoàn thành bù (Backdate)')
+    : (isCompleted ? 'Bỏ đánh dấu hoàn thành' : 'Đánh dấu hoàn thành');
 }
 
 function openTaskDetailModal(taskId) {
@@ -4676,9 +4720,16 @@ function openTaskDetailModal(taskId) {
               <i data-lucide="lock" class="w-4 h-4 text-slate-500 shrink-0"></i>
               <span>Nhiệm vụ đã hoàn thành trong quá khứ. Chế độ lưu trữ chỉ xem (Read-only).</span>
             </div>
-            <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950 px-2.5 py-1 rounded-lg flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
-              <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Đã hoàn thành
-            </span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950 px-2.5 py-1 rounded-lg flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
+                <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Đã hoàn thành
+              </span>
+              ${state.isAdmin ? `
+                <button onclick="toggleTaskComplete('${task.id}')" class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg font-semibold text-xs transition cursor-pointer" title="Bỏ đánh dấu hoàn thành nếu tích nhầm">
+                  Bỏ tích
+                </button>
+              ` : ''}
+            </div>
           </div>
         `;
       } else {
@@ -4686,12 +4737,17 @@ function openTaskDetailModal(taskId) {
           <div class="flex items-center justify-between w-full flex-wrap gap-2">
             <div class="flex items-center gap-2">
               <i data-lucide="alert-circle" class="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0"></i>
-              <span>Nhiệm vụ quá hạn trong quá khứ. Hãy dời lịch (Replan) sang ngày mới để tiếp tục thực hiện.</span>
+              <span>Nhiệm vụ quá hạn trong quá khứ. Bạn có thể đánh dấu hoàn thành bù hoặc dời lịch (Replan) sang ngày mới.</span>
             </div>
             ${state.isAdmin ? `
-              <button onclick="openQuickScheduleModal('${task.id}')" class="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center gap-1 shadow-2xs transition">
-                <i data-lucide="calendar-sync" class="w-3.5 h-3.5"></i> Dời lịch (Replan) sang ngày mới
-              </button>
+              <div class="flex items-center gap-2">
+                <button onclick="toggleTaskComplete('${task.id}')" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg font-bold text-xs flex items-center gap-1 shadow-2xs transition cursor-pointer">
+                  <i data-lucide="check" class="w-3.5 h-3.5"></i> Hoàn thành bù
+                </button>
+                <button onclick="openQuickScheduleModal('${task.id}')" class="px-3 py-1 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-lg font-bold text-xs flex items-center gap-1 shadow-2xs transition cursor-pointer">
+                  <i data-lucide="calendar-sync" class="w-3.5 h-3.5"></i> Dời lịch (Replan)
+                </button>
+              </div>
             ` : ''}
           </div>
         `;
