@@ -739,6 +739,18 @@ function getDatesInRange(startDateStr, endDateStr) {
   return dates;
 }
 
+function formatTimeForInput(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return '';
+  const trimmed = timeStr.trim();
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})/);
+  if (match) {
+    const hh = match[1].padStart(2, '0');
+    const mm = match[2];
+    return `${hh}:${mm}`;
+  }
+  return trimmed;
+}
+
 function updateCustomDatePickerDisplay(inputId, displayId) {
   const input = document.getElementById(inputId);
   const display = document.getElementById(displayId);
@@ -3195,6 +3207,15 @@ function openAddTaskModal(initialDate = null) {
       }
 
       selectDefined.innerHTML = optHtml;
+      const defTimeInput = document.getElementById('definedTaskTime');
+      const firstTask = unscheduledTasks[0];
+      if (defTimeInput) defTimeInput.value = firstTask ? formatTimeForInput(firstTask.time) : '';
+      selectDefined.onchange = () => {
+        const chosen = state.tasks.find(t => t.id === selectDefined.value);
+        if (chosen && defTimeInput) {
+          defTimeInput.value = formatTimeForInput(chosen.time);
+        }
+      };
     }
     if (btnSubmitDefined) btnSubmitDefined.disabled = false;
     switchAddTaskTypeTab('defined');
@@ -3215,7 +3236,7 @@ function openAddTaskModal(initialDate = null) {
   const taskTimeInput = document.getElementById('taskTime');
   if (taskTimeInput) taskTimeInput.value = '';
   const defTimeInput = document.getElementById('definedTaskTime');
-  if (defTimeInput) defTimeInput.value = '';
+  if (defTimeInput && unscheduledTasks.length === 0) defTimeInput.value = '';
 
   document.getElementById('taskPriority').value = 'medium';
   document.getElementById('taskNote').value = '';
@@ -3296,7 +3317,6 @@ function resetTaskFormState() {
     dateInput.min = '';
   }
   if (timeInput) {
-    timeInput.value = '';
     timeInput.disabled = false;
     timeInput.classList.remove('bg-slate-100', 'dark:bg-slate-750', 'opacity-75');
   }
@@ -3344,6 +3364,9 @@ function openEditTaskModal(taskId) {
     pushModalStack('taskManagerDialog');
   }
 
+  // Khôi phục trạng thái form UI (mở khóa inputs, ẩn notice cũ)
+  resetTaskFormState();
+
   // Ẩn tabs chọn defined (vì đang edit trực tiếp task này)
   const tabsContainer = document.getElementById('addTaskTypeTabs');
   if (tabsContainer) tabsContainer.classList.add('hidden');
@@ -3363,7 +3386,7 @@ function openEditTaskModal(taskId) {
 
   titleInput.value = task.title;
   dateInput.value = task.date || '';
-  if (timeInput) timeInput.value = task.time || '';
+  if (timeInput) timeInput.value = formatTimeForInput(task.time);
   const taskStart = document.getElementById('taskStartDate');
   const taskEnd = document.getElementById('taskEndDate');
   if (task.seriesRange) {
@@ -3415,7 +3438,6 @@ function openEditTaskModal(taskId) {
     dateInput.focus();
   } else {
     document.getElementById('modalTitle').textContent = 'Chỉnh sửa nhiệm vụ';
-    resetTaskFormState();
   }
 
   const parentId = task.parentId || '';
@@ -4504,7 +4526,7 @@ function openQuickScheduleModal(taskId) {
   if (qsEnd) qsEnd.value = targetDate;
   const qsTime = document.getElementById('quickScheduleTimeInput');
   if (qsTime) {
-    qsTime.value = task.time || '';
+    qsTime.value = formatTimeForInput(task.time);
   }
 
   updateAllDatePickerDisplays();
