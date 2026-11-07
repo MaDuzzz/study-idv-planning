@@ -1,9 +1,9 @@
-const CACHE_NAME = 'study-planner-v8.21';
+const CACHE_NAME = 'study-planner-v8.22';
 const STATIC_ASSETS = [
   './',
   './index.html',
-  './app.js?v=8.21',
-  './firebase-config.js?v=8.21',
+  './app.js?v=8.22',
+  './firebase-config.js?v=8.22',
   './manifest.json',
   './logo/logo_idv_planner.png'
 ];
