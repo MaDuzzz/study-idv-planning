@@ -130,7 +130,10 @@ let state = {
   taskManagerSearch: '',       // Chuỗi tìm kiếm trong kho task
   activeDetailTaskId: null,    // ID của task đang mở chi tiết & editor
   firestoreUnsubscribe: null,  // Hàm hủy lắng nghe realtime Firestore Tasks
-  firestoreParentUnsubscribe: null // Hàm hủy lắng nghe realtime Firestore Parent Tasks
+  firestoreParentUnsubscribe: null, // Hàm hủy lắng nghe realtime Firestore Parent Tasks
+  annualViewYear: new Date().getFullYear(), // Năm đang xem trong Annual Center
+  annualViewMode: 'dashboard', // Chế độ: 'dashboard' (Toàn trình) | 'planning' (Lập kế hoạch)
+  annualFilterCategory: 'all'  // Bộ lọc chuyên đề trong Lộ trình
 };
 
 // Quản lý Dark Mode
@@ -1565,7 +1568,7 @@ async function saveTaskFromForm(formData) {
     openLoginModal();
     return;
   }
-  const { id, title, date, time, startDate, endDate, priority, parentId: initialParentId, note, tag } = formData;
+  const { id, title, date, time, startDate, endDate, priority, parentId: initialParentId, note, tag, targetQuarter, isMilestone } = formData;
   const cleanTime = time ? time.trim() : null;
 
   const effectiveStart = startDate || date || '';
@@ -1739,6 +1742,11 @@ async function saveTaskFromForm(formData) {
       targetTask.priority = priority;
       targetTask.parentId = parentId || null;
       targetTask.note = note;
+      if (targetQuarter) targetTask.targetQuarter = targetQuarter;
+      if (typeof isMilestone !== 'undefined') targetTask.isMilestone = Boolean(isMilestone);
+      if (effectiveStart && effectiveStart.length >= 4) {
+        targetTask.targetYear = parseInt(effectiveStart.slice(0, 4), 10);
+      }
     }
   } else {
     targetTask = {
@@ -1750,6 +1758,9 @@ async function saveTaskFromForm(formData) {
       parentId: parentId || null,
       category: '',
       note,
+      targetYear: (effectiveStart && effectiveStart.length >= 4) ? parseInt(effectiveStart.slice(0, 4), 10) : (state.annualViewYear || new Date().getFullYear()),
+      targetQuarter: targetQuarter || null,
+      isMilestone: Boolean(isMilestone),
       completed: false,
       replanCount: 0,
       createdAt: new Date().toISOString()
@@ -2565,13 +2576,631 @@ function renderMonthSelectedDayTasks() {
   lucide.createIcons();
 }
 
-// E. Render Year Heatmap View (Dark Mode High Contrast & Elastic Layout)
+// ============================================================================
+// --- ANNUAL CENTER: DASHBOARD TOÀN TRÌNH & TRUNG TÂM LẬP KẾ HOẠCH ĐA NĂM ---
+// ============================================================================
+
+// 1. DATA HELPERS FOR MULTI-YEAR & QUARTERS
+function getTaskYear(task) {
+  if (!task) return new Date().getFullYear();
+  if (task.targetYear) return Number(task.targetYear);
+  if (task.date && typeof task.date === 'string' && task.date.length >= 4) {
+    const y = parseInt(task.date.slice(0, 4), 10);
+    if (!isNaN(y)) return y;
+  }
+  if (task.createdAt) {
+    const y = new Date(task.createdAt).getFullYear();
+    if (!isNaN(y)) return y;
+  }
+  return new Date().getFullYear();
+}
+
+function getTaskQuarter(task) {
+  if (!task) return 'unassigned';
+  if (task.targetQuarter && ['Q1', 'Q2', 'Q3', 'Q4'].includes(task.targetQuarter)) {
+    return task.targetQuarter;
+  }
+  if (task.targetMonth && typeof task.targetMonth === 'string') {
+    const parts = task.targetMonth.split('-');
+    const m = parseInt(parts[1] || parts[0], 10);
+    if (m >= 1 && m <= 3) return 'Q1';
+    if (m >= 4 && m <= 6) return 'Q2';
+    if (m >= 7 && m <= 9) return 'Q3';
+    if (m >= 10 && m <= 12) return 'Q4';
+  }
+  if (task.date && typeof task.date === 'string' && task.date.length >= 7) {
+    const m = parseInt(task.date.slice(5, 7), 10);
+    if (m >= 1 && m <= 3) return 'Q1';
+    if (m >= 4 && m <= 6) return 'Q2';
+    if (m >= 7 && m <= 9) return 'Q3';
+    if (m >= 10 && m <= 12) return 'Q4';
+  }
+  return 'unassigned';
+}
+
+function getParentTaskYear(parent) {
+  if (!parent) return new Date().getFullYear();
+  if (parent.targetYear) return Number(parent.targetYear);
+  if (parent.createdAt) {
+    const y = new Date(parent.createdAt).getFullYear();
+    if (!isNaN(y)) return y;
+  }
+  // Fallback: tìm qua các subtasks
+  const subtasks = state.tasks.filter(t => t.parentId === parent.id);
+  for (const t of subtasks) {
+    if (t.targetYear) return Number(t.targetYear);
+    if (t.date && t.date.length >= 4) {
+      const y = parseInt(t.date.slice(0, 4), 10);
+      if (!isNaN(y)) return y;
+    }
+  }
+  return new Date().getFullYear();
+}
+
+function getParentTaskQuarter(parent) {
+  if (!parent) return 'unassigned';
+  if (parent.targetQuarter && ['Q1', 'Q2', 'Q3', 'Q4'].includes(parent.targetQuarter)) {
+    return parent.targetQuarter;
+  }
+  const subtasks = state.tasks.filter(t => t.parentId === parent.id);
+  for (const t of subtasks) {
+    const q = getTaskQuarter(t);
+    if (q !== 'unassigned') return q;
+  }
+  return 'unassigned';
+}
+
+// 2. STREAK METRICS HELPER
+function calculateAnnualStreakMetrics(tasksInYear, year) {
+  const activeDatesSet = new Set();
+  tasksInYear.forEach(t => {
+    if (t.completed && t.date && t.date.startsWith(String(year))) {
+      activeDatesSet.add(t.date);
+    }
+  });
+
+  const sortedDates = Array.from(activeDatesSet).sort();
+  if (sortedDates.length === 0) {
+    return { activeDaysCount: 0, currentStreak: 0, maxStreak: 0 };
+  }
+
+  let maxStreak = 0;
+  let tempStreak = 0;
+  let prevDate = null;
+
+  for (const dateStr of sortedDates) {
+    const currDate = new Date(dateStr + 'T00:00:00');
+    if (!prevDate) {
+      tempStreak = 1;
+    } else {
+      const diffMs = currDate.getTime() - prevDate.getTime();
+      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+      if (diffDays === 1) {
+        tempStreak++;
+      } else {
+        tempStreak = 1;
+      }
+    }
+    if (tempStreak > maxStreak) {
+      maxStreak = tempStreak;
+    }
+    prevDate = currDate;
+  }
+
+  // Chuỗi streak hiện tại
+  let currentStreak = 0;
+  let checkDate = new Date();
+  let checkStr = formatDate(checkDate);
+  if (!activeDatesSet.has(checkStr)) {
+    checkDate.setDate(checkDate.getDate() - 1);
+    checkStr = formatDate(checkDate);
+  }
+  while (activeDatesSet.has(checkStr)) {
+    currentStreak++;
+    checkDate.setDate(checkDate.getDate() - 1);
+    checkStr = formatDate(checkDate);
+  }
+
+  return {
+    activeDaysCount: activeDatesSet.size,
+    currentStreak,
+    maxStreak: Math.max(maxStreak, currentStreak)
+  };
+}
+
+// 3. NAVIGATION & CONTROLS
+function setAnnualYear(year) {
+  state.annualViewYear = Number(year);
+  state.currentDate.setFullYear(Number(year));
+  renderYearView();
+  updateHeaderDisplay();
+  triggerSlideAnimation('pulse');
+}
+
+function changeAnnualYear(delta) {
+  setAnnualYear((state.annualViewYear || new Date().getFullYear()) + delta);
+}
+
+function setAnnualMode(mode) {
+  state.annualViewMode = mode;
+  renderYearView();
+}
+
+function filterAnnualRoadmapCategory(catId) {
+  state.annualFilterCategory = catId;
+  renderAnnualRoadmap(state.annualViewYear);
+}
+
+// 4. MAIN RENDER FUNCTION CHO VIEW NĂM
 function renderYearView() {
+  const currentActualYear = new Date().getFullYear();
+  if (!state.annualViewYear) {
+    state.annualViewYear = state.currentDate ? state.currentDate.getFullYear() : currentActualYear;
+  }
+  const year = state.annualViewYear;
+
+  // Cập nhật Header số năm & Badge
+  const yearDisplayNum = document.getElementById('annualYearDisplayNumber');
+  if (yearDisplayNum) yearDisplayNum.textContent = year;
+
+  const statusBadge = document.getElementById('annualYearStatusBadge');
+  if (statusBadge) {
+    if (year === currentActualYear) {
+      statusBadge.textContent = 'Năm hiện tại';
+      statusBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300';
+    } else if (year > currentActualYear) {
+      statusBadge.textContent = 'Kế hoạch tương lai';
+      statusBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300';
+    } else {
+      statusBadge.textContent = 'Lịch sử quá khứ';
+      statusBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+    }
+  }
+
+  // Cập nhật Quick Year Pills (Năm ngoái, Hiện tại, Năm tới, 2 năm tới...)
+  const pillsContainer = document.getElementById('annualQuickYearPills');
+  if (pillsContainer) {
+    const quickYears = [currentActualYear - 1, currentActualYear, currentActualYear + 1, currentActualYear + 2];
+    pillsContainer.innerHTML = quickYears.map(y => {
+      const isActive = y === year;
+      const activeCls = 'bg-blue-600 text-white font-bold shadow-xs';
+      const inactiveCls = 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700';
+      return `
+        <button 
+          type="button" 
+          onclick="setAnnualYear(${y})" 
+          class="px-2.5 py-1 rounded-lg text-xs font-mono transition cursor-pointer ${isActive ? activeCls : inactiveCls}"
+        >
+          ${y}
+        </button>
+      `;
+    }).join('');
+  }
+
+  // Đồng bộ Mode Switcher UI
+  const btnDashboard = document.getElementById('btnAnnualModeDashboard');
+  const btnPlanning = document.getElementById('btnAnnualModePlanning');
+  const containerDashboard = document.getElementById('annualModeDashboardContainer');
+  const containerPlanning = document.getElementById('annualModePlanningContainer');
+
+  const isDashboard = state.annualViewMode === 'dashboard';
+
+  if (btnDashboard && btnPlanning) {
+    if (isDashboard) {
+      btnDashboard.className = 'flex-1 md:flex-none px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs';
+      btnPlanning.className = 'flex-1 md:flex-none px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white';
+    } else {
+      btnPlanning.className = 'flex-1 md:flex-none px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs';
+      btnDashboard.className = 'flex-1 md:flex-none px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white';
+    }
+  }
+
+  if (containerDashboard && containerPlanning) {
+    containerDashboard.classList.toggle('hidden', !isDashboard);
+    containerPlanning.classList.toggle('hidden', isDashboard);
+  }
+
+  // Render nội dung theo chế độ đã chọn
+  if (isDashboard) {
+    renderAnnualDashboard(year);
+  } else {
+    renderAnnualPlanning(year);
+  }
+
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    window.lucide.createIcons();
+  }
+}
+
+// 5. RENDER CHẾ ĐỘ TOÀN TRÌNH (ANNUAL DASHBOARD)
+function renderAnnualDashboard(year) {
+  const tasksInYear = state.tasks.filter(t => getTaskYear(t) === year);
+  const parentsInYear = state.parentTasks.filter(p => {
+    return getParentTaskYear(p) === year || state.tasks.some(t => t.parentId === p.id && getTaskYear(t) === year);
+  });
+
+  renderAnnualKpiCards(year, parentsInYear, tasksInYear);
+  renderAnnualRoadmap(year, parentsInYear, tasksInYear);
+  renderAnnualDistributionAndBottlenecks(year, parentsInYear, tasksInYear);
+  renderYearHeatmap(year);
+}
+
+// A. 4 Thẻ KPI vĩ mô
+function renderAnnualKpiCards(year, parentsInYear, tasksInYear) {
+  const grid = document.getElementById('annualKpiGrid');
+  if (!grid) return;
+
+  const completedParents = parentsInYear.filter(p => p.completed).length;
+  const parentsTotal = parentsInYear.length;
+  const parentsPct = parentsTotal ? Math.round((completedParents / parentsTotal) * 100) : 0;
+
+  const completedTasks = tasksInYear.filter(t => t.completed).length;
+  const tasksTotal = tasksInYear.length;
+  const tasksPct = tasksTotal ? Math.round((completedTasks / tasksTotal) * 100) : 0;
+
+  const streakMetrics = calculateAnnualStreakMetrics(tasksInYear, year);
+
+  const totalReplan = tasksInYear.reduce((acc, t) => acc + (t.replanCount || 0), 0);
+  const reliabilityScore = completedTasks > 0 
+    ? Math.max(0, Math.min(100, Math.round(((completedTasks - Math.min(totalReplan, completedTasks)) / completedTasks) * 100))) 
+    : 100;
+
+  grid.innerHTML = `
+    <!-- Card 1: Mục tiêu Lớn (OKRs) -->
+    <div class="p-4 sm:p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">🎯 Mục tiêu Lớn (OKRs)</span>
+        <span class="text-xs font-black font-mono px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">${parentsPct}%</span>
+      </div>
+      <div>
+        <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono">
+          ${completedParents} <span class="text-sm font-normal text-slate-400">/ ${parentsTotal} hoàn thành</span>
+        </div>
+        <div class="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full mt-3 overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full transition-all duration-500" style="width: ${parentsPct}%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 2: Tổng Subtask -->
+    <div class="p-4 sm:p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">📋 Tổng Subtask</span>
+        <span class="text-xs font-black font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">${tasksPct}%</span>
+      </div>
+      <div>
+        <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono">
+          ${completedTasks} <span class="text-sm font-normal text-slate-400">/ ${tasksTotal} nhiệm vụ</span>
+        </div>
+        <div class="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full mt-3 overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500" style="width: ${tasksPct}%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 3: Kỷ luật Học tập (Streak) -->
+    <div class="p-4 sm:p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">🔥 Kỷ luật Học tập</span>
+        <span class="text-xs font-black font-mono px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">${streakMetrics.activeDaysCount} ngày active</span>
+      </div>
+      <div>
+        <div class="text-xl sm:text-2xl font-black text-amber-500 font-mono">
+          ${streakMetrics.currentStreak} <span class="text-sm font-bold text-slate-600 dark:text-slate-300">ngày Streak</span>
+        </div>
+        <div class="text-xs text-slate-400 mt-2 font-medium flex items-center justify-between">
+          <span>Chuỗi kỷ lục năm:</span>
+          <span class="font-bold font-mono text-slate-700 dark:text-slate-300">${streakMetrics.maxStreak} ngày</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 4: Tỷ lệ Đúng hạn (Reliability) -->
+    <div class="p-4 sm:p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">⏱️ Tỷ lệ Đúng hạn</span>
+        <span class="text-xs font-black font-mono px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300">${reliabilityScore}%</span>
+      </div>
+      <div>
+        <div class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono">
+          ${totalReplan} <span class="text-sm font-normal text-slate-400">lần dời lịch (Replan)</span>
+        </div>
+        <div class="text-xs text-slate-400 mt-2 font-medium">
+          ${totalReplan === 0 ? '✨ Không có nhiệm vụ nào bị trễ hạn!' : '💡 Nên chia nhỏ nhiệm vụ để giảm thiểu dời lịch'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// B. Bản đồ Lộ trình 4 Quý (Quarterly Milestone Roadmap)
+function renderAnnualRoadmap(year, parentsInYear, tasksInYear) {
+  if (!parentsInYear) {
+    parentsInYear = state.parentTasks.filter(p => {
+      return getParentTaskYear(p) === year || state.tasks.some(t => t.parentId === p.id && getTaskYear(t) === year);
+    });
+  }
+  if (!tasksInYear) {
+    tasksInYear = state.tasks.filter(t => getTaskYear(t) === year);
+  }
+
+  // Populate bộ lọc chuyên đề
+  const catFilter = document.getElementById('annualRoadmapCategoryFilter');
+  if (catFilter) {
+    const currentCat = state.annualFilterCategory || 'all';
+    let optionsHtml = `<option value="all" ${currentCat === 'all' ? 'selected' : ''}>Tất cả mục tiêu (${parentsInYear.length})</option>`;
+    parentsInYear.forEach(p => {
+      const sel = currentCat === p.id ? 'selected' : '';
+      optionsHtml += `<option value="${p.id}" ${sel}>[${getParentTag(p)}] ${p.title}</option>`;
+    });
+    catFilter.innerHTML = optionsHtml;
+  }
+
+  const container = document.getElementById('annualRoadmapContent');
+  if (!container) return;
+
+  // Lọc theo chuyên đề
+  const filteredParents = state.annualFilterCategory && state.annualFilterCategory !== 'all'
+    ? parentsInYear.filter(p => p.id === state.annualFilterCategory)
+    : parentsInYear;
+
+  if (filteredParents.length === 0) {
+    container.innerHTML = `
+      <div class="py-10 text-center rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850/40 p-6 space-y-3">
+        <i data-lucide="compass" class="w-10 h-10 text-slate-400 mx-auto"></i>
+        <div class="text-sm font-bold text-slate-700 dark:text-slate-300">Chưa có mục tiêu nào trong lộ trình năm ${year}</div>
+        <p class="text-xs text-slate-400 max-w-sm mx-auto">Hãy thêm các Mục tiêu lớn (Parent Task) hoặc chuyển sang tab Lập kế hoạch để phác thảo lộ trình 4 Quý.</p>
+        <button type="button" onclick="openAddParentTaskForAnnualYear(${year})" class="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer inline-flex items-center gap-1.5">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          <span>Thêm Mục tiêu Lớn</span>
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  let html = '';
+  filteredParents.forEach(p => {
+    const pSubtasks = tasksInYear.filter(t => t.parentId === p.id);
+    const completedSubtasks = pSubtasks.filter(t => t.completed).length;
+    const pct = p.completed ? 100 : (pSubtasks.length ? Math.round((completedSubtasks / pSubtasks.length) * 100) : 0);
+    const pColor = p.color || '#2563eb';
+
+    // Xác định khoảng Quý (Start Q -> End Q)
+    let startQ = 1;
+    let endQ = 4;
+    if (p.targetQuarter && ['Q1', 'Q2', 'Q3', 'Q4'].includes(p.targetQuarter)) {
+      startQ = endQ = parseInt(p.targetQuarter.replace('Q', ''), 10);
+    } else if (pSubtasks.length > 0) {
+      const quarters = pSubtasks.map(t => getTaskQuarter(t)).filter(q => q !== 'unassigned');
+      if (quarters.length > 0) {
+        const nums = quarters.map(q => parseInt(q.replace('Q', ''), 10));
+        startQ = Math.min(...nums);
+        endQ = Math.max(...nums);
+      }
+    }
+
+    // Tìm các Cột mốc Milestones
+    const milestones = pSubtasks.filter(t => {
+      return Boolean(t.isMilestone) || (t.title && /(thi|exam|cert|chứng chỉ|bảo vệ|golive|go-live|release|deadline)/i.test(t.title));
+    });
+
+    const isLocked = Boolean(p.completed);
+
+    html += `
+      <div class="p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 hover:border-blue-400 dark:hover:border-blue-600 transition space-y-3">
+        <!-- Hàng trên: Thông tin Mục tiêu -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="w-3 h-3 rounded-full shrink-0" style="background-color: ${pColor};"></span>
+            <span class="px-2 py-0.5 text-xs font-mono font-black rounded-md border shrink-0" style="border-color: ${pColor}40; color: ${pColor}; background-color: ${pColor}15;">
+              #${getParentTag(p)}
+            </span>
+            <span class="font-bold text-sm text-slate-900 dark:text-white truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition" onclick="openTaskManagerModal()">
+              ${p.title}
+            </span>
+            ${isLocked ? `<span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300/40 shrink-0">🔒 Đã hoàn thành</span>` : ''}
+          </div>
+
+          <div class="flex items-center gap-3 self-end sm:self-auto shrink-0">
+            <span class="text-xs font-bold font-mono text-slate-500 dark:text-slate-400">
+              ${completedSubtasks}/${pSubtasks.length} task (${pct}%)
+            </span>
+            <button type="button" onclick="openEditParentTaskModal('${p.id}')" title="Sửa mục tiêu" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer">
+              <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Hàng dưới: Lưới 4 Quý (Gantt-lite track) -->
+        <div class="grid grid-cols-4 gap-2 sm:gap-3 items-center relative min-h-[38px] pt-1">
+          <!-- Các vạch mờ phân chia quý -->
+          <div class="absolute inset-0 grid grid-cols-4 gap-2 sm:gap-3 pointer-events-none">
+            <div class="h-full border-r border-dashed border-slate-200 dark:border-slate-800"></div>
+            <div class="h-full border-r border-dashed border-slate-200 dark:border-slate-800"></div>
+            <div class="h-full border-r border-dashed border-slate-200 dark:border-slate-800"></div>
+            <div class="h-full"></div>
+          </div>
+
+          <!-- Thanh tiến trình Gantt-lite trải dài từ startQ đến endQ -->
+          <div 
+            class="relative z-10 h-8 rounded-xl flex items-center px-3 border transition-all duration-300 shadow-2xs overflow-hidden" 
+            style="
+              grid-column-start: ${startQ}; 
+              grid-column-end: ${endQ + 1}; 
+              background-color: ${pColor}18; 
+              border-color: ${pColor}50;
+            "
+          >
+            <!-- Lớp màu phủ tiến độ bên trong thanh Gantt -->
+            <div 
+              class="absolute left-0 top-0 bottom-0 transition-all duration-500 rounded-l-xl opacity-35" 
+              style="width: ${pct}%; background-color: ${pColor};"
+            ></div>
+
+            <div class="relative z-10 w-full flex items-center justify-between gap-2 text-xs font-semibold">
+              <span class="truncate" style="color: ${pColor};">
+                ${p.description || p.title}
+              </span>
+              <span class="font-mono font-bold text-[11px] shrink-0" style="color: ${pColor};">
+                ${pct}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dải hiển thị Cột mốc Milestones nếu có -->
+        ${milestones.length > 0 ? `
+          <div class="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+            <span class="text-[11px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 shrink-0">
+              <i data-lucide="star" class="w-3 h-3 fill-amber-400 text-amber-400"></i>
+              <span>Cột mốc:</span>
+            </span>
+            ${milestones.map(m => {
+              const mDateText = m.date ? formatPrettyDate(m.date) : (m.targetQuarter || 'Trong năm');
+              return `
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-300/40 dark:border-amber-700/40">
+                  <i data-lucide="flag" class="w-2.5 h-2.5"></i>
+                  <span>${m.title} (${mDateText})</span>
+                </span>
+              `;
+            }).join('')}
+          </div>
+        ` : ''}
+
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+// C. Cơ cấu Chuyên đề & Điểm nghẽn Replan
+function renderAnnualDistributionAndBottlenecks(year, parentsInYear, tasksInYear) {
+  // 1. Phân bổ chuyên đề
+  const shareContainer = document.getElementById('annualCategoryShareList');
+  if (shareContainer) {
+    if (tasksInYear.length === 0) {
+      shareContainer.innerHTML = `<div class="text-xs text-slate-400 py-6 text-center">Chưa có nhiệm vụ nào trong năm ${year}</div>`;
+    } else {
+      // Gom nhóm theo Parent
+      const groups = {};
+      tasksInYear.forEach(t => {
+        const pid = t.parentId || 'independent';
+        if (!groups[pid]) groups[pid] = { count: 0, completed: 0 };
+        groups[pid].count++;
+        if (t.completed) groups[pid].completed++;
+      });
+
+      const sortedGroupKeys = Object.keys(groups).sort((a, b) => groups[b].count - groups[a].count);
+      let shareHtml = '';
+
+      sortedGroupKeys.forEach(pid => {
+        let title = 'Nhiệm vụ độc lập';
+        let tag = 'OTHER';
+        let color = '#64748b';
+
+        if (pid !== 'independent') {
+          const p = state.parentTasks.find(x => x.id === pid);
+          if (p) {
+            title = p.title;
+            tag = getParentTag(p);
+            color = p.color || '#2563eb';
+          }
+        }
+
+        const count = groups[pid].count;
+        const pct = Math.round((count / tasksInYear.length) * 100);
+
+        shareHtml += `
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center gap-1.5 min-w-0">
+                <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${color}"></span>
+                <span class="font-bold text-slate-800 dark:text-slate-200 truncate">[${tag}] ${title}</span>
+              </div>
+              <span class="font-mono font-bold text-slate-600 dark:text-slate-400 shrink-0 ml-2">
+                ${pct}% (${count})
+              </span>
+            </div>
+            <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div class="h-full rounded-full transition-all duration-300" style="width: ${pct}%; background-color: ${color};"></div>
+            </div>
+          </div>
+        `;
+      });
+
+      shareContainer.innerHTML = shareHtml;
+    }
+  }
+
+  // 2. Điểm nghẽn & Nhiệm vụ hoãn nhiều
+  const bottleneckContainer = document.getElementById('annualBottleneckList');
+  if (bottleneckContainer) {
+    const todayStr = getTodayStr();
+    const bottlenecks = tasksInYear
+      .filter(t => (t.replanCount && t.replanCount > 0) || (t.date && t.date < todayStr && !t.completed))
+      .sort((a, b) => (b.replanCount || 0) - (a.replanCount || 0))
+      .slice(0, 5);
+
+    if (bottlenecks.length === 0) {
+      bottleneckContainer.innerHTML = `
+        <div class="py-8 text-center bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/50 dark:border-emerald-800/30 p-4 space-y-2">
+          <i data-lucide="check-circle-2" class="w-8 h-8 text-emerald-500 mx-auto"></i>
+          <div class="text-xs font-bold text-emerald-700 dark:text-emerald-300">Tiến độ xuất sắc!</div>
+          <p class="text-[11px] text-emerald-600/80 dark:text-emerald-400/80">Không có nhiệm vụ nào bị hoãn nhiều lần hoặc dồn ứ quá hạn trong năm ${year}.</p>
+        </div>
+      `;
+    } else {
+      let bHtml = '';
+      bottlenecks.forEach(t => {
+        const p = t.parentId ? state.parentTasks.find(x => x.id === t.parentId) : null;
+        const tag = p ? getParentTag(p) : 'TASK';
+        const replanCount = t.replanCount || 0;
+        const isOverdue = t.date && t.date < todayStr && !t.completed;
+
+        bHtml += `
+          <div class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-850 flex items-center justify-between gap-2.5">
+            <div class="min-w-0">
+              <div class="text-xs font-bold text-slate-800 dark:text-white truncate">
+                <span class="text-blue-600 dark:text-blue-400 font-mono">[${tag}]</span> ${t.title}
+              </div>
+              <div class="flex items-center gap-2 mt-1">
+                ${replanCount > 0 ? `
+                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 flex items-center gap-1">
+                    <i data-lucide="alert-triangle" class="w-2.5 h-2.5"></i>
+                    <span>Dời ${replanCount} lần</span>
+                  </span>
+                ` : ''}
+                ${isOverdue ? `
+                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-200">
+                    Trễ hạn
+                  </span>
+                ` : ''}
+              </div>
+            </div>
+
+            <button 
+              type="button" 
+              onclick="openEditTaskModal('${t.id}')" 
+              class="px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/60 rounded-lg transition shrink-0 cursor-pointer"
+            >
+              Replan ngay
+            </button>
+          </div>
+        `;
+      });
+      bottleneckContainer.innerHTML = bHtml;
+    }
+  }
+}
+
+// D. Render Heatmap hoạt động 365 ngày
+function renderYearHeatmap(year) {
   const container = document.getElementById('yearHeatmapContainer');
-  const year = state.currentDate.getFullYear();
+  if (!container) return;
 
   let html = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 2xl:gap-6">`;
-
   const dayNamesShort = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
   for (let m = 0; m < 12; m++) {
@@ -2580,7 +3209,6 @@ function renderYearView() {
     const monthName = firstDay.toLocaleDateString('vi-VN', { month: 'long' });
     const daysInMonth = lastDay.getDate();
 
-    // Thứ 2 là 0, Chủ nhật là 6 để căn đúng cột T2 -> CN
     let startingDay = firstDay.getDay() - 1;
     if (startingDay === -1) startingDay = 6;
 
@@ -2591,7 +3219,6 @@ function renderYearView() {
         <div>
           <h4 class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white capitalize mb-2.5">${monthName}</h4>
           
-          <!-- Hàng tiêu đề thứ trong tuần: Thứ 2 -> Chủ nhật -->
           <div class="grid grid-cols-7 gap-1.5 mb-2 justify-items-center text-center text-[10px] font-bold select-none pointer-events-none text-slate-400 dark:text-slate-500">
             <span class="w-full flex items-center justify-center">T2</span>
             <span class="w-full flex items-center justify-center">T3</span>
@@ -2602,13 +3229,11 @@ function renderYearView() {
             <span class="w-full flex items-center justify-center text-rose-600 dark:text-rose-400 font-extrabold">CN</span>
           </div>
 
-          <!-- Lưới 7 cột chuẩn theo lịch thực tế của tháng -->
           <div class="grid grid-cols-7 gap-1.5 justify-items-center">
     `;
 
     for (let slot = 0; slot < totalSlots; slot++) {
       if (slot < startingDay || slot >= startingDay + daysInMonth) {
-        // Ô trống ngoài tháng: giữ khung viền nét đứt mờ để cố định lưới 7 cột ngay ngắn, không bị thụt hàng
         html += `<div class="w-full aspect-square max-w-[24px] max-h-[24px] sm:max-w-[26px] sm:max-h-[26px] 2xl:max-w-[30px] 2xl:max-h-[30px] mx-auto rounded-md border border-dashed border-slate-200/60 dark:border-slate-800/60 opacity-30 pointer-events-none select-none"></div>`;
       } else {
         const dayNum = slot - startingDay + 1;
@@ -2645,6 +3270,733 @@ function renderYearView() {
   html += `</div>`;
   container.innerHTML = html;
 }
+
+// 6. RENDER CHẾ ĐỘ LẬP KẾ HOẠCH CHIẾN LƯỢC (ANNUAL PLANNING HUB)
+function renderAnnualPlanning(year) {
+  const targetYearEl = document.getElementById('annualPlanningTargetYearText');
+  if (targetYearEl) targetYearEl.textContent = year;
+
+  const container = document.getElementById('annualPlanningBucketsList');
+  if (!container) return;
+
+  const buckets = [
+    { key: 'Q1', title: 'Quý 1', subtitle: 'Tháng 1 - Tháng 3', color: 'cyan', icon: 'zap' },
+    { key: 'Q2', title: 'Quý 2', subtitle: 'Tháng 4 - Tháng 6', color: 'emerald', icon: 'trending-up' },
+    { key: 'Q3', title: 'Quý 3', subtitle: 'Tháng 7 - Tháng 9', color: 'amber', icon: 'flag' },
+    { key: 'Q4', title: 'Quý 4', subtitle: 'Tháng 10 - Tháng 12', color: 'purple', icon: 'award' },
+    { key: 'unassigned', title: 'Chưa phân quý', subtitle: 'Backlog chiến lược trong năm', color: 'slate', icon: 'inbox' }
+  ];
+
+  let html = '';
+
+  buckets.forEach(bucket => {
+    // Tìm các task thuộc quý này trong năm
+    const bTasks = state.tasks.filter(t => getTaskYear(t) === year && getTaskQuarter(t) === bucket.key);
+    
+    // Tìm các parent task được gán quý này, hoặc có task trong quý này
+    const bParents = state.parentTasks.filter(p => {
+      const matchQuarter = bucket.key === 'unassigned' ? (!p.targetQuarter) : (p.targetQuarter === bucket.key);
+      const isThisYear = getParentTaskYear(p) === year;
+      const hasTaskInBucket = bTasks.some(t => t.parentId === p.id);
+      return (isThisYear && matchQuarter) || hasTaskInBucket;
+    });
+
+    html += `
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
+        <!-- Bucket Header -->
+        <div class="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-850/50">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-xs font-bold ${
+              bucket.color === 'cyan' ? 'bg-cyan-600' :
+              bucket.color === 'emerald' ? 'bg-emerald-600' :
+              bucket.color === 'amber' ? 'bg-amber-600' :
+              bucket.color === 'purple' ? 'bg-purple-600' : 'bg-slate-600'
+            }">
+              <i data-lucide="${bucket.icon}" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h4 class="text-base font-bold text-slate-900 dark:text-white">${bucket.title} / ${year}</h4>
+                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">(${bucket.subtitle})</span>
+              </div>
+              <div class="text-xs text-slate-400 mt-0.5">
+                ${bParents.length} Mục tiêu lớn • ${bTasks.length} Nhiệm vụ dự kiến
+              </div>
+            </div>
+          </div>
+
+          <!-- Bucket Actions -->
+          <div class="flex items-center gap-2 self-start sm:self-auto">
+            <button 
+              type="button" 
+              onclick="openAddParentTaskForAnnualYear(${year}, '${bucket.key}')" 
+              class="px-3 py-1.5 rounded-xl text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 transition cursor-pointer flex items-center gap-1"
+            >
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+              <span>+ Mục tiêu</span>
+            </button>
+            <button 
+              type="button" 
+              onclick="openAddTaskModalForYearQuarter('${bucket.key}')" 
+              class="px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 transition cursor-pointer flex items-center gap-1"
+            >
+              <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i>
+              <span>+ Nhiệm vụ</span>
+            </button>
+            <button 
+              type="button" 
+              onclick="openBulkSubtaskModal(null, '${bucket.key}')" 
+              class="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              title="Nhập nhanh hàng loạt vào quý này"
+            >
+              <i data-lucide="list-plus" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Bucket Content -->
+        <div class="p-4 sm:p-5 space-y-4">
+    `;
+
+    if (bParents.length === 0 && bTasks.length === 0) {
+      html += `
+        <div class="py-8 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-2">
+          <p class="text-xs text-slate-400">Chưa có kế hoạch nào được xếp vào ${bucket.title}.</p>
+          <div class="flex items-center justify-center gap-2 pt-1">
+            <button type="button" onclick="openAddParentTaskForAnnualYear(${year}, '${bucket.key}')" class="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">
+              + Thêm mục tiêu
+            </button>
+            <span class="text-slate-300 dark:text-slate-700">•</span>
+            <button type="button" onclick="openAddTaskModalForYearQuarter('${bucket.key}')" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
+              + Thêm nhiệm vụ
+            </button>
+          </div>
+        </div>
+      `;
+    } else {
+      // 1. Render từng Parent Task card
+      bParents.forEach(p => {
+        const pTasksInBucket = bTasks.filter(t => t.parentId === p.id);
+        const pColor = p.color || '#2563eb';
+        const isLocked = Boolean(p.completed);
+
+        html += `
+          <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-850/40 overflow-hidden">
+            <!-- Parent Card Header -->
+            <div class="p-3 sm:p-3.5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="w-3 h-3 rounded-full shrink-0" style="background-color: ${pColor};"></span>
+                <span class="px-2 py-0.5 text-xs font-mono font-black rounded-md border shrink-0" style="border-color: ${pColor}40; color: ${pColor}; background-color: ${pColor}15;">
+                  #${getParentTag(p)}
+                </span>
+                <span class="font-bold text-sm text-slate-900 dark:text-white truncate">
+                  ${p.title}
+                </span>
+                ${isLocked ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">🔒 Đã đóng</span>` : ''}
+              </div>
+
+              <div class="flex items-center gap-1.5 shrink-0">
+                ${!isLocked ? `
+                  <button 
+                    type="button" 
+                    onclick="openAddTaskModalForYearQuarter('${bucket.key}', '${p.id}')" 
+                    title="Thêm subtask cho mục tiêu này" 
+                    class="px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition cursor-pointer flex items-center gap-1"
+                  >
+                    <i data-lucide="plus" class="w-3 h-3"></i>
+                    <span>Subtask</span>
+                  </button>
+                ` : ''}
+                <button 
+                  type="button" 
+                  onclick="openEditParentTaskModal('${p.id}')" 
+                  title="Sửa mục tiêu" 
+                  class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg cursor-pointer"
+                >
+                  <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Subtasks List for this Parent -->
+            <div class="p-2.5 sm:p-3 space-y-2">
+              ${pTasksInBucket.length === 0 ? `
+                <div class="text-xs text-slate-400 italic py-1 px-2">Chưa có nhiệm vụ con nào trong ${bucket.title}. Bấm "+ Subtask" để thêm.</div>
+              ` : pTasksInBucket.map(t => renderPlanningSubtaskRow(t, bucket.key)).join('')}
+            </div>
+          </div>
+        `;
+      });
+
+      // 2. Render Independent Tasks (nhiệm vụ không có parentId)
+      const independentTasks = bTasks.filter(t => !t.parentId);
+      if (independentTasks.length > 0) {
+        html += `
+          <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-850/40 overflow-hidden">
+            <div class="p-3 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                <i data-lucide="layers" class="w-3.5 h-3.5 text-slate-400"></i>
+                <span>Nhiệm vụ độc lập (${independentTasks.length})</span>
+              </span>
+            </div>
+            <div class="p-2.5 sm:p-3 space-y-2">
+              ${independentTasks.map(t => renderPlanningSubtaskRow(t, bucket.key)).join('')}
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    html += `
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+// Helper render một dòng subtask trong Planning Hub
+function renderPlanningSubtaskRow(task, bucketKey) {
+  const isDone = Boolean(task.completed);
+  const isMilestone = Boolean(task.isMilestone);
+
+  // Time / Period badge
+  let timeBadgeHtml = '';
+  if (isMilestone) {
+    timeBadgeHtml += `
+      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow-2xs shrink-0">
+        ★ Milestone
+      </span>
+    `;
+  }
+
+  if (task.date) {
+    timeBadgeHtml += `
+      <span class="text-[11px] font-mono font-medium text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0">
+        📅 ${formatDateVN(task.date)}
+      </span>
+    `;
+  } else if (task.targetMonth) {
+    timeBadgeHtml += `
+      <span class="text-[11px] font-mono font-medium text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 shrink-0">
+        🗓️ ${task.targetMonth}
+      </span>
+    `;
+  } else if (task.targetQuarter) {
+    timeBadgeHtml += `
+      <span class="text-[11px] font-mono font-medium text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 shrink-0">
+        📂 ${task.targetQuarter}
+      </span>
+    `;
+  }
+
+  return `
+    <div class="p-2 sm:p-2.5 rounded-lg border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 flex items-center justify-between gap-2.5 hover:border-slate-300 dark:hover:border-slate-700 transition">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <button 
+          type="button" 
+          onclick="toggleTaskComplete('${task.id}')" 
+          class="w-5 h-5 rounded-md border flex items-center justify-center transition cursor-pointer shrink-0 ${
+            isDone 
+              ? 'bg-emerald-500 border-emerald-500 text-white' 
+              : 'border-slate-300 dark:border-slate-600 hover:border-blue-500'
+          }"
+        >
+          ${isDone ? '<i data-lucide="check" class="w-3.5 h-3.5 stroke-[3]"></i>' : ''}
+        </button>
+
+        <span class="text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-200 truncate ${isDone ? 'line-through text-slate-400 dark:text-slate-500' : ''}">
+          ${task.title}
+        </span>
+      </div>
+
+      <div class="flex items-center gap-2 shrink-0">
+        ${timeBadgeHtml}
+        <button 
+          type="button" 
+          onclick="openEditTaskModal('${task.id}')" 
+          title="Chỉnh sửa" 
+          class="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+        >
+          <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+        </button>
+        <button 
+          type="button" 
+          onclick="deleteTask('${task.id}')" 
+          title="Xóa nhiệm vụ" 
+          class="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer"
+        >
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// 7. HELPER MỞ FORM THÊM MỤC TIÊU / NHIỆM VỤ DÀNH CHO ANNUAL CENTER
+function openAddParentTaskForAnnualYear(customYear, customQuarter) {
+  openAddParentTaskModal();
+  const yearInput = document.getElementById('parentTargetYearInput');
+  if (yearInput) yearInput.value = customYear || state.annualViewYear || new Date().getFullYear();
+  const quarterSelect = document.getElementById('parentTargetQuarterSelect');
+  if (quarterSelect) quarterSelect.value = customQuarter && customQuarter !== 'unassigned' ? customQuarter : '';
+}
+
+function openAddTaskModalForYearQuarter(quarter, parentId) {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+  openAddTaskModal();
+  
+  // Chuyển sang form tạo mới trực tiếp (Form 2)
+  const tabOthers = document.getElementById('tabFormOthers');
+  if (tabOthers) tabOthers.click();
+
+  if (parentId) {
+    const parentSelect = document.getElementById('taskParentSelect');
+    if (parentSelect) parentSelect.value = parentId;
+  }
+  if (quarter && quarter !== 'unassigned') {
+    const quarterSelect = document.getElementById('taskTargetQuarterSelect');
+    if (quarterSelect) quarterSelect.value = quarter;
+  }
+}
+
+// 8. BỘ TẠO SUBTASK NHANH HÀNG LOẠT (BULK SUBTASK CREATOR)
+function openBulkSubtaskModal(preselectedParentId, defaultQuarter) {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+  const modal = document.getElementById('bulkSubtaskModal');
+  const parentSelect = document.getElementById('bulkTargetParentSelect');
+  const quarterSelect = document.getElementById('bulkDefaultQuarterSelect');
+
+  if (parentSelect) {
+    populateParentSelectOptions(parentSelect);
+    if (preselectedParentId) {
+      parentSelect.value = preselectedParentId;
+    } else if (state.parentTasks.length > 0) {
+      parentSelect.value = state.parentTasks[0].id;
+    }
+  }
+
+  if (quarterSelect) {
+    quarterSelect.value = defaultQuarter || 'Q1';
+  }
+
+  const textInput = document.getElementById('bulkSubtaskInputText');
+  if (textInput && !textInput.value.trim()) {
+    textInput.value = '';
+  }
+
+  animateModalOpen(modal, 'bulkSubtaskDialog');
+}
+
+function closeBulkSubtaskModal() {
+  const modal = document.getElementById('bulkSubtaskModal');
+  if (modal) modal.classList.add('hidden');
+  updateMobileNavVisibility();
+}
+
+function insertBulkTemplateExample() {
+  const textInput = document.getElementById('bulkSubtaskInputText');
+  if (!textInput) return;
+  textInput.value = `- [ ] Đọc tài liệu kiến trúc hệ thống | T1 | high
+- [ ] Hoàn thành 5 bài lab thực hành | T2 | medium
+- [ ] Luyện 3 bộ đề mock exam | 2027-03-15 | high
+- [★] Thi chứng chỉ chính thức | 2027-03-28 | milestone`;
+  textInput.focus();
+}
+
+async function handleBulkSubtaskSubmit(e) {
+  e.preventDefault();
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+
+  const parentId = document.getElementById('bulkTargetParentSelect')?.value || null;
+  const defaultQuarter = document.getElementById('bulkDefaultQuarterSelect')?.value || 'Q1';
+  const rawText = document.getElementById('bulkSubtaskInputText')?.value || '';
+
+  const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  if (lines.length === 0) {
+    showToast({
+      type: 'warning',
+      title: 'Chưa có nội dung',
+      message: 'Vui lòng nhập ít nhất 1 dòng nhiệm vụ!'
+    });
+    return;
+  }
+
+  const targetYear = state.annualViewYear || new Date().getFullYear();
+  const createdTasks = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    let isMilestone = false;
+    if (line.includes('[★]') || /milestone/i.test(line)) {
+      isMilestone = true;
+    }
+    // Gọt bỏ token markdown đầu dòng: - [ ], * [ ], - [x], 1.
+    line = line.replace(/^[-*+]\s*(\[[ xX★]\])?\s*/, '').replace(/^\d+[\.)]\s*/, '').trim();
+    if (!line) continue;
+
+    const parts = line.split('|').map(p => p.trim());
+    const title = parts[0];
+    const timePart = parts[1] || '';
+    const thirdPart = parts[2] || '';
+
+    let date = null;
+    let targetQuarter = defaultQuarter !== 'unassigned' ? defaultQuarter : null;
+    let targetMonth = null;
+    let priority = 'medium';
+
+    if (/high|cao|urgent/i.test(thirdPart) || /high|cao|urgent/i.test(timePart)) priority = 'high';
+    else if (/low|thấp/i.test(thirdPart) || /low|thấp/i.test(timePart)) priority = 'low';
+
+    if (/milestone|cột mốc/i.test(thirdPart) || /milestone|cột mốc/i.test(timePart)) isMilestone = true;
+
+    // Phân tích timePart: ngày cố định, tháng, hoặc quý
+    if (/^\d{4}-\d{2}-\d{2}$/.test(timePart)) {
+      date = timePart;
+      const m = parseInt(date.slice(5, 7), 10);
+      targetQuarter = m <= 3 ? 'Q1' : m <= 6 ? 'Q2' : m <= 9 ? 'Q3' : 'Q4';
+    } else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(timePart)) {
+      const [d, m, y] = timePart.split('/');
+      date = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      const monthNum = parseInt(m, 10);
+      targetQuarter = monthNum <= 3 ? 'Q1' : monthNum <= 6 ? 'Q2' : monthNum <= 9 ? 'Q3' : 'Q4';
+    } else if (/^Q[1-4]$/i.test(timePart)) {
+      targetQuarter = timePart.toUpperCase();
+    } else if (/^T(1[0-2]|[1-9])$/i.test(timePart) || /^Tháng\s*(1[0-2]|[1-9])$/i.test(timePart)) {
+      const mNum = parseInt(timePart.replace(/[^0-9]/g, ''), 10);
+      targetMonth = `${targetYear}-${String(mNum).padStart(2, '0')}`;
+      targetQuarter = mNum <= 3 ? 'Q1' : mNum <= 6 ? 'Q2' : mNum <= 9 ? 'Q3' : 'Q4';
+    }
+
+    const newTask = {
+      id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4) + '_' + i,
+      title,
+      parentId: parentId || null,
+      date: date,
+      time: null,
+      priority,
+      targetYear,
+      targetQuarter,
+      targetMonth,
+      isMilestone,
+      completed: false,
+      replanCount: 0,
+      createdAt: new Date().toISOString()
+    };
+    state.tasks.push(newTask);
+    createdTasks.push(newTask);
+  }
+
+  await saveCurrentTasks();
+  closeBulkSubtaskModal();
+
+  showToast({
+    type: 'success',
+    title: 'Nhập nhanh thành công',
+    message: `Đã tạo <strong>${createdTasks.length} nhiệm vụ</strong> mới cho năm ${targetYear}!`
+  });
+
+  renderApp();
+}
+
+// 9. ĐỘNG CƠ CHUYỂN GIAO VIỆC TỒN ĐỌNG (GOAL ROLLOVER / CARRYOVER ENGINE)
+let carryoverSelectionState = {
+  parents: new Set(),
+  tasks: new Set()
+};
+
+function openCarryoverModal() {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+  const modal = document.getElementById('carryoverModal');
+  const targetYear = state.annualViewYear || new Date().getFullYear();
+  const sourceYear = targetYear - 1;
+
+  document.getElementById('carryoverSourceYearText').textContent = sourceYear;
+  document.getElementById('carryoverTargetYearText').textContent = targetYear;
+
+  // Lấy các mục chưa hoàn thành từ năm trước
+  const uncompletedParents = state.parentTasks.filter(p => !p.completed && getParentTaskYear(p) === sourceYear);
+  const uncompletedTasks = state.tasks.filter(t => !t.completed && getTaskYear(t) === sourceYear);
+
+  carryoverSelectionState.parents.clear();
+  carryoverSelectionState.tasks.clear();
+
+  const container = document.getElementById('carryoverItemList');
+
+  if (uncompletedParents.length === 0 && uncompletedTasks.length === 0) {
+    container.innerHTML = `
+      <div class="py-10 text-center space-y-2">
+        <i data-lucide="check-circle" class="w-10 h-10 text-emerald-500 mx-auto"></i>
+        <div class="text-sm font-bold text-slate-800 dark:text-white">Không có mục tiêu nào tồn đọng!</div>
+        <p class="text-xs text-slate-400">Bạn đã hoàn thành xuất sắc toàn bộ nhiệm vụ của năm ${sourceYear}.</p>
+      </div>
+    `;
+    updateCarryoverCountDisplay();
+    animateModalOpen(modal, 'carryoverDialog');
+    return;
+  }
+
+  let html = '';
+
+  // Gom theo Parent Task
+  uncompletedParents.forEach(p => {
+    carryoverSelectionState.parents.add(p.id);
+    const pSubtasks = uncompletedTasks.filter(t => t.parentId === p.id);
+    pSubtasks.forEach(t => carryoverSelectionState.tasks.add(t.id));
+
+    html += `
+      <div class="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-850 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <label class="inline-flex items-center gap-2 cursor-pointer">
+            <input 
+              type="checkbox" 
+              checked 
+              id="co-parent-${p.id}" 
+              onchange="handleCarryoverParentToggle('${p.id}', this.checked)" 
+              class="w-4 h-4 rounded-md text-amber-600 focus:ring-amber-500 border-slate-300 dark:border-slate-600 cursor-pointer"
+            >
+            <span class="text-xs font-bold text-slate-900 dark:text-white">
+              [${getParentTag(p)}] ${p.title}
+            </span>
+          </label>
+          <span class="text-[11px] font-mono font-semibold text-slate-400">${pSubtasks.length} subtask tồn</span>
+        </div>
+
+        ${pSubtasks.length > 0 ? `
+          <div class="pl-6 space-y-1.5 border-l-2 border-slate-200 dark:border-slate-700 ml-2">
+            ${pSubtasks.map(t => {
+              return `
+                <label class="flex items-center justify-between text-xs text-slate-700 dark:text-slate-300 cursor-pointer hover:text-slate-900 dark:hover:text-white">
+                  <span class="flex items-center gap-2 truncate">
+                    <input 
+                      type="checkbox" 
+                      checked 
+                      id="co-task-${t.id}" 
+                      onchange="handleCarryoverTaskToggle('${t.id}', this.checked)" 
+                      class="co-task-cb-${p.id} w-3.5 h-3.5 rounded-sm text-amber-600 focus:ring-amber-500 border-slate-300 dark:border-slate-600 cursor-pointer"
+                    >
+                    <span class="truncate">${t.title}</span>
+                  </span>
+                  <span class="text-[10px] text-slate-400 font-mono shrink-0 ml-2">${t.date ? formatDateVN(t.date) : 'Chưa xếp ngày'}</span>
+                </label>
+              `;
+            }).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  });
+
+  // Nhiệm vụ độc lập còn sót
+  const indepTasks = uncompletedTasks.filter(t => !t.parentId);
+  if (indepTasks.length > 0) {
+    indepTasks.forEach(t => carryoverSelectionState.tasks.add(t.id));
+    html += `
+      <div class="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-850 space-y-2">
+        <div class="text-xs font-bold text-slate-700 dark:text-slate-300">Nhiệm vụ độc lập tồn đọng</div>
+        <div class="space-y-1.5">
+          ${indepTasks.map(t => `
+            <label class="flex items-center justify-between text-xs text-slate-700 dark:text-slate-300 cursor-pointer hover:text-slate-900 dark:hover:text-white">
+              <span class="flex items-center gap-2 truncate">
+                <input 
+                  type="checkbox" 
+                  checked 
+                  id="co-task-${t.id}" 
+                  onchange="handleCarryoverTaskToggle('${t.id}', this.checked)" 
+                  class="w-3.5 h-3.5 rounded-sm text-amber-600 focus:ring-amber-500 border-slate-300 dark:border-slate-600 cursor-pointer"
+                >
+                <span class="truncate">${t.title}</span>
+              </span>
+              <span class="text-[10px] text-slate-400 font-mono shrink-0 ml-2">${t.date ? formatDateVN(t.date) : 'Chưa xếp ngày'}</span>
+            </label>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  container.innerHTML = html;
+  updateCarryoverCountDisplay();
+  animateModalOpen(modal, 'carryoverDialog');
+}
+
+function handleCarryoverParentToggle(parentId, isChecked) {
+  if (isChecked) carryoverSelectionState.parents.add(parentId);
+  else carryoverSelectionState.parents.delete(parentId);
+
+  // Toggle all children checkboxes under this parent
+  document.querySelectorAll(`.co-task-cb-${parentId}`).forEach(cb => {
+    cb.checked = isChecked;
+    const tid = cb.id.replace('co-task-', '');
+    if (isChecked) carryoverSelectionState.tasks.add(tid);
+    else carryoverSelectionState.tasks.delete(tid);
+  });
+  updateCarryoverCountDisplay();
+}
+
+function handleCarryoverTaskToggle(taskId, isChecked) {
+  if (isChecked) carryoverSelectionState.tasks.add(taskId);
+  else carryoverSelectionState.tasks.delete(taskId);
+  updateCarryoverCountDisplay();
+}
+
+function updateCarryoverCountDisplay() {
+  const countText = document.getElementById('carryoverSelectedCountText');
+  if (countText) {
+    const total = carryoverSelectionState.parents.size + carryoverSelectionState.tasks.size;
+    countText.textContent = `Đã chọn ${carryoverSelectionState.parents.size} mục tiêu, ${carryoverSelectionState.tasks.size} nhiệm vụ (${total} mục)`;
+  }
+}
+
+function toggleSelectAllCarryover() {
+  const container = document.getElementById('carryoverItemList');
+  if (!container) return;
+  const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+  const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+  checkboxes.forEach(cb => {
+    cb.checked = !allChecked;
+    if (cb.id.startsWith('co-parent-')) {
+      const pid = cb.id.replace('co-parent-', '');
+      if (!allChecked) carryoverSelectionState.parents.add(pid);
+      else carryoverSelectionState.parents.delete(pid);
+    } else if (cb.id.startsWith('co-task-')) {
+      const tid = cb.id.replace('co-task-', '');
+      if (!allChecked) carryoverSelectionState.tasks.add(tid);
+      else carryoverSelectionState.tasks.delete(tid);
+    }
+  });
+
+  const toggleText = document.getElementById('carryoverToggleSelectText');
+  if (toggleText) {
+    toggleText.textContent = allChecked ? 'Chọn tất cả' : 'Bỏ chọn tất cả';
+  }
+  updateCarryoverCountDisplay();
+}
+
+function closeCarryoverModal() {
+  const modal = document.getElementById('carryoverModal');
+  if (modal) modal.classList.add('hidden');
+  updateMobileNavVisibility();
+}
+
+async function executeCarryover() {
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+
+  const targetYear = state.annualViewYear || new Date().getFullYear();
+  const sourceYear = targetYear - 1;
+  const destQuarter = document.getElementById('carryoverDestQuarterSelect')?.value || 'Q1';
+
+  if (carryoverSelectionState.parents.size === 0 && carryoverSelectionState.tasks.size === 0) {
+    showToast({
+      type: 'warning',
+      title: 'Chưa chọn mục nào',
+      message: 'Vui lòng tích chọn ít nhất 1 mục tiêu hoặc nhiệm vụ để chuyển giao!'
+    });
+    return;
+  }
+
+  const parentMap = {}; // origParentId -> newParentId
+
+  // 1. Tạo bản sao cho Parent Tasks đã chọn
+  for (const pid of carryoverSelectionState.parents) {
+    const origParent = state.parentTasks.find(p => p.id === pid);
+    if (!origParent) continue;
+
+    const newParent = {
+      id: 'parent_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      title: origParent.title,
+      tag: origParent.tag,
+      color: origParent.color || '#2563eb',
+      description: (origParent.description ? origParent.description + ' ' : '') + `[Kế thừa từ ${sourceYear}]`,
+      targetYear: targetYear,
+      targetQuarter: destQuarter !== 'unassigned' ? destQuarter : (origParent.targetQuarter || null),
+      completed: false,
+      createdAt: new Date().toISOString()
+    };
+    await saveSingleParentTask(newParent);
+    parentMap[origParent.id] = newParent.id;
+  }
+
+  // 2. Tạo bản sao cho Subtasks đã chọn
+  let copiedTasksCount = 0;
+  for (const tid of carryoverSelectionState.tasks) {
+    const origTask = state.tasks.find(t => t.id === tid);
+    if (!origTask) continue;
+
+    const newParentId = origTask.parentId 
+      ? (parentMap[origTask.parentId] || origTask.parentId) 
+      : null;
+
+    const newTask = {
+      id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4) + '_' + copiedTasksCount,
+      title: origTask.title,
+      parentId: newParentId,
+      priority: origTask.priority || 'medium',
+      date: null, // Xóa ngày cũ để xếp lịch mới
+      time: origTask.time || null,
+      targetYear: targetYear,
+      targetQuarter: destQuarter !== 'unassigned' ? destQuarter : (origTask.targetQuarter || null),
+      targetMonth: null,
+      note: (origTask.note ? origTask.note + ' ' : '') + `[Tồn đọng từ ${sourceYear}]`,
+      completed: false,
+      replanCount: 0,
+      isMilestone: Boolean(origTask.isMilestone),
+      rolloverFrom: {
+        originalYear: sourceYear,
+        originalTaskId: origTask.id
+      },
+      createdAt: new Date().toISOString()
+    };
+    state.tasks.push(newTask);
+    copiedTasksCount++;
+  }
+
+  await saveCurrentTasks();
+  closeCarryoverModal();
+
+  showToast({
+    type: 'success',
+    title: 'Chuyển giao thành công',
+    message: `Đã tạo bản sao <strong>${carryoverSelectionState.parents.size} mục tiêu</strong> và <strong>${copiedTasksCount} nhiệm vụ</strong> sang năm ${targetYear}!`
+  });
+
+  renderApp();
+}
+
+// Gắn các hàm ra window để truy cập từ HTML onclick
+window.setAnnualYear = setAnnualYear;
+window.changeAnnualYear = changeAnnualYear;
+window.setAnnualMode = setAnnualMode;
+window.filterAnnualRoadmapCategory = filterAnnualRoadmapCategory;
+window.openAddParentTaskForAnnualYear = openAddParentTaskForAnnualYear;
+window.openAddTaskModalForYearQuarter = openAddTaskModalForYearQuarter;
+window.openBulkSubtaskModal = openBulkSubtaskModal;
+window.closeBulkSubtaskModal = closeBulkSubtaskModal;
+window.insertBulkTemplateExample = insertBulkTemplateExample;
+window.handleBulkSubtaskSubmit = handleBulkSubtaskSubmit;
+window.openCarryoverModal = openCarryoverModal;
+window.closeCarryoverModal = closeCarryoverModal;
+window.toggleSelectAllCarryover = toggleSelectAllCarryover;
+window.executeCarryover = executeCarryover;
+window.handleCarryoverParentToggle = handleCarryoverParentToggle;
+window.handleCarryoverTaskToggle = handleCarryoverTaskToggle;
 
 // --- 7. SWITCH & NAVIGATE (HIỆU ỨNG SLIDE CHUYỂN NGÀY/TUẦN/THÁNG SIÊU MƯỢT) ---
 function triggerSlideAnimation(direction) {
@@ -2778,6 +4130,7 @@ function navigateDate(delta) {
     d.setMonth(d.getMonth() + delta);
   } else if (state.currentView === 'year') {
     d.setFullYear(d.getFullYear() + delta);
+    state.annualViewYear = d.getFullYear();
   }
   renderApp();
   triggerSlideAnimation(delta > 0 ? 'next' : 'prev');
@@ -2809,6 +4162,9 @@ function goToToday() {
   }
 
   state.currentDate = today;
+  if (state.currentView === 'year') {
+    state.annualViewYear = today.getFullYear();
+  }
   renderApp();
   triggerSlideAnimation(direction);
 
@@ -3401,6 +4757,11 @@ function openAddTaskModal(initialDate = null) {
   document.getElementById('taskNote').value = '';
   document.getElementById('modalTitle').textContent = 'Thêm nhiệm vụ vào lịch';
   
+  const quarterSelect = document.getElementById('taskTargetQuarterSelect');
+  if (quarterSelect) quarterSelect.value = '';
+  const milestoneCb = document.getElementById('taskIsMilestoneCheckbox');
+  if (milestoneCb) milestoneCb.checked = false;
+
   const parentSelect = document.getElementById('taskParentSelect');
   if (parentSelect) populateParentSelectOptions(parentSelect);
 
@@ -3575,6 +4936,12 @@ function openEditTaskModal(taskId) {
   }
   prioritySelect.value = task.priority || 'medium';
   noteInput.value = task.note || '';
+
+  const quarterSelect = document.getElementById('taskTargetQuarterSelect');
+  if (quarterSelect) quarterSelect.value = task.targetQuarter || '';
+  const milestoneCb = document.getElementById('taskIsMilestoneCheckbox');
+  if (milestoneCb) milestoneCb.checked = Boolean(task.isMilestone);
+
   updateAllDatePickerDisplays();
 
   let pastNotice = document.getElementById('editTaskPastReplanNotice');
@@ -4604,6 +5971,11 @@ function openAddParentTaskModal() {
   document.getElementById('parentTaskModalTitle').textContent = 'Thêm parentTask';
   document.getElementById('selectedParentColor').value = '#2563eb';
 
+  const yearInput = document.getElementById('parentTargetYearInput');
+  if (yearInput) yearInput.value = state.annualViewYear || new Date().getFullYear();
+  const quarterSelect = document.getElementById('parentTargetQuarterSelect');
+  if (quarterSelect) quarterSelect.value = '';
+
   const tagInput = document.getElementById('parentTaskTagInput');
   if (tagInput) tagInput.value = '';
   isParentTagManuallyEdited = false;
@@ -4630,6 +6002,11 @@ function openEditParentTaskModal(parentId) {
   document.getElementById('parentTaskDescInput').value = parent.description || '';
   document.getElementById('selectedParentColor').value = parent.color || '#2563eb';
   document.getElementById('parentTaskModalTitle').textContent = 'Chỉnh sửa parentTask';
+
+  const yearInput = document.getElementById('parentTargetYearInput');
+  if (yearInput) yearInput.value = parent.targetYear || '';
+  const quarterSelect = document.getElementById('parentTargetQuarterSelect');
+  if (quarterSelect) quarterSelect.value = parent.targetQuarter || '';
 
   const tagInput = document.getElementById('parentTaskTagInput');
   if (tagInput) {
@@ -4662,6 +6039,10 @@ async function handleSaveParentTask(e) {
   const color = document.getElementById('selectedParentColor').value || '#2563eb';
   const description = document.getElementById('parentTaskDescInput').value.trim();
 
+  const targetYearVal = document.getElementById('parentTargetYearInput')?.value;
+  const targetYear = targetYearVal ? parseInt(targetYearVal, 10) : null;
+  const targetQuarter = document.getElementById('parentTargetQuarterSelect')?.value || null;
+
   if (!title) {
     alert('Vui lòng nhập tên Task tổng!');
     return;
@@ -4678,6 +6059,8 @@ async function handleSaveParentTask(e) {
       parent.tag = tag;
       parent.color = color;
       parent.description = description;
+      parent.targetYear = targetYear;
+      parent.targetQuarter = targetQuarter;
       await saveSingleParentTask(parent);
     }
   } else {
@@ -4687,6 +6070,8 @@ async function handleSaveParentTask(e) {
       tag,
       color,
       description,
+      targetYear,
+      targetQuarter,
       createdAt: new Date().toISOString()
     };
     await saveSingleParentTask(newParent);
@@ -7405,6 +8790,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const startVal = document.getElementById('taskStartDate')?.value || document.getElementById('taskDate')?.value || '';
     const endVal = document.getElementById('taskEndDate')?.value || startVal;
     const timeVal = document.getElementById('taskTime')?.value || '';
+    const quarterVal = document.getElementById('taskTargetQuarterSelect')?.value || '';
+    const isMilestoneVal = document.getElementById('taskIsMilestoneCheckbox')?.checked || false;
     await saveTaskFromForm({
       id: document.getElementById('taskId').value,
       title: titleVal,
@@ -7415,7 +8802,9 @@ document.addEventListener('DOMContentLoaded', () => {
       priority: document.getElementById('taskPriority').value,
       parentId: parentSel ? parentSel.value : '',
       note: document.getElementById('taskNote').value.trim(),
-      tag: tagVal.toUpperCase().slice(0, 5)
+      tag: tagVal.toUpperCase().slice(0, 5),
+      targetQuarter: quarterVal,
+      isMilestone: isMilestoneVal
     });
     closeTaskModal();
   });

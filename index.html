@@ -1206,23 +1206,224 @@
         </div>
       </section>
 
-      <!-- VIEW: NĂM (YEAR HEATMAP VIEW) -->
-      <section id="viewYear" class="hidden bg-white dark:bg-slate-900 p-6 sm:p-8 2xl:p-10 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-6 transition-colors">
-        <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-          <div>
-            <h2 class="text-lg font-bold text-slate-900 dark:text-white">Yearly Activity & Focus Heatmap</h2>
-            <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Đo lường mức độ kiên trì và kỷ luật học tập trong cả năm (như GitHub commit graph)</p>
+      <!-- VIEW: NĂM (ANNUAL CENTER: DASHBOARD TOÀN TRÌNH & LẬP KẾ HOẠCH ĐA NĂM) -->
+      <section id="viewYear" class="hidden space-y-6">
+        
+        <!-- TOP CONTROL BAR: YEAR SELECTOR & MODE SWITCHER -->
+        <div class="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4 transition-colors">
+          <!-- Year Navigation & Quick Jump Pills -->
+          <div class="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full md:w-auto justify-between md:justify-start">
+            <div class="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700/60">
+              <button type="button" onclick="changeAnnualYear(-1)" title="Năm trước" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer">
+                <i data-lucide="chevron-left" class="w-4 h-4"></i>
+              </button>
+              <div class="px-3 flex items-center gap-2">
+                <span id="annualYearDisplayNumber" class="text-base sm:text-lg font-black font-mono tracking-tight text-slate-900 dark:text-white">2026</span>
+                <span id="annualYearStatusBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">Năm hiện tại</span>
+              </div>
+              <button type="button" onclick="changeAnnualYear(1)" title="Năm sau" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer">
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+              </button>
+            </div>
+
+            <!-- Quick Year Pills -->
+            <div id="annualQuickYearPills" class="flex items-center gap-1.5 overflow-x-auto py-1">
+              <!-- Rendered via JS: [2025] [2026] [2027] [2028] -->
+            </div>
           </div>
-          <div class="flex items-center gap-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            <span>Ít</span>
-            <span class="w-4 h-4 rounded-xs bg-slate-100 dark:bg-slate-800 border dark:border-slate-700"></span>
-            <span class="w-4 h-4 rounded-xs bg-emerald-200 dark:bg-emerald-900/60"></span>
-            <span class="w-4 h-4 rounded-xs bg-emerald-400 dark:bg-emerald-700"></span>
-            <span class="w-4 h-4 rounded-xs bg-emerald-600 dark:bg-emerald-500"></span>
-            <span>Nhiều</span>
+
+          <!-- Segmented Mode Switcher: Toàn trình vs Lập kế hoạch -->
+          <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/90 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/70 w-full md:w-auto justify-center">
+            <button 
+              type="button" 
+              id="btnAnnualModeDashboard" 
+              onclick="setAnnualMode('dashboard')" 
+              class="flex-1 md:flex-none px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
+            >
+              <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+              <span>📊 Toàn trình</span>
+            </button>
+            <button 
+              type="button" 
+              id="btnAnnualModePlanning" 
+              onclick="setAnnualMode('planning')" 
+              class="flex-1 md:flex-none px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            >
+              <i data-lucide="compass" class="w-4 h-4"></i>
+              <span>🎯 Lập kế hoạch</span>
+            </button>
           </div>
         </div>
-        <div id="yearHeatmapContainer" class="overflow-x-auto pb-4"></div>
+
+        <!-- ======================================================== -->
+        <!-- MODE 1: DASHBOARD TOÀN TRÌNH CẢ NĂM (EXECUTIVE COCKPIT) -->
+        <!-- ======================================================== -->
+        <div id="annualModeDashboardContainer" class="space-y-6">
+          
+          <!-- DẢI KPI VĨ MÔ (4 CARDS) -->
+          <div id="annualKpiGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Rendered via JS: 🎯 Mục tiêu lớn, 📋 Tổng Subtask, 🔥 Kỷ luật, ⏱️ Đúng hạn -->
+          </div>
+
+          <!-- BẢN ĐỒ LỘ TRÌNH 4 QUÝ (ANNUAL MILESTONE ROADMAP) -->
+          <div class="bg-white dark:bg-slate-900 p-5 sm:p-7 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-5 transition-colors">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <i data-lucide="map" class="w-5 h-5 text-indigo-500"></i>
+                  <span>Bản đồ Lộ trình Mục tiêu & Cột mốc (Annual Roadmap)</span>
+                </h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Tiến độ 4 Quý (Q1 - Q4) và điểm rơi các kỳ thi, chứng chỉ, mốc trọng yếu</p>
+              </div>
+
+              <!-- Lọc chuyên đề -->
+              <div class="flex items-center gap-2 self-start sm:self-auto">
+                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium shrink-0">Chuyên đề:</span>
+                <select id="annualRoadmapCategoryFilter" onchange="filterAnnualRoadmapCategory(this.value)" class="text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                  <option value="all">Tất cả mục tiêu</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Quarter Column Headers (Q1 - Q4) -->
+            <div class="grid grid-cols-4 gap-2 sm:gap-3 text-center text-xs font-bold font-mono">
+              <div class="py-2 px-1 rounded-xl bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-300 border border-cyan-200/60 dark:border-cyan-800/40">
+                <span>QUÝ 1 (T1 - T3)</span>
+              </div>
+              <div class="py-2 px-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+                <span>QUÝ 2 (T4 - T6)</span>
+              </div>
+              <div class="py-2 px-1 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40">
+                <span>QUÝ 3 (T7 - T9)</span>
+              </div>
+              <div class="py-2 px-1 rounded-xl bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/40">
+                <span>QUÝ 4 (T10 - T12)</span>
+              </div>
+            </div>
+
+            <!-- Roadmap Rows Content -->
+            <div id="annualRoadmapContent" class="space-y-3 min-h-[140px]">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <!-- 2 CỘT: CƠ CẤU CHUYÊN ĐỀ & ĐIỂM NGHẼN/REPLAN -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Cột 1: Cơ cấu Chuyên đề -->
+            <div class="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <h4 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <i data-lucide="pie-chart" class="w-4 h-4 text-blue-500"></i>
+                  <span>Cơ cấu Chuyên đề Học tập</span>
+                </h4>
+                <span class="text-xs text-slate-400">Tỷ trọng nhiệm vụ</span>
+              </div>
+              <div id="annualCategoryShareList" class="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                <!-- Rendered via JS -->
+              </div>
+            </div>
+
+            <!-- Cột 2: Điểm nghẽn & Nhiệm vụ dời lịch nhiều -->
+            <div class="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <h4 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500"></i>
+                  <span>Nhiệm vụ cần chú ý (Dời lịch / Trễ hạn)</span>
+                </h4>
+                <span class="text-xs text-slate-400">Độ ưu tiên cao</span>
+              </div>
+              <div id="annualBottleneckList" class="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                <!-- Rendered via JS -->
+              </div>
+            </div>
+          </div>
+
+          <!-- HEATMAP HOẠT ĐỘNG 365 NGÀY -->
+          <div class="bg-white dark:bg-slate-900 p-5 sm:p-7 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-5 transition-colors">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div>
+                <h3 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <i data-lucide="flame" class="w-5 h-5 text-emerald-500"></i>
+                  <span>Ma trận Kỷ luật & Tần suất Hoạt động 365 Ngày</span>
+                </h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Mức độ tập trung học tập từng ngày trong năm • Càng xanh đậm càng nhiều nhiệm vụ hoàn thành</p>
+              </div>
+              <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 self-end sm:self-auto">
+                <span>Ít</span>
+                <span class="w-3.5 h-3.5 rounded-xs bg-slate-100 dark:bg-slate-800 border dark:border-slate-700"></span>
+                <span class="w-3.5 h-3.5 rounded-xs bg-emerald-200 dark:bg-emerald-900/60"></span>
+                <span class="w-3.5 h-3.5 rounded-xs bg-emerald-400 dark:bg-emerald-700"></span>
+                <span class="w-3.5 h-3.5 rounded-xs bg-emerald-600 dark:bg-emerald-500"></span>
+                <span>Nhiều</span>
+              </div>
+            </div>
+            <div id="yearHeatmapContainer" class="overflow-x-auto pb-4"></div>
+          </div>
+
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- MODE 2: TRUNG TÂM LẬP KẾ HOẠCH CHIẾN LƯỢC (PLANNING HUB) -->
+        <!-- ======================================================== -->
+        <div id="annualModePlanningContainer" class="hidden space-y-6">
+          
+          <!-- Planning Strategic Action Bar -->
+          <div class="bg-gradient-to-r from-blue-900/10 via-indigo-900/10 to-purple-900/10 dark:from-blue-950/40 dark:via-indigo-950/40 dark:to-purple-950/40 p-5 sm:p-6 rounded-2xl border border-blue-200/60 dark:border-blue-800/40 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold">
+                  <i data-lucide="target" class="w-4 h-4"></i>
+                </div>
+                <h3 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                  Kế hoạch Chiến lược Năm <span id="annualPlanningTargetYearText" class="text-blue-600 dark:text-blue-400 font-mono">2027</span>
+                </h3>
+              </div>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xl">
+                Thiết lập mục tiêu lớn, phân bổ nhiệm vụ theo Quý (Q1 - Q4) hoặc Tháng trước khi bắt đầu năm mới.
+              </p>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+              <button 
+                type="button" 
+                onclick="openCarryoverModal()" 
+                id="btnOpenCarryoverModal" 
+                class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+              >
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                <span>⚡ Chuyển giao việc tồn</span>
+              </button>
+
+              <button 
+                type="button" 
+                onclick="openBulkSubtaskModal()" 
+                id="btnOpenBulkSubtaskModal" 
+                class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700 flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+              >
+                <i data-lucide="list-plus" class="w-4 h-4"></i>
+                <span>📝 Nhập nhanh hàng loạt</span>
+              </button>
+
+              <button 
+                type="button" 
+                onclick="openAddParentTaskForAnnualYear()" 
+                id="btnAddParentTaskForYear" 
+                class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs shadow-blue-500/20 flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+              >
+                <i data-lucide="plus" class="w-4 h-4 stroke-[2.5]"></i>
+                <span>+ Thêm Mục tiêu lớn</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Quarterly Buckets Container (Q1, Q2, Q3, Q4, Unassigned) -->
+          <div id="annualPlanningBucketsList" class="space-y-6">
+            <!-- Rendered via JS -->
+          </div>
+
+        </div>
+
       </section>
     </div>
 
@@ -1666,6 +1867,31 @@
           </div>
         </div>
 
+        <!-- Quý & Cột mốc Milestone (Cho Kế hoạch năm & Lộ trình) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <i data-lucide="compass" class="w-3.5 h-3.5 text-blue-500"></i>
+              <span>Quý thực hiện (Kế hoạch năm)</span>
+            </label>
+            <select id="taskTargetQuarterSelect" class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition cursor-pointer">
+              <option value="">Tự động theo ngày</option>
+              <option value="Q1">Quý 1 (T1 - T3)</option>
+              <option value="Q2">Quý 2 (T4 - T6)</option>
+              <option value="Q3">Quý 3 (T7 - T9)</option>
+              <option value="Q4">Quý 4 (T10 - T12)</option>
+            </select>
+          </div>
+          <div class="pt-2 sm:pt-5">
+            <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" id="taskIsMilestoneCheckbox" class="w-4 h-4 rounded-md text-amber-500 focus:ring-amber-400 border-slate-300 dark:border-slate-600 cursor-pointer">
+              <span class="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                <span>★ Cột mốc quan trọng (Milestone)</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
         <div>
           <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
             <i data-lucide="file-text" class="w-3.5 h-3.5 text-slate-400"></i>
@@ -1902,6 +2128,30 @@
           <input type="hidden" id="selectedParentColor" value="#2563eb">
         </div>
 
+        <!-- Năm và Quý trọng tâm (Cho Lộ trình & Lập kế hoạch) -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1">
+              <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i>
+              <span>Năm mục tiêu</span>
+            </label>
+            <input type="number" id="parentTargetYearInput" min="2020" max="2050" placeholder="2026" class="w-full px-3.5 py-2 font-mono font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1">
+              <i data-lucide="compass" class="w-3.5 h-3.5 text-indigo-500"></i>
+              <span>Quý trọng tâm</span>
+            </label>
+            <select id="parentTargetQuarterSelect" class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden cursor-pointer">
+              <option value="">Cả năm / Linh hoạt</option>
+              <option value="Q1">Quý 1 (T1 - T3)</option>
+              <option value="Q2">Quý 2 (T4 - T6)</option>
+              <option value="Q3">Quý 3 (T7 - T9)</option>
+              <option value="Q4">Quý 4 (T10 - T12)</option>
+            </select>
+          </div>
+        </div>
+
         <div>
           <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Mô tả mục tiêu / Ghi chú</label>
           <textarea id="parentTaskDescInput" rows="2" placeholder="Ví dụ: Hoàn thành trong quý 3-4, đạt target 7.5..." class="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"></textarea>
@@ -1912,6 +2162,151 @@
           <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-xs">Lưu Task tổng</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: NHẬP NHANH SUBTASK HÀNG LOẠT (BULK SUBTASK CREATOR) -->
+  <!-- ========================================== -->
+  <div id="bulkSubtaskModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[95] modal-layer-child hidden flex items-center justify-center p-3 sm:p-5">
+    <div id="bulkSubtaskDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl space-y-4 border border-slate-200 dark:border-slate-800 transition-all duration-300 modal-dialog-animated">
+      <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-xs">
+            <i data-lucide="list-plus" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Nhập nhanh Subtask hàng loạt</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Phân rã nhanh danh sách nhiệm vụ từ văn bản Markdown hoặc gạch đầu dòng</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeBulkSubtaskModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="formBulkSubtask" onsubmit="handleBulkSubtaskSubmit(event)" class="space-y-4">
+        <!-- Target Parent Task and Default Quarter -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <i data-lucide="folder-tree" class="w-3.5 h-3.5 text-indigo-500"></i>
+              <span>Gán vào Mục tiêu (Parent Task) <span class="text-rose-500">*</span></span>
+            </label>
+            <select id="bulkTargetParentSelect" required class="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition cursor-pointer">
+              <!-- Options populated via JS -->
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i>
+              <span>Quý mặc định</span>
+            </label>
+            <select id="bulkDefaultQuarterSelect" class="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition cursor-pointer">
+              <option value="Q1">Quý 1 (Tháng 1 - Tháng 3)</option>
+              <option value="Q2">Quý 2 (Tháng 4 - Tháng 6)</option>
+              <option value="Q3">Quý 3 (Tháng 7 - Tháng 9)</option>
+              <option value="Q4">Quý 4 (Tháng 10 - Tháng 12)</option>
+              <option value="unassigned">Chưa phân quý (Backlog năm)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Textarea input -->
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">
+              Danh sách nhiệm vụ (Mỗi dòng 1 nhiệm vụ)
+            </label>
+            <button type="button" onclick="insertBulkTemplateExample()" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-semibold cursor-pointer">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+              <span>Chèn cú pháp mẫu</span>
+            </button>
+          </div>
+          <textarea 
+            id="bulkSubtaskInputText" 
+            rows="7" 
+            required 
+            placeholder="- [ ] Đọc tài liệu chương 1 | T1&#10;- [ ] Hoàn thành 5 bài lab VPC | T2&#10;- [ ] Làm đề thi thử số 1 | 2027-03-10&#10;- [★] Thi chứng chỉ chính thức | 2027-03-25 | milestone" 
+            class="w-full px-3.5 py-2.5 font-mono text-xs sm:text-sm bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition"
+          ></textarea>
+          <div class="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
+            💡 <strong>Quy tắc nhận diện cú pháp:</strong><br>
+            • Cú pháp: <code>Tên nhiệm vụ | Thời gian/Tháng/Quý | Ưu tiên hoặc milestone</code><br>
+            • Hỗ trợ định dạng: <code>2027-03-15</code> (ngày cố định), <code>T2</code> hoặc <code>Tháng 02</code> (theo tháng), <code>Q1</code> (theo quý).<br>
+            • Thêm <code>[★]</code> hoặc chữ <code>milestone</code> để đánh dấu cột mốc quan trọng (ngày thi, bảo vệ...).
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" onclick="closeBulkSubtaskModal()" class="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-semibold transition cursor-pointer">Hủy</button>
+          <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer">
+            <i data-lucide="check" class="w-4 h-4 stroke-[2.5]"></i>
+            <span>Tạo hàng loạt</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: CHUYỂN GIAO VIỆC TỒN ĐỌNG (GOAL ROLLOVER / CARRYOVER ENGINE) -->
+  <!-- ========================================== -->
+  <div id="carryoverModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[95] modal-layer-child hidden flex items-center justify-center p-3 sm:p-5">
+    <div id="carryoverDialog" class="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl space-y-4 border border-slate-200 dark:border-slate-800 transition-all duration-300 modal-dialog-animated max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-amber-600 flex items-center justify-center text-white shadow-xs">
+            <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Chuyển giao mục tiêu & việc tồn đọng</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              Kế thừa việc chưa hoàn thành từ năm <span id="carryoverSourceYearText" class="font-bold font-mono">2026</span> sang năm <span id="carryoverTargetYearText" class="font-bold font-mono">2027</span>
+            </p>
+          </div>
+        </div>
+        <button type="button" onclick="closeCarryoverModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="text-xs text-slate-600 dark:text-slate-300 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-xl border border-amber-200/60 dark:border-amber-800/40 shrink-0">
+        📌 <strong>Nguyên tắc bảo toàn dữ liệu:</strong> Hệ thống sẽ tạo bản sao cho năm mới kèm nhãn <code>[Tồn đọng từ năm cũ]</code>. Thành tích và số liệu lịch sử của năm trước vẫn được giữ nguyên vẹn 100%.
+      </div>
+
+      <!-- Controls: Target Quarter & Select all -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 py-1">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Đích đến:</span>
+          <select id="carryoverDestQuarterSelect" class="text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer">
+            <option value="Q1">Đưa vào Quý 1</option>
+            <option value="Q2">Đưa vào Quý 2</option>
+            <option value="unassigned">Chưa phân quý (Backlog năm)</option>
+          </select>
+        </div>
+
+        <button type="button" onclick="toggleSelectAllCarryover()" class="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">
+          <span id="carryoverToggleSelectText">Bỏ chọn tất cả</span>
+        </button>
+      </div>
+
+      <!-- Scrollable list of uncompleted parents and subtasks -->
+      <div id="carryoverItemList" class="flex-1 overflow-y-auto space-y-3 min-h-[180px] max-h-[360px] pr-1 border border-slate-100 dark:border-slate-800 rounded-xl p-3">
+        <!-- Rendered via JS -->
+      </div>
+
+      <div class="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 shrink-0">
+        <span id="carryoverSelectedCountText" class="text-xs text-slate-500 font-medium">Đã chọn 0 mục</span>
+        <div class="flex items-center gap-2.5">
+          <button type="button" onclick="closeCarryoverModal()" class="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-semibold transition cursor-pointer">Hủy</button>
+          <button type="button" onclick="executeCarryover()" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer">
+            <i data-lucide="arrow-right" class="w-4 h-4 stroke-[2.5]"></i>
+            <span>Thực hiện chuyển giao</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -2828,8 +3223,8 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=8.22"></script>
-  <script src="app.js?v=8.22"></script>
+  <script src="firebase-config.js?v=8.23"></script>
+  <script src="app.js?v=8.23"></script>
 
   <!-- Đăng ký Service Worker cho Progressive Web App (PWA) -->
   <script>
