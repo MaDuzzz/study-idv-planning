@@ -1870,17 +1870,24 @@
         <!-- Quý & Cột mốc Milestone (Cho Kế hoạch năm & Lộ trình) -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
           <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-              <i data-lucide="compass" class="w-3.5 h-3.5 text-blue-500"></i>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5 truncate">
+              <i data-lucide="compass" class="w-3.5 h-3.5 text-blue-500 shrink-0"></i>
               <span>Quý thực hiện (Kế hoạch năm)</span>
             </label>
-            <select id="taskTargetQuarterSelect" class="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition cursor-pointer">
-              <option value="">Tự động theo ngày</option>
-              <option value="Q1">Quý 1 (T1 - T3)</option>
-              <option value="Q2">Quý 2 (T4 - T6)</option>
-              <option value="Q3">Quý 3 (T7 - T9)</option>
-              <option value="Q4">Quý 4 (T10 - T12)</option>
-            </select>
+            <div class="relative w-full group">
+              <select id="taskTargetQuarterSelect" class="w-full h-11 pl-3.5 pr-9 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition appearance-none cursor-pointer">
+                <option value="">Tự động theo ngày</option>
+                <option value="Q1">Quý 1 (T1 - T3)</option>
+                <option value="Q2">Quý 2 (T4 - T6)</option>
+                <option value="Q3">Quý 3 (T7 - T9)</option>
+                <option value="Q4">Quý 4 (T10 - T12)</option>
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 dark:text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </div>
+            </div>
           </div>
           <div class="pt-2 sm:pt-5">
             <label class="inline-flex items-center gap-2 cursor-pointer select-none">
@@ -2131,24 +2138,41 @@
         <!-- Năm và Quý trọng tâm (Cho Lộ trình & Lập kế hoạch) -->
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1">
-              <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i>
-              <span>Năm mục tiêu</span>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500 shrink-0"></i>
+              <span class="truncate">Năm mục tiêu</span>
             </label>
-            <input type="number" id="parentTargetYearInput" min="2020" max="2050" placeholder="2026" class="w-full px-3.5 py-2 font-mono font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+            <input 
+              type="number" 
+              id="parentTargetYearInput" 
+              min="2020" 
+              max="2050" 
+              placeholder="2026" 
+              class="w-full h-11 px-3.5 font-mono font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition"
+            >
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1">
-              <i data-lucide="compass" class="w-3.5 h-3.5 text-indigo-500"></i>
-              <span>Quý trọng tâm</span>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <i data-lucide="compass" class="w-3.5 h-3.5 text-indigo-500 shrink-0"></i>
+              <span class="truncate">Quý trọng tâm</span>
             </label>
-            <select id="parentTargetQuarterSelect" class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden cursor-pointer">
-              <option value="">Cả năm / Linh hoạt</option>
-              <option value="Q1">Quý 1 (T1 - T3)</option>
-              <option value="Q2">Quý 2 (T4 - T6)</option>
-              <option value="Q3">Quý 3 (T7 - T9)</option>
-              <option value="Q4">Quý 4 (T10 - T12)</option>
-            </select>
+            <div class="relative w-full group">
+              <select 
+                id="parentTargetQuarterSelect" 
+                class="w-full h-11 pl-3.5 pr-9 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition appearance-none cursor-pointer"
+              >
+                <option value="">Cả năm / Linh hoạt</option>
+                <option value="Q1">Quý 1 (T1 - T3)</option>
+                <option value="Q2">Quý 2 (T4 - T6)</option>
+                <option value="Q3">Quý 3 (T7 - T9)</option>
+                <option value="Q4">Quý 4 (T10 - T12)</option>
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 dark:text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2189,27 +2213,41 @@
         <!-- Target Parent Task and Default Quarter -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-              <i data-lucide="folder-tree" class="w-3.5 h-3.5 text-indigo-500"></i>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5 truncate">
+              <i data-lucide="folder-tree" class="w-3.5 h-3.5 text-indigo-500 shrink-0"></i>
               <span>Gán vào Mục tiêu (Parent Task) <span class="text-rose-500">*</span></span>
             </label>
-            <select id="bulkTargetParentSelect" required class="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition cursor-pointer">
-              <!-- Options populated via JS -->
-            </select>
+            <div class="relative w-full group">
+              <select id="bulkTargetParentSelect" required class="w-full h-11 pl-3.5 pr-9 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition appearance-none cursor-pointer">
+                <!-- Options populated via JS -->
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 dark:text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </div>
+            </div>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-              <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5 truncate">
+              <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500 shrink-0"></i>
               <span>Quý mặc định</span>
             </label>
-            <select id="bulkDefaultQuarterSelect" class="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition cursor-pointer">
-              <option value="Q1">Quý 1 (Tháng 1 - Tháng 3)</option>
-              <option value="Q2">Quý 2 (Tháng 4 - Tháng 6)</option>
-              <option value="Q3">Quý 3 (Tháng 7 - Tháng 9)</option>
-              <option value="Q4">Quý 4 (Tháng 10 - Tháng 12)</option>
-              <option value="unassigned">Chưa phân quý (Backlog năm)</option>
-            </select>
+            <div class="relative w-full group">
+              <select id="bulkDefaultQuarterSelect" class="w-full h-11 pl-3.5 pr-9 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden transition appearance-none cursor-pointer">
+                <option value="Q1">Quý 1 (Tháng 1 - Tháng 3)</option>
+                <option value="Q2">Quý 2 (Tháng 4 - Tháng 6)</option>
+                <option value="Q3">Quý 3 (Tháng 7 - Tháng 9)</option>
+                <option value="Q4">Quý 4 (Tháng 10 - Tháng 12)</option>
+                <option value="unassigned">Chưa phân quý (Backlog năm)</option>
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 dark:text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -3223,8 +3261,8 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=8.23"></script>
-  <script src="app.js?v=8.23"></script>
+  <script src="firebase-config.js?v=8.24"></script>
+  <script src="app.js?v=8.24"></script>
 
   <!-- Đăng ký Service Worker cho Progressive Web App (PWA) -->
   <script>
