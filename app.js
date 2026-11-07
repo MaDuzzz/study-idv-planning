@@ -3333,7 +3333,7 @@ function renderAnnualPlanning(year) {
               class="px-3 py-1.5 rounded-xl text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 transition cursor-pointer flex items-center gap-1"
             >
               <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-              <span>+ Mục tiêu</span>
+              <span>Mục tiêu</span>
             </button>
             <button 
               type="button" 
@@ -3341,7 +3341,7 @@ function renderAnnualPlanning(year) {
               class="px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 transition cursor-pointer flex items-center gap-1"
             >
               <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i>
-              <span>+ Nhiệm vụ</span>
+              <span>Nhiệm vụ</span>
             </button>
             <button 
               type="button" 
