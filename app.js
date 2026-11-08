@@ -2735,6 +2735,68 @@ function compareTasksChronological(a, b, fallbackYear) {
   return (a && a.id ? a.id : '').localeCompare(b && b.id ? b.id : '');
 }
 
+// Helper xác định ngày mặc định khi xếp lịch hoặc tạo subtask:
+// Tự động khớp theo Quý và Năm của task/parent task (ví dụ: Q2/2027 -> ngày 01/04/2027 là ngày đầu tiên của quý).
+// Đối với các task chưa được set quý: mặc định là current date (hôm nay).
+function getDefaultDateForTask(task) {
+  const todayStr = getTodayStr();
+
+  // 1. Nếu task đã có ngày cụ thể và không phải trong quá khứ -> giữ nguyên
+  if (task && task.date && typeof task.date === 'string' && task.date.length >= 10 && task.date >= todayStr) {
+    return task.date;
+  }
+
+  // 2. Tìm Parent Task tương ứng (task tổng)
+  const parent = task && task.parentId ? getParentTask(task.parentId) : null;
+
+  // 3. Xác định Năm mục tiêu (ưu tiên: task.targetYear -> parent.targetYear -> state.annualViewYear -> năm hiện tại)
+  const taskYear = task && task.targetYear ? Number(task.targetYear) : null;
+  const parentYear = parent && parent.targetYear ? Number(parent.targetYear) : null;
+  const targetYear = taskYear || parentYear || state.annualViewYear || new Date().getFullYear();
+
+  // 4. Nếu task có targetMonth cụ thể (ví dụ: '2027-04' hoặc '04'):
+  if (task && task.targetMonth && typeof task.targetMonth === 'string') {
+    const ym = task.targetMonth.trim();
+    if (ym.length === 7 && ym.includes('-')) {
+      const monthStartDate = `${ym}-01`;
+      return monthStartDate < todayStr ? todayStr : monthStartDate;
+    }
+    const mNum = parseInt(ym, 10);
+    if (!isNaN(mNum) && mNum >= 1 && mNum <= 12) {
+      const monthStartDate = `${targetYear}-${String(mNum).padStart(2, '0')}-01`;
+      return monthStartDate < todayStr ? todayStr : monthStartDate;
+    }
+  }
+
+  // 5. Xác định Quý mục tiêu (ưu tiên: task.targetQuarter -> parent.targetQuarter)
+  let targetQuarter = null;
+  if (task && task.targetQuarter && ['Q1', 'Q2', 'Q3', 'Q4'].includes(task.targetQuarter)) {
+    targetQuarter = task.targetQuarter;
+  } else if (parent && parent.targetQuarter && ['Q1', 'Q2', 'Q3', 'Q4'].includes(parent.targetQuarter)) {
+    targetQuarter = parent.targetQuarter;
+  }
+
+  // 6. Nếu có Quý: lấy ngày đầu tiên của Quý (Q1 -> 01/01/YYYY | Q2 -> 01/04/YYYY | Q3 -> 01/07/YYYY | Q4 -> 01/10/YYYY)
+  if (targetQuarter) {
+    const qStartMonthMap = {
+      Q1: '01',
+      Q2: '04',
+      Q3: '07',
+      Q4: '10'
+    };
+    const startMonth = qStartMonthMap[targetQuarter];
+    if (startMonth) {
+      const quarterStartDate = `${targetYear}-${startMonth}-01`;
+      // Nếu ngày đầu quý thuộc tương lai, trả về ngày đầu quý (ví dụ: 01/04/2027)
+      // Nếu ngày đầu quý là trong quá khứ (< todayStr), trả về todayStr để tránh chặn xếp lịch
+      return quarterStartDate < todayStr ? todayStr : quarterStartDate;
+    }
+  }
+
+  // 7. Đối với các task chưa được set quý: mặc định là current date (ngày hôm nay)
+  return todayStr;
+}
+
 // 2. STREAK METRICS HELPER
 function calculateAnnualStreakMetrics(tasksInYear, year) {
   const activeDatesSet = new Set();
@@ -2796,7 +2858,6 @@ function calculateAnnualStreakMetrics(tasksInYear, year) {
 // 3. NAVIGATION & CONTROLS
 function setAnnualYear(year) {
   state.annualViewYear = Number(year);
-  state.currentDate.setFullYear(Number(year));
   renderYearView();
   updateHeaderDisplay();
   triggerSlideAnimation('pulse');
@@ -5177,11 +5238,29 @@ function openAddTaskModal(initialDate = null) {
       selectDefined.innerHTML = optHtml;
       const defTimeInput = document.getElementById('definedTaskTime');
       const firstTask = unscheduledTasks[0];
+      if (firstTask && !initialDate) {
+        const defDate = getDefaultDateForTask(firstTask);
+        if (dateInputDefined) dateInputDefined.value = defDate;
+        const defStart = document.getElementById('definedTaskStartDate');
+        const defEnd = document.getElementById('definedTaskEndDate');
+        if (defStart) defStart.value = defDate;
+        if (defEnd) defEnd.value = defDate;
+        updateAllDatePickerDisplays();
+      }
       if (defTimeInput) defTimeInput.value = firstTask ? formatTimeForInput(firstTask.time) : '';
       selectDefined.onchange = () => {
         const chosen = state.tasks.find(t => t.id === selectDefined.value);
-        if (chosen && defTimeInput) {
-          defTimeInput.value = formatTimeForInput(chosen.time);
+        if (chosen) {
+          if (defTimeInput) defTimeInput.value = formatTimeForInput(chosen.time);
+          if (!initialDate) {
+            const defDate = getDefaultDateForTask(chosen);
+            if (dateInputDefined) dateInputDefined.value = defDate;
+            const defStart = document.getElementById('definedTaskStartDate');
+            const defEnd = document.getElementById('definedTaskEndDate');
+            if (defStart) defStart.value = defDate;
+            if (defEnd) defEnd.value = defDate;
+            updateAllDatePickerDisplays();
+          }
         }
       };
     }
@@ -6579,9 +6658,7 @@ function openQuickScheduleModal(taskId) {
     return;
   }
 
-  const todayStr = getTodayStr();
-  const currentSelected = formatDate(state.currentDate);
-  const targetDate = currentSelected < todayStr ? todayStr : currentSelected;
+  const targetDate = getDefaultDateForTask(task);
 
   document.getElementById('quickScheduleTaskId').value = task.id;
   document.getElementById('quickScheduleTaskTitle').textContent = task.title;
