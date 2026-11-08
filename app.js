@@ -2594,6 +2594,10 @@ function renderMonthSelectedDayTasks() {
 function getTaskYear(task) {
   if (!task) return new Date().getFullYear();
   if (task.targetYear) return Number(task.targetYear);
+  if (task.targetMonth && typeof task.targetMonth === 'string' && task.targetMonth.length >= 4) {
+    const y = parseInt(task.targetMonth.slice(0, 4), 10);
+    if (!isNaN(y)) return y;
+  }
   if (task.date && typeof task.date === 'string' && task.date.length >= 4) {
     const y = parseInt(task.date.slice(0, 4), 10);
     if (!isNaN(y)) return y;
@@ -2639,6 +2643,10 @@ function getParentTaskYear(parent) {
   const subtasks = state.tasks.filter(t => t.parentId === parent.id);
   for (const t of subtasks) {
     if (t.targetYear) return Number(t.targetYear);
+    if (t.targetMonth && typeof t.targetMonth === 'string' && t.targetMonth.length >= 4) {
+      const y = parseInt(t.targetMonth.slice(0, 4), 10);
+      if (!isNaN(y)) return y;
+    }
     if (t.date && t.date.length >= 4) {
       const y = parseInt(t.date.slice(0, 4), 10);
       if (!isNaN(y)) return y;
@@ -2658,6 +2666,69 @@ function getParentTaskQuarter(parent) {
     if (q !== 'unassigned') return q;
   }
   return 'unassigned';
+}
+
+// Helper lấy sort key chuẩn hoá thời gian để sắp xếp theo trình tự thời gian (chronological)
+function getTaskSortKey(task, fallbackYear) {
+  if (!task) return '9999-99-99-99:99';
+
+  // 1. Ngày cụ thể: YYYY-MM-DD
+  if (task.date && typeof task.date === 'string' && task.date.length >= 10) {
+    const timeStr = task.time && typeof task.time === 'string' ? task.time.slice(0, 5) : '00:00';
+    return `${task.date.slice(0, 10)}-${timeStr}`;
+  }
+
+  const year = task.targetYear ? Number(task.targetYear) : (fallbackYear || getTaskYear(task));
+
+  // 2. Tháng cụ thể: YYYY-MM
+  if (task.targetMonth && typeof task.targetMonth === 'string') {
+    const ym = task.targetMonth.trim();
+    if (ym.length === 7 && ym.includes('-')) {
+      return `${ym}-00-00:00`;
+    }
+    const m = parseInt(ym, 10);
+    if (!isNaN(m) && m >= 1 && m <= 12) {
+      const mm = String(m).padStart(2, '0');
+      return `${year}-${mm}-00-00:00`;
+    }
+  }
+
+  // 3. Quý cụ thể: Q1 -> Q4
+  const quarter = task.targetQuarter || (typeof getTaskQuarter === 'function' ? getTaskQuarter(task) : null);
+  if (quarter && ['Q1', 'Q2', 'Q3', 'Q4'].includes(quarter)) {
+    const qMap = { Q1: '01', Q2: '04', Q3: '07', Q4: '10' };
+    return `${year}-${qMap[quarter]}-00-00:00`;
+  }
+
+  // 4. Nếu có date dạng YYYY-MM
+  if (task.date && typeof task.date === 'string' && task.date.length >= 7) {
+    return `${task.date.slice(0, 7)}-00-00:00`;
+  }
+
+  // 5. Chưa xếp lịch (backlog)
+  return '9999-99-99-99:99';
+}
+
+// So sánh 2 subtask theo trình tự thời gian từ quá khứ đến tương lai
+function compareTasksChronological(a, b, fallbackYear) {
+  const keyA = getTaskSortKey(a, fallbackYear);
+  const keyB = getTaskSortKey(b, fallbackYear);
+  if (keyA !== keyB) {
+    return keyA.localeCompare(keyB);
+  }
+
+  // Cùng mốc thời gian: so sánh tiêu đề theo thứ tự tự nhiên (ví dụ Test 4 trước Test 10)
+  const titleA = a && a.title ? a.title : '';
+  const titleB = b && b.title ? b.title : '';
+  const titleComp = titleA.localeCompare(titleB, 'vi', { numeric: true, sensitivity: 'base' });
+  if (titleComp !== 0) return titleComp;
+
+  // Cùng tiêu đề: so sánh ngày tạo hoặc id
+  const cA = (a && a.createdAt) || '';
+  const cB = (b && b.createdAt) || '';
+  if (cA && cB && cA !== cB) return cA.localeCompare(cB);
+
+  return (a && a.id ? a.id : '').localeCompare(b && b.id ? b.id : '');
 }
 
 // 2. STREAK METRICS HELPER
@@ -2990,10 +3061,11 @@ function renderAnnualRoadmap(year, parentsInYear, tasksInYear) {
       }
     }
 
-    // Tìm các Cột mốc Milestones
+    // Tìm các Cột mốc Milestones và sắp xếp theo trình tự thời gian
     const milestones = pSubtasks.filter(t => {
       return Boolean(t.isMilestone) || (t.title && /(thi|exam|cert|chứng chỉ|bảo vệ|golive|go-live|release|deadline)/i.test(t.title));
     });
+    milestones.sort((a, b) => compareTasksChronological(a, b, year));
 
     const isLocked = Boolean(p.completed);
 
@@ -3311,9 +3383,11 @@ function renderAnnualPlanning(year) {
   });
 
   const independentTasksAll = tasksInYear.filter(t => !t.parentId);
+  independentTasksAll.sort((a, b) => compareTasksChronological(a, b, year));
   const independentTasks = filterQuarter === 'all' 
     ? independentTasksAll 
     : independentTasksAll.filter(t => getTaskQuarter(t) === filterQuarter);
+  independentTasks.sort((a, b) => compareTasksChronological(a, b, year));
 
   // Kiểm tra nếu tất cả parents đang thu gọn
   const allCollapsed = parentsForYear.length > 0 && parentsForYear.every(p => state.annualCollapsedParents[p.id]);
@@ -3407,8 +3481,9 @@ function renderAnnualPlanning(year) {
     const pColor = p.color || '#2563eb';
     const isLocked = Boolean(p.completed);
 
-    // Lọc subtasks của parent này trong năm
+    // Lọc subtasks của parent này trong năm và sắp xếp theo trình tự thời gian
     const allParentSubtasksInYear = tasksInYear.filter(t => t.parentId === p.id);
+    allParentSubtasksInYear.sort((a, b) => compareTasksChronological(a, b, year));
     const completedCount = allParentSubtasksInYear.filter(t => t.completed).length;
     const allTotalCount = allParentSubtasksInYear.length;
     const pct = allTotalCount > 0 ? Math.round((completedCount / allTotalCount) * 100) : 0;
@@ -3417,6 +3492,7 @@ function renderAnnualPlanning(year) {
     const displaySubtasks = filterQuarter === 'all'
       ? allParentSubtasksInYear
       : allParentSubtasksInYear.filter(t => getTaskQuarter(t) === filterQuarter);
+    displaySubtasks.sort((a, b) => compareTasksChronological(a, b, year));
 
     html += `
       <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs p-4 sm:p-5 transition-all space-y-3">
@@ -5725,7 +5801,9 @@ function renderTaskManagerContent() {
     const palette = getParentColorConfig(parent.color);
 
     const activeSubtasks = parentSubtasks.filter(t => !t.completed);
+    activeSubtasks.sort((a, b) => compareTasksChronological(a, b));
     const completedSubtasks = parentSubtasks.filter(t => t.completed);
+    completedSubtasks.sort((a, b) => compareTasksChronological(a, b));
     const isCompletedExpanded = Boolean(state.taskManagerFilter === 'completed' || state.tmExpandedCompleted[parent.id]);
 
     slideHtml = `
