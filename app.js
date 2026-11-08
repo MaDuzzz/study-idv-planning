@@ -133,7 +133,9 @@ let state = {
   firestoreParentUnsubscribe: null, // Hàm hủy lắng nghe realtime Firestore Parent Tasks
   annualViewYear: new Date().getFullYear(), // Năm đang xem trong Annual Center
   annualViewMode: 'dashboard', // Chế độ: 'dashboard' (Toàn trình) | 'planning' (Lập kế hoạch)
-  annualFilterCategory: 'all'  // Bộ lọc chuyên đề trong Lộ trình
+  annualFilterCategory: 'all',  // Bộ lọc chuyên đề trong Lộ trình
+  annualPlanningQuarterFilter: 'all', // Bộ lọc Quý trong Planning Hub: 'all' | 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'unassigned'
+  annualCollapsedParents: {}   // Trạng thái thu gọn/mở rộng từng parent task
 };
 
 // Quản lý Dark Mode
@@ -3271,7 +3273,7 @@ function renderYearHeatmap(year) {
   container.innerHTML = html;
 }
 
-// 6. RENDER CHẾ ĐỘ LẬP KẾ HOẠCH CHIẾN LƯỢC (ANNUAL PLANNING HUB)
+// 6. RENDER CHẾ ĐỘ LẬP KẾ HOẠCH CHIẾN LƯỢC (ANNUAL PLANNING HUB) - DẠNG THỨ BẬC THEO TỪNG PARENT TASK (ORPHAN/TREE VIEW)
 function renderAnnualPlanning(year) {
   const targetYearEl = document.getElementById('annualPlanningTargetYearText');
   if (targetYearEl) targetYearEl.textContent = year;
@@ -3279,189 +3281,372 @@ function renderAnnualPlanning(year) {
   const container = document.getElementById('annualPlanningBucketsList');
   if (!container) return;
 
-  const buckets = [
-    { key: 'Q1', title: 'Quý 1', subtitle: 'Tháng 1 - Tháng 3', color: 'cyan', icon: 'zap' },
-    { key: 'Q2', title: 'Quý 2', subtitle: 'Tháng 4 - Tháng 6', color: 'emerald', icon: 'trending-up' },
-    { key: 'Q3', title: 'Quý 3', subtitle: 'Tháng 7 - Tháng 9', color: 'amber', icon: 'flag' },
-    { key: 'Q4', title: 'Quý 4', subtitle: 'Tháng 10 - Tháng 12', color: 'purple', icon: 'award' },
-    { key: 'unassigned', title: 'Chưa phân quý', subtitle: 'Backlog chiến lược trong năm', color: 'slate', icon: 'inbox' }
-  ];
+  if (!state.annualPlanningQuarterFilter) state.annualPlanningQuarterFilter = 'all';
+  if (!state.annualCollapsedParents) state.annualCollapsedParents = {};
+
+  const filterQuarter = state.annualPlanningQuarterFilter;
+  const tasksInYear = state.tasks.filter(t => getTaskYear(t) === year);
+  const completedTasksInYear = tasksInYear.filter(t => t.completed).length;
+
+  const allParents = state.parentTasks || [];
+  
+  // Xác định các Parent Task hiển thị cho năm này:
+  // 1. Gán cụ thể cho năm này (p.targetYear === year)
+  // 2. Hoặc tạo trong năm này (!p.targetYear && getParentTaskYear(p) === year)
+  // 3. Hoặc có subtask thuộc năm này
+  // 4. Hoặc là mục tiêu đang hoạt động (chưa hoàn thành !p.completed)
+  const parentsForYear = allParents.filter(p => {
+    const hasTasks = tasksInYear.some(t => t.parentId === p.id);
+    const isTargetYear = p.targetYear && Number(p.targetYear) === year;
+    const isYearCreated = !p.targetYear && getParentTaskYear(p) === year;
+    const isOngoing = !p.completed;
+    return hasTasks || isTargetYear || isYearCreated || isOngoing;
+  });
+
+  const independentTasksAll = tasksInYear.filter(t => !t.parentId);
+  const independentTasks = filterQuarter === 'all' 
+    ? independentTasksAll 
+    : independentTasksAll.filter(t => getTaskQuarter(t) === filterQuarter);
+
+  // Kiểm tra nếu tất cả parents đang thu gọn
+  const allCollapsed = parentsForYear.length > 0 && parentsForYear.every(p => state.annualCollapsedParents[p.id]);
 
   let html = '';
 
-  buckets.forEach(bucket => {
-    // Tìm các task thuộc quý này trong năm
-    const bTasks = state.tasks.filter(t => getTaskYear(t) === year && getTaskQuarter(t) === bucket.key);
-    
-    // Tìm các parent task được gán quý này, hoặc có task trong quý này
-    const bParents = state.parentTasks.filter(p => {
-      const matchQuarter = bucket.key === 'unassigned' ? (!p.targetQuarter) : (p.targetQuarter === bucket.key);
-      const isThisYear = getParentTaskYear(p) === year;
-      const hasTaskInBucket = bTasks.some(t => t.parentId === p.id);
-      return (isThisYear && matchQuarter) || hasTaskInBucket;
-    });
+  // 1. FILTER & STATS BAR (Thanh điều hướng bộ lọc Quý & Thống kê tổng quan)
+  html += `
+    <div class="bg-white dark:bg-slate-900 p-3.5 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      <!-- Left: Quarter Filter Pills -->
+      <div class="flex items-center gap-1.5 overflow-x-auto py-0.5 scrollbar-none">
+        <span class="text-xs font-bold text-slate-500 dark:text-slate-400 mr-1 shrink-0">Lọc theo Quý:</span>
+        <button type="button" onclick="setAnnualPlanningQuarterFilter('all')" class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${filterQuarter === 'all' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}">
+          Tất cả Quý
+        </button>
+        <button type="button" onclick="setAnnualPlanningQuarterFilter('Q1')" class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${filterQuarter === 'Q1' ? 'bg-cyan-600 text-white shadow-xs' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}">
+          Quý 1
+        </button>
+        <button type="button" onclick="setAnnualPlanningQuarterFilter('Q2')" class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${filterQuarter === 'Q2' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}">
+          Quý 2
+        </button>
+        <button type="button" onclick="setAnnualPlanningQuarterFilter('Q3')" class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${filterQuarter === 'Q3' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}">
+          Quý 3
+        </button>
+        <button type="button" onclick="setAnnualPlanningQuarterFilter('Q4')" class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${filterQuarter === 'Q4' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}">
+          Quý 4
+        </button>
+        <button type="button" onclick="setAnnualPlanningQuarterFilter('unassigned')" class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${filterQuarter === 'unassigned' ? 'bg-slate-700 text-white shadow-xs' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}">
+          Chưa phân quý
+        </button>
+      </div>
 
-    html += `
-      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
-        <!-- Bucket Header -->
-        <div class="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-850/50">
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-xs font-bold ${
-              bucket.color === 'cyan' ? 'bg-cyan-600' :
-              bucket.color === 'emerald' ? 'bg-emerald-600' :
-              bucket.color === 'amber' ? 'bg-amber-600' :
-              bucket.color === 'purple' ? 'bg-purple-600' : 'bg-slate-600'
-            }">
-              <i data-lucide="${bucket.icon}" class="w-5 h-5"></i>
-            </div>
-            <div>
-              <div class="flex items-center gap-2">
-                <h4 class="text-base font-bold text-slate-900 dark:text-white">${bucket.title} / ${year}</h4>
-                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">(${bucket.subtitle})</span>
-              </div>
-              <div class="text-xs text-slate-400 mt-0.5">
-                ${bParents.length} Mục tiêu lớn • ${bTasks.length} Nhiệm vụ dự kiến
-              </div>
-            </div>
-          </div>
-
-          <!-- Bucket Actions -->
-          <div class="flex items-center gap-2 self-start sm:self-auto">
-            <button 
-              type="button" 
-              onclick="openAddParentTaskForAnnualYear(${year}, '${bucket.key}')" 
-              class="px-3 py-1.5 rounded-xl text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 transition cursor-pointer flex items-center gap-1"
-            >
-              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-              <span>Mục tiêu</span>
-            </button>
-            <button 
-              type="button" 
-              onclick="openAddTaskModalForYearQuarter('${bucket.key}')" 
-              class="px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 transition cursor-pointer flex items-center gap-1"
-            >
-              <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i>
-              <span>Nhiệm vụ</span>
-            </button>
-            <button 
-              type="button" 
-              onclick="openBulkSubtaskModal(null, '${bucket.key}')" 
-              class="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-              title="Nhập nhanh hàng loạt vào quý này"
-            >
-              <i data-lucide="list-plus" class="w-4 h-4"></i>
-            </button>
-          </div>
+      <!-- Right: Summary stats & Collapse/Expand toggle -->
+      <div class="flex items-center justify-between md:justify-end gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 dark:border-slate-800">
+        <div class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-semibold">
+          <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+          <span>${parentsForYear.length} Mục tiêu</span>
+          <span>•</span>
+          <span>${tasksInYear.length} Subtask</span>
+          <span class="text-emerald-600 dark:text-emerald-400 font-bold">(${completedTasksInYear} xong)</span>
         </div>
+        ${parentsForYear.length > 0 ? `
+          <button type="button" onclick="toggleAllAnnualParents(${!allCollapsed})" class="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1">
+            <i data-lucide="${allCollapsed ? 'chevrons-down' : 'chevrons-up'}" class="w-3.5 h-3.5"></i>
+            <span>${allCollapsed ? 'Mở rộng tất cả' : 'Thu gọn tất cả'}</span>
+          </button>
+        ` : ''}
+      </div>
+    </div>
+  `;
 
-        <!-- Bucket Content -->
-        <div class="p-4 sm:p-5 space-y-4">
+  // 2. NẾU HOÀN TOÀN CHƯA CÓ PARENT TASK NÀO
+  if (parentsForYear.length === 0 && independentTasksAll.length === 0) {
+    html += `
+      <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs p-8 sm:p-12 text-center space-y-6">
+        <div class="w-16 h-16 rounded-3xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto shadow-inner">
+          <i data-lucide="target" class="w-8 h-8"></i>
+        </div>
+        <div class="max-w-md mx-auto space-y-2">
+          <h3 class="text-xl font-black text-slate-900 dark:text-white">Bắt đầu Lập kế hoạch Chiến lược Năm ${year}</h3>
+          <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+            Thiết lập các Mục tiêu lớn (Parent Task) đại diện cho các kỳ thi chứng chỉ, dự án, hoặc chuyên đề học tập. Sau đó phân rã thành các nhiệm vụ con theo từng Quý để theo dõi toàn trình.
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
+          <button type="button" onclick="openAddParentTaskForAnnualYear(${year})" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-blue-500/20 transition flex items-center gap-2 cursor-pointer">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>Thêm Mục tiêu lớn đầu tiên</span>
+          </button>
+          <button type="button" onclick="openBulkSubtaskModal()" class="px-4 py-2.5 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer">
+            <i data-lucide="list-plus" class="w-4 h-4"></i>
+            <span>Nhập nhanh hàng loạt (Markdown)</span>
+          </button>
+          <button type="button" onclick="openCarryoverModal()" class="px-4 py-2.5 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+            <span>Chuyển giao việc tồn từ ${year - 1}</span>
+          </button>
+        </div>
+      </div>
     `;
+    container.innerHTML = html;
+    return;
+  }
 
-    if (bParents.length === 0 && bTasks.length === 0) {
-      html += `
-        <div class="py-8 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-2">
-          <p class="text-xs text-slate-400">Chưa có kế hoạch nào được xếp vào ${bucket.title}.</p>
-          <div class="flex items-center justify-center gap-2 pt-1">
-            <button type="button" onclick="openAddParentTaskForAnnualYear(${year}, '${bucket.key}')" class="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">
-              + Thêm mục tiêu
-            </button>
-            <span class="text-slate-300 dark:text-slate-700">•</span>
-            <button type="button" onclick="openAddTaskModalForYearQuarter('${bucket.key}')" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
-              + Thêm nhiệm vụ
-            </button>
-          </div>
-        </div>
-      `;
-    } else {
-      // 1. Render từng Parent Task card
-      bParents.forEach(p => {
-        const pTasksInBucket = bTasks.filter(t => t.parentId === p.id);
-        const pColor = p.color || '#2563eb';
-        const isLocked = Boolean(p.completed);
+  // 3. HIỂN THỊ TỪNG PARENT TASK THEO DẠNG CÂY (INDENTED HIERARCHY / ORPHAN TREE)
+  parentsForYear.forEach(p => {
+    const isCollapsed = Boolean(state.annualCollapsedParents[p.id]);
+    const pColor = p.color || '#2563eb';
+    const isLocked = Boolean(p.completed);
 
-        html += `
-          <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-850/40 overflow-hidden">
-            <!-- Parent Card Header -->
-            <div class="p-3 sm:p-3.5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <span class="w-3 h-3 rounded-full shrink-0" style="background-color: ${pColor};"></span>
-                <span class="px-2 py-0.5 text-xs font-mono font-black rounded-md border shrink-0" style="border-color: ${pColor}40; color: ${pColor}; background-color: ${pColor}15;">
-                  #${getParentTag(p)}
-                </span>
-                <span class="font-bold text-sm text-slate-900 dark:text-white truncate">
-                  ${p.title}
-                </span>
-                ${isLocked ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">🔒 Đã đóng</span>` : ''}
-              </div>
+    // Lọc subtasks của parent này trong năm
+    const allParentSubtasksInYear = tasksInYear.filter(t => t.parentId === p.id);
+    const completedCount = allParentSubtasksInYear.filter(t => t.completed).length;
+    const allTotalCount = allParentSubtasksInYear.length;
+    const pct = allTotalCount > 0 ? Math.round((completedCount / allTotalCount) * 100) : 0;
 
-              <div class="flex items-center gap-1.5 shrink-0">
-                ${!isLocked ? `
-                  <button 
-                    type="button" 
-                    onclick="openAddTaskModalForYearQuarter('${bucket.key}', '${p.id}')" 
-                    title="Thêm subtask cho mục tiêu này" 
-                    class="px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition cursor-pointer flex items-center gap-1"
-                  >
-                    <i data-lucide="plus" class="w-3 h-3"></i>
-                    <span>Subtask</span>
-                  </button>
-                ` : ''}
-                <button 
-                  type="button" 
-                  onclick="openEditParentTaskModal('${p.id}')" 
-                  title="Sửa mục tiêu" 
-                  class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg cursor-pointer"
-                >
-                  <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
-                </button>
-              </div>
-            </div>
-
-            <!-- Subtasks List for this Parent -->
-            <div class="p-2.5 sm:p-3 space-y-2">
-              ${pTasksInBucket.length === 0 ? `
-                <div class="text-xs text-slate-400 italic py-1 px-2">Chưa có nhiệm vụ con nào trong ${bucket.title}. Bấm "+ Subtask" để thêm.</div>
-              ` : pTasksInBucket.map(t => renderPlanningSubtaskRow(t, bucket.key)).join('')}
-            </div>
-          </div>
-        `;
-      });
-
-      // 2. Render Independent Tasks (nhiệm vụ không có parentId)
-      const independentTasks = bTasks.filter(t => !t.parentId);
-      if (independentTasks.length > 0) {
-        html += `
-          <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-850/40 overflow-hidden">
-            <div class="p-3 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-              <span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                <i data-lucide="layers" class="w-3.5 h-3.5 text-slate-400"></i>
-                <span>Nhiệm vụ độc lập (${independentTasks.length})</span>
-              </span>
-            </div>
-            <div class="p-2.5 sm:p-3 space-y-2">
-              ${independentTasks.map(t => renderPlanningSubtaskRow(t, bucket.key)).join('')}
-            </div>
-          </div>
-        `;
-      }
-    }
+    // Subtasks hiển thị sau khi lọc theo Quý
+    const displaySubtasks = filterQuarter === 'all'
+      ? allParentSubtasksInYear
+      : allParentSubtasksInYear.filter(t => getTaskQuarter(t) === filterQuarter);
 
     html += `
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs p-4 sm:p-5 transition-all space-y-3">
+        
+        <!-- Parent Task Header Card -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div class="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+            <span class="w-3.5 h-3.5 rounded-full shrink-0 mt-1 sm:mt-0 shadow-xs" style="background-color: ${pColor};"></span>
+            
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="px-2 py-0.5 text-xs font-mono font-black rounded-md border shrink-0" style="border-color: ${pColor}40; color: ${pColor}; background-color: ${pColor}15;">
+                  #${escapeHtml(getParentTag(p))}
+                </span>
+                
+                <h4 class="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate">
+                  ${escapeHtml(p.title)}
+                </h4>
+
+                ${p.targetQuarter ? `
+                  <span class="px-2 py-0.5 text-[11px] font-bold rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60">
+                    ${p.targetQuarter}
+                  </span>
+                ` : ''}
+
+                ${isLocked ? `
+                  <span class="px-2 py-0.5 text-xs font-bold rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 flex items-center gap-1 shadow-2xs">
+                    <i data-lucide="check-check" class="w-3.5 h-3.5"></i> Đã hoàn thành (Đã khóa)
+                  </span>
+                ` : `
+                  <span class="px-2 py-0.5 text-xs font-extrabold rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                    ${completedCount}/${allTotalCount} task (${pct}%)
+                  </span>
+                `}
+              </div>
+
+              <!-- Thanh tiến độ trực quan -->
+              <div class="w-full max-w-md bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-2">
+                <div class="h-full rounded-full transition-all duration-300" style="width: ${isLocked && pct === 0 ? '100%' : `${pct}%`}; background-color: ${isLocked ? '#10b981' : pColor};"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Parent Header Actions -->
+          <div class="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+            ${!isLocked ? `
+              <button 
+                type="button" 
+                onclick="focusInlineQuickAdd('${p.id}')" 
+                title="Thêm nhanh subtask cho mục tiêu này" 
+                class="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800/60 transition cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95"
+              >
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                <span>Thêm subtask</span>
+              </button>
+
+              <button 
+                type="button" 
+                onclick="openBulkSubtaskModal('${p.id}', '${filterQuarter !== 'all' ? filterQuarter : 'Q1'}')" 
+                title="Nhập nhanh hàng loạt từ văn bản" 
+                class="p-1.5 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-xl transition cursor-pointer"
+              >
+                <i data-lucide="list-plus" class="w-4 h-4"></i>
+              </button>
+
+              <button 
+                type="button" 
+                onclick="toggleParentTaskComplete('${p.id}')" 
+                title="Đánh dấu hoàn thành và khóa mục tiêu này" 
+                class="p-1.5 text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded-xl transition cursor-pointer"
+              >
+                <i data-lucide="check-circle" class="w-4 h-4"></i>
+              </button>
+            ` : `
+              <button 
+                type="button" 
+                onclick="toggleParentTaskComplete('${p.id}')" 
+                title="Mở lại mục tiêu để tiếp tục theo dõi" 
+                class="px-2.5 py-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-xl transition cursor-pointer flex items-center gap-1"
+              >
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                <span>Mở lại</span>
+              </button>
+            `}
+
+            <button 
+              type="button" 
+              onclick="openEditParentTaskModal('${p.id}')" 
+              title="Sửa mục tiêu" 
+              class="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
+            >
+              <i data-lucide="edit-3" class="w-4 h-4"></i>
+            </button>
+
+            <button 
+              type="button" 
+              onclick="deleteParentTask('${p.id}')" 
+              title="Xóa mục tiêu" 
+              class="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition cursor-pointer"
+            >
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+
+            <button 
+              type="button" 
+              onclick="toggleAnnualParentCollapse('${p.id}')" 
+              title="${isCollapsed ? 'Mở rộng subtask' : 'Thu gọn subtask'}" 
+              class="p-1.5 text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
+            >
+              <i data-lucide="${isCollapsed ? 'chevron-down' : 'chevron-up'}" class="w-4 h-4"></i>
+            </button>
+          </div>
         </div>
+
+        <!-- CÁC THẺ SUBTASK THỤT LÙI ĐẦU DÒNG (INDENTED HIERARCHY TREE VIEW) -->
+        ${!isCollapsed ? `
+          <div class="ml-3 sm:ml-7 pl-3.5 sm:pl-5 border-l-2 space-y-2.5 relative pt-1" style="border-color: ${pColor}35;">
+            
+            ${displaySubtasks.length === 0 ? `
+              <div class="text-xs text-slate-400 dark:text-slate-500 italic py-2 px-3 bg-slate-50/60 dark:bg-slate-850/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                Chưa có nhiệm vụ con nào trong ${filterQuarter !== 'all' ? filterQuarter : `năm ${year}`}. Thêm nhanh bằng thanh bên dưới 👇
+              </div>
+            ` : displaySubtasks.map(t => renderPlanningSubtaskRow(t, pColor)).join('')}
+
+            <!-- Thanh Tạo Subtask Nhanh (Inline Quick Subtask Creator) -->
+            ${!isLocked ? `
+              <div class="relative group mt-3">
+                <!-- Cành nối nhánh cây -->
+                <span class="absolute -left-3.5 sm:-left-5 top-1/2 -translate-y-1/2 w-3.5 sm:w-5 h-0.5 border-t-2 border-dashed pointer-events-none" style="border-color: ${pColor}40;"></span>
+
+                <form onsubmit="handleInlineQuickAddSubtask(event, '${p.id}', ${year})" class="flex flex-col md:flex-row items-stretch md:items-center gap-2 p-2 sm:p-2.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-850/60 hover:border-blue-400 dark:hover:border-blue-500 transition-colors">
+                  <div class="flex items-center gap-2 flex-1 min-w-0">
+                    <i data-lucide="plus-circle" class="w-4 h-4 text-blue-500 shrink-0 ml-1"></i>
+                    <input 
+                      type="text" 
+                      id="inlineSubtaskInput_${p.id}" 
+                      placeholder="Thêm nhanh subtask cho [${escapeHtml(p.title)}]... (nhấn Enter)" 
+                      class="w-full bg-transparent text-xs sm:text-sm font-medium text-slate-800 dark:text-white placeholder-slate-400 focus:outline-hidden py-1 px-1"
+                      required
+                      autocomplete="off"
+                    />
+                  </div>
+                  
+                  <div class="flex items-center gap-2 shrink-0 self-end md:self-auto flex-wrap">
+                    <!-- Chọn Quý -->
+                    <select id="inlineSubtaskQuarter_${p.id}" class="text-xs font-semibold px-2 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:outline-hidden cursor-pointer">
+                      <option value="Q1" ${filterQuarter === 'Q1' ? 'selected' : ''}>Quý 1 (T1-T3)</option>
+                      <option value="Q2" ${filterQuarter === 'Q2' ? 'selected' : ''}>Quý 2 (T4-T6)</option>
+                      <option value="Q3" ${filterQuarter === 'Q3' ? 'selected' : ''}>Quý 3 (T7-T9)</option>
+                      <option value="Q4" ${filterQuarter === 'Q4' ? 'selected' : ''}>Quý 4 (T10-T12)</option>
+                      <option value="unassigned" ${filterQuarter === 'unassigned' ? 'selected' : ''}>Chưa phân quý</option>
+                    </select>
+                    
+                    <!-- Toggle Milestone -->
+                    <label class="flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 px-2 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 cursor-pointer select-none" title="Đánh dấu mốc quan trọng (Milestone)">
+                      <input type="checkbox" id="inlineSubtaskMilestone_${p.id}" class="rounded text-amber-500 focus:ring-0 cursor-pointer">
+                      <span>★ Milestone</span>
+                    </label>
+                    
+                    <button type="submit" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer">
+                      <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                      <span>Thêm</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            ` : ''}
+
+          </div>
+        ` : ''}
+
       </div>
     `;
   });
 
+  // 4. NHIỆM VỤ ĐỘC LẬP / RIÊNG LẺ (ORPHAN TASKS)
+  if (independentTasks.length > 0 || (filterQuarter === 'all' && independentTasksAll.length > 0)) {
+    html += `
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs p-4 sm:p-5 transition-all space-y-3">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center">
+              <i data-lucide="layers" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <h4 class="text-base font-bold text-slate-900 dark:text-white">Nhiệm vụ độc lập (${independentTasks.length})</h4>
+              <p class="text-xs text-slate-400">Các nhiệm vụ không gắn vào Mục tiêu lớn nào trong năm ${year}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Danh sách subtask độc lập thụt lùi đầu dòng -->
+        <div class="ml-3 sm:ml-7 pl-3.5 sm:pl-5 border-l-2 border-slate-300 dark:border-slate-700 space-y-2.5 relative pt-1">
+          ${independentTasks.map(t => renderPlanningSubtaskRow(t, '#64748b')).join('')}
+
+          <!-- Form thêm nhanh nhiệm vụ độc lập -->
+          <div class="relative group mt-3">
+            <span class="absolute -left-3.5 sm:-left-5 top-1/2 -translate-y-1/2 w-3.5 sm:w-5 h-0.5 border-t-2 border-dashed border-slate-300 dark:border-slate-700 pointer-events-none"></span>
+            <form onsubmit="handleInlineQuickAddSubtask(event, null, ${year})" class="flex flex-col md:flex-row items-stretch md:items-center gap-2 p-2 sm:p-2.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-850/60 hover:border-blue-400 transition-colors">
+              <div class="flex items-center gap-2 flex-1 min-w-0">
+                <i data-lucide="plus-circle" class="w-4 h-4 text-slate-400 shrink-0 ml-1"></i>
+                <input 
+                  type="text" 
+                  id="inlineSubtaskInput_independent" 
+                  placeholder="Thêm nhiệm vụ độc lập mới... (nhấn Enter)" 
+                  class="w-full bg-transparent text-xs sm:text-sm font-medium text-slate-800 dark:text-white placeholder-slate-400 focus:outline-hidden py-1 px-1"
+                  required
+                  autocomplete="off"
+                />
+              </div>
+              <div class="flex items-center gap-2 shrink-0 self-end md:self-auto">
+                <select id="inlineSubtaskQuarter_independent" class="text-xs font-semibold px-2 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:outline-hidden cursor-pointer">
+                  <option value="Q1" ${filterQuarter === 'Q1' ? 'selected' : ''}>Quý 1</option>
+                  <option value="Q2" ${filterQuarter === 'Q2' ? 'selected' : ''}>Quý 2</option>
+                  <option value="Q3" ${filterQuarter === 'Q3' ? 'selected' : ''}>Quý 3</option>
+                  <option value="Q4" ${filterQuarter === 'Q4' ? 'selected' : ''}>Quý 4</option>
+                  <option value="unassigned" ${filterQuarter === 'unassigned' ? 'selected' : ''}>Chưa phân quý</option>
+                </select>
+                <button type="submit" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 active:scale-95 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer">
+                  <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                  <span>Thêm</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   container.innerHTML = html;
 }
 
-// Helper render một dòng subtask trong Planning Hub
-function renderPlanningSubtaskRow(task, bucketKey) {
+// Helper render một dòng subtask trong Planning Hub với cành nối dạng Orphan / Tree
+function renderPlanningSubtaskRow(task, pColor) {
   const isDone = Boolean(task.completed);
   const isMilestone = Boolean(task.isMilestone);
+  const color = pColor || '#2563eb';
 
-  // Time / Period badge
+  // Badges thời gian / quý
   let timeBadgeHtml = '';
   if (isMilestone) {
     timeBadgeHtml += `
@@ -3484,54 +3669,210 @@ function renderPlanningSubtaskRow(task, bucketKey) {
       </span>
     `;
   } else if (task.targetQuarter) {
+    const qColor = task.targetQuarter === 'Q1' ? 'text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/40 border-cyan-200 dark:border-cyan-800/60' :
+                   task.targetQuarter === 'Q2' ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60' :
+                   task.targetQuarter === 'Q3' ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60' :
+                   task.targetQuarter === 'Q4' ? 'text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800/60' :
+                   'text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700';
     timeBadgeHtml += `
-      <span class="text-[11px] font-mono font-medium text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 shrink-0">
-        📂 ${task.targetQuarter}
+      <span class="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md border shrink-0 ${qColor}">
+        ${task.targetQuarter}
       </span>
     `;
   }
 
+  // Nếu là task độc lập: cho phép gán nhanh vào mục tiêu
+  let assignParentHtml = '';
+  if (!task.parentId && state.parentTasks.length > 0) {
+    assignParentHtml = `
+      <select onchange="assignTaskToParent('${task.id}', this.value)" class="text-[11px] font-medium px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 focus:outline-hidden cursor-pointer" title="Gán vào Mục tiêu lớn">
+        <option value="">-- Gán Mục tiêu --</option>
+        ${state.parentTasks.map(p => `<option value="${p.id}">#${getParentTag(p)} - ${escapeHtml(p.title)}</option>`).join('')}
+      </select>
+    `;
+  }
+
   return `
-    <div class="p-2 sm:p-2.5 rounded-lg border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 flex items-center justify-between gap-2.5 hover:border-slate-300 dark:hover:border-slate-700 transition">
-      <div class="flex items-center gap-2.5 min-w-0">
-        <button 
-          type="button" 
-          onclick="toggleTaskComplete('${task.id}')" 
-          class="w-5 h-5 rounded-md border flex items-center justify-center transition cursor-pointer shrink-0 ${
-            isDone 
-              ? 'bg-emerald-500 border-emerald-500 text-white' 
-              : 'border-slate-300 dark:border-slate-600 hover:border-blue-500'
-          }"
-        >
-          ${isDone ? '<i data-lucide="check" class="w-3.5 h-3.5 stroke-[3]"></i>' : ''}
-        </button>
+    <div class="relative group">
+      <!-- Cành nối nhánh cây dạng Orphan / Tree -->
+      <span class="absolute -left-3.5 sm:-left-5 top-1/2 -translate-y-1/2 w-3.5 sm:w-5 h-0.5 pointer-events-none transition-colors" style="background-color: ${color}40;"></span>
 
-        <span class="text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-200 truncate ${isDone ? 'line-through text-slate-400 dark:text-slate-500' : ''}">
-          ${task.title}
-        </span>
-      </div>
+      <!-- Subtask Row Card -->
+      <div class="p-2.5 sm:p-3 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between gap-3 shadow-2xs hover:border-slate-300 dark:hover:border-slate-700 transition">
+        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+          <button 
+            type="button" 
+            onclick="toggleTaskComplete('${task.id}')" 
+            title="${isDone ? 'Đánh dấu chưa hoàn thành' : 'Đánh dấu hoàn thành'}"
+            class="w-5 h-5 rounded-md border flex items-center justify-center transition cursor-pointer shrink-0 ${
+              isDone 
+                ? 'bg-emerald-500 border-emerald-500 text-white shadow-2xs' 
+                : 'border-slate-300 dark:border-slate-600 hover:border-blue-500 bg-white dark:bg-slate-800'
+            }"
+          >
+            ${isDone ? '<i data-lucide="check" class="w-3.5 h-3.5 stroke-[3]"></i>' : ''}
+          </button>
 
-      <div class="flex items-center gap-2 shrink-0">
-        ${timeBadgeHtml}
-        <button 
-          type="button" 
-          onclick="openEditTaskModal('${task.id}')" 
-          title="Chỉnh sửa" 
-          class="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
-        >
-          <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
-        </button>
-        <button 
-          type="button" 
-          onclick="deleteTask('${task.id}')" 
-          title="Xóa nhiệm vụ" 
-          class="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer"
-        >
-          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-        </button>
+          <span class="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 truncate ${isDone ? 'line-through text-slate-400 dark:text-slate-500' : ''}">
+            ${escapeHtml(task.title)}
+          </span>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          ${timeBadgeHtml}
+          ${assignParentHtml}
+          
+          <button 
+            type="button" 
+            onclick="openQuickScheduleModal('${task.id}')" 
+            title="Xếp vào ngày cụ thể trong lịch" 
+            class="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
+          >
+            <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+          </button>
+          
+          <button 
+            type="button" 
+            onclick="openEditTaskModal('${task.id}')" 
+            title="Chỉnh sửa nhiệm vụ" 
+            class="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
+          >
+            <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+          </button>
+          
+          <button 
+            type="button" 
+            onclick="deleteTask('${task.id}')" 
+            title="Xóa nhiệm vụ" 
+            class="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition cursor-pointer"
+          >
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
       </div>
     </div>
   `;
+}
+
+// Helper xử lý tạo nhanh Subtask dạng inline ngay dưới Parent Task
+async function handleInlineQuickAddSubtask(e, parentId, year) {
+  if (e && e.preventDefault) e.preventDefault();
+  if (!state.isAdmin) {
+    openLoginModal();
+    return;
+  }
+  const inputId = parentId ? `inlineSubtaskInput_${parentId}` : 'inlineSubtaskInput_independent';
+  const quarterId = parentId ? `inlineSubtaskQuarter_${parentId}` : 'inlineSubtaskQuarter_independent';
+  const milestoneId = parentId ? `inlineSubtaskMilestone_${parentId}` : null;
+
+  const inputEl = document.getElementById(inputId);
+  const quarterEl = document.getElementById(quarterId);
+  const milestoneEl = milestoneId ? document.getElementById(milestoneId) : null;
+  if (!inputEl) return;
+
+  const title = inputEl.value.trim();
+  if (!title) return;
+
+  const quarter = quarterEl ? quarterEl.value : 'Q1';
+  const isMilestone = milestoneEl ? milestoneEl.checked : false;
+
+  const newTask = {
+    id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+    title: title,
+    date: '',
+    time: null,
+    priority: isMilestone ? 'high' : 'normal',
+    parentId: parentId || null,
+    category: '',
+    note: '',
+    targetYear: Number(year),
+    targetQuarter: quarter && quarter !== 'unassigned' ? quarter : null,
+    isMilestone: Boolean(isMilestone),
+    completed: false,
+    replanCount: 0,
+    createdAt: new Date().toISOString()
+  };
+
+  state.tasks.push(newTask);
+  await saveSingleTask(newTask);
+
+  showToast({
+    type: 'success',
+    title: 'Đã thêm subtask',
+    message: `Đã thêm nhiệm vụ <strong>"${escapeHtml(title)}"</strong> thành công!`
+  });
+
+  renderAnnualPlanning(year);
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    window.lucide.createIcons();
+  }
+
+  // Tự động focus lại ô input để người dùng tiếp tục nhập nhanh
+  setTimeout(() => {
+    const nextInput = document.getElementById(inputId);
+    if (nextInput) nextInput.focus();
+  }, 60);
+}
+
+function focusInlineQuickAdd(parentId) {
+  if (state.annualCollapsedParents && state.annualCollapsedParents[parentId]) {
+    state.annualCollapsedParents[parentId] = false;
+    renderAnnualPlanning(state.annualViewYear);
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      window.lucide.createIcons();
+    }
+  }
+  setTimeout(() => {
+    const input = document.getElementById(`inlineSubtaskInput_${parentId}`);
+    if (input) {
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      input.focus();
+    }
+  }, 100);
+}
+
+function toggleAnnualParentCollapse(parentId) {
+  if (!state.annualCollapsedParents) state.annualCollapsedParents = {};
+  state.annualCollapsedParents[parentId] = !state.annualCollapsedParents[parentId];
+  renderAnnualPlanning(state.annualViewYear);
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    window.lucide.createIcons();
+  }
+}
+
+function toggleAllAnnualParents(collapseAll) {
+  if (!state.annualCollapsedParents) state.annualCollapsedParents = {};
+  state.parentTasks.forEach(p => {
+    state.annualCollapsedParents[p.id] = collapseAll;
+  });
+  renderAnnualPlanning(state.annualViewYear);
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    window.lucide.createIcons();
+  }
+}
+
+function setAnnualPlanningQuarterFilter(quarterKey) {
+  state.annualPlanningQuarterFilter = quarterKey;
+  renderAnnualPlanning(state.annualViewYear);
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    window.lucide.createIcons();
+  }
+}
+
+async function assignTaskToParent(taskId, parentId) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  task.parentId = parentId || null;
+  await saveSingleTask(task);
+  showToast({
+    type: 'success',
+    title: 'Đã cập nhật mục tiêu',
+    message: parentId ? 'Đã gán nhiệm vụ vào Mục tiêu lớn thành công!' : 'Đã chuyển thành nhiệm vụ độc lập.'
+  });
+  renderAnnualPlanning(state.annualViewYear);
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    window.lucide.createIcons();
+  }
 }
 
 // 7. HELPER MỞ FORM THÊM MỤC TIÊU / NHIỆM VỤ DÀNH CHO ANNUAL CENTER
@@ -3997,6 +4338,12 @@ window.toggleSelectAllCarryover = toggleSelectAllCarryover;
 window.executeCarryover = executeCarryover;
 window.handleCarryoverParentToggle = handleCarryoverParentToggle;
 window.handleCarryoverTaskToggle = handleCarryoverTaskToggle;
+window.handleInlineQuickAddSubtask = handleInlineQuickAddSubtask;
+window.focusInlineQuickAdd = focusInlineQuickAdd;
+window.toggleAnnualParentCollapse = toggleAnnualParentCollapse;
+window.toggleAllAnnualParents = toggleAllAnnualParents;
+window.setAnnualPlanningQuarterFilter = setAnnualPlanningQuarterFilter;
+window.assignTaskToParent = assignTaskToParent;
 
 // --- 7. SWITCH & NAVIGATE (HIỆU ỨNG SLIDE CHUYỂN NGÀY/TUẦN/THÁNG SIÊU MƯỢT) ---
 function triggerSlideAnimation(direction) {
