@@ -605,7 +605,11 @@
     /* Tự động ẩn thanh Mobile Bottom Dock khi có bất kỳ modal nào đang mở (tránh đè giao diện) */
     body:has(#taskModal:not(.hidden)) #mobileBottomNav,
     body:has(#taskManagerModal:not(.hidden)) #mobileBottomNav,
+    body:has(#parentTaskModal:not(.hidden)) #mobileBottomNav,
     body:has(#quickScheduleModal:not(.hidden)) #mobileBottomNav,
+    body:has(#bulkSubtaskModal:not(.hidden)) #mobileBottomNav,
+    body:has(#carryoverModal:not(.hidden)) #mobileBottomNav,
+    body:has(#rangeCalendarModal:not(.hidden)) #mobileBottomNav,
     body:has(#replanModal:not(.hidden)) #mobileBottomNav,
     body:has(#taskDetailModal:not(.hidden)) #mobileBottomNav,
     body:has(#firebaseSetupModal:not(.hidden)) #mobileBottomNav,
@@ -696,6 +700,8 @@
       #taskManagerModal,
       #parentTaskModal,
       #quickScheduleModal,
+      #bulkSubtaskModal,
+      #carryoverModal,
       #replanModal,
       #reminderSettingsModal {
         padding: 0 !important;
@@ -706,6 +712,8 @@
       #taskDialog,
       #parentTaskDialog,
       #quickScheduleDialog,
+      #bulkSubtaskDialog,
+      #carryoverDialog,
       #replanDialog,
       #reminderSettingsDialog {
         width: 100% !important;
@@ -756,6 +764,8 @@
       #taskManagerDialog::before,
       #parentTaskDialog::before,
       #quickScheduleDialog::before,
+      #bulkSubtaskDialog::before,
+      #carryoverDialog::before,
       #replanDialog::before,
       #reminderSettingsDialog::before {
         content: '';
@@ -1229,7 +1239,7 @@
       </section>
 
       <!-- VIEW: NĂM (ANNUAL CENTER: DASHBOARD TOÀN TRÌNH & LẬP KẾ HOẠCH ĐA NĂM) -->
-      <section id="viewYear" class="hidden space-y-6">
+      <section id="viewYear" class="hidden space-y-4 sm:space-y-6">
         
         <!-- TOP CONTROL BAR: YEAR SELECTOR & MODE SWITCHER -->
         <div class="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4 transition-colors">
@@ -1280,7 +1290,7 @@
         <!-- ======================================================== -->
         <!-- MODE 1: DASHBOARD TOÀN TRÌNH CẢ NĂM (EXECUTIVE COCKPIT) -->
         <!-- ======================================================== -->
-        <div id="annualModeDashboardContainer" class="space-y-6">
+        <div id="annualModeDashboardContainer" class="space-y-4 sm:space-y-6">
           
           <!-- DẢI KPI VĨ MÔ (4 CARDS) -->
           <div id="annualKpiGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1315,18 +1325,22 @@
             </div>
 
             <!-- Quarter Column Headers (Q1 - Q4) -->
-            <div class="grid grid-cols-4 gap-2 sm:gap-3 text-center text-xs font-bold font-mono">
-              <div class="py-2 px-1 rounded-xl bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-300 border border-cyan-200/60 dark:border-cyan-800/40">
-                <span>QUÝ 1 (T1 - T3)</span>
+            <div class="grid grid-cols-4 gap-1.5 sm:gap-3 text-center text-xs font-bold font-mono">
+              <div class="py-1.5 sm:py-2 px-1 rounded-xl bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-300 border border-cyan-200/60 dark:border-cyan-800/40">
+                <span class="block sm:inline">QUÝ 1</span>
+                <span class="text-[10px] opacity-80 font-normal block sm:inline sm:ml-1">(T1-T3)</span>
               </div>
-              <div class="py-2 px-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
-                <span>QUÝ 2 (T4 - T6)</span>
+              <div class="py-1.5 sm:py-2 px-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+                <span class="block sm:inline">QUÝ 2</span>
+                <span class="text-[10px] opacity-80 font-normal block sm:inline sm:ml-1">(T4-T6)</span>
               </div>
-              <div class="py-2 px-1 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40">
-                <span>QUÝ 3 (T7 - T9)</span>
+              <div class="py-1.5 sm:py-2 px-1 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40">
+                <span class="block sm:inline">QUÝ 3</span>
+                <span class="text-[10px] opacity-80 font-normal block sm:inline sm:ml-1">(T7-T9)</span>
               </div>
-              <div class="py-2 px-1 rounded-xl bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/40">
-                <span>QUÝ 4 (T10 - T12)</span>
+              <div class="py-1.5 sm:py-2 px-1 rounded-xl bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/40">
+                <span class="block sm:inline">QUÝ 4</span>
+                <span class="text-[10px] opacity-80 font-normal block sm:inline sm:ml-1">(T10-T12)</span>
               </div>
             </div>
 
@@ -1394,10 +1408,10 @@
         <!-- ======================================================== -->
         <!-- MODE 2: TRUNG TÂM LẬP KẾ HOẠCH CHIẾN LƯỢC (PLANNING HUB) -->
         <!-- ======================================================== -->
-        <div id="annualModePlanningContainer" class="hidden space-y-6">
+        <div id="annualModePlanningContainer" class="hidden space-y-4 sm:space-y-6">
           
           <!-- Planning Strategic Action Bar -->
-          <div class="bg-gradient-to-r from-blue-900/10 via-indigo-900/10 to-purple-900/10 dark:from-blue-950/40 dark:via-indigo-950/40 dark:to-purple-950/40 p-5 sm:p-6 rounded-2xl border border-blue-200/60 dark:border-blue-800/40 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div class="bg-gradient-to-r from-blue-900/10 via-indigo-900/10 to-purple-900/10 dark:from-blue-950/40 dark:via-indigo-950/40 dark:to-purple-950/40 p-4 sm:p-6 rounded-2xl border border-blue-200/60 dark:border-blue-800/40 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
               <div class="flex items-center gap-2">
                 <div class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold">
@@ -1412,38 +1426,39 @@
               </p>
             </div>
 
-            <!-- Action buttons -->
-            <div class="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+            <!-- Action buttons: 2 columns on mobile, row on tablet/desktop -->
+            <div class="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-2.5 w-full md:w-auto">
               <button 
                 type="button" 
                 onclick="openCarryoverModal()" 
                 id="btnOpenCarryoverModal" 
-                class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                class="px-2.5 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-center"
               >
-                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-                <span>Chuyển giao việc tồn</span>
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"></i>
+                <span class="truncate">Chuyển giao việc tồn</span>
               </button>
 
               <button 
                 type="button" 
                 onclick="openBulkSubtaskModal()" 
                 id="btnOpenBulkSubtaskModal" 
-                class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700 flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                class="px-2.5 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700 flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-center"
               >
-                <i data-lucide="list-plus" class="w-4 h-4"></i>
-                <span>Nhập nhanh hàng loạt</span>
+                <i data-lucide="list-plus" class="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"></i>
+                <span class="truncate">Nhập nhanh hàng loạt</span>
               </button>
 
               <button 
                 type="button" 
                 onclick="openAddParentTaskForAnnualYear()" 
                 id="btnAddParentTaskForYear" 
-                class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs shadow-blue-500/20 flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                class="col-span-2 sm:col-span-1 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs shadow-blue-500/20 flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-center"
               >
-                <i data-lucide="plus" class="w-4 h-4 stroke-[2.5]"></i>
+                <i data-lucide="plus" class="w-4 h-4 stroke-[2.5] shrink-0"></i>
                 <span>Thêm Mục tiêu lớn</span>
               </button>
             </div>
+          </div>
           </div>
 
           <!-- Parent Tasks Hierarchy & Subtasks Container (Orphan / Tree view) -->
@@ -2211,8 +2226,8 @@
         </div>
 
         <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <button type="button" id="btnCancelParentTaskModal" class="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-semibold">Hủy</button>
-          <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-xs">Lưu Task tổng</button>
+          <button type="button" id="btnCancelParentTaskModal" class="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 text-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-semibold transition cursor-pointer">Hủy</button>
+          <button type="submit" class="flex-1 sm:flex-none px-5 py-2.5 sm:py-2 text-center bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-xs transition active:scale-95 cursor-pointer">Lưu Task tổng</button>
         </div>
       </form>
     </div>
@@ -2307,8 +2322,8 @@
         </div>
 
         <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <button type="button" onclick="closeBulkSubtaskModal()" class="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-semibold transition cursor-pointer">Hủy</button>
-          <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer">
+          <button type="button" onclick="closeBulkSubtaskModal()" class="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 text-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-semibold transition cursor-pointer">Hủy</button>
+          <button type="submit" class="flex-1 sm:flex-none px-5 py-2.5 sm:py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-center">
             <i data-lucide="check" class="w-4 h-4 stroke-[2.5]"></i>
             <span>Tạo hàng loạt</span>
           </button>
@@ -2371,11 +2386,11 @@
         <!-- Rendered via JS -->
       </div>
 
-      <div class="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 shrink-0">
-        <span id="carryoverSelectedCountText" class="text-xs text-slate-500 font-medium">Đã chọn 0 mục</span>
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 shrink-0">
+        <span id="carryoverSelectedCountText" class="text-xs text-slate-500 font-medium text-center sm:text-left">Đã chọn 0 mục</span>
         <div class="flex items-center gap-2.5">
-          <button type="button" onclick="closeCarryoverModal()" class="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-semibold transition cursor-pointer">Hủy</button>
-          <button type="button" onclick="executeCarryover()" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer">
+          <button type="button" onclick="closeCarryoverModal()" class="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 text-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-semibold transition cursor-pointer">Hủy</button>
+          <button type="button" onclick="executeCarryover()" class="flex-1 sm:flex-none px-5 py-2.5 sm:py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold shadow-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer text-center">
             <i data-lucide="arrow-right" class="w-4 h-4 stroke-[2.5]"></i>
             <span>Thực hiện chuyển giao</span>
           </button>
@@ -2432,9 +2447,9 @@
           </div>
         </div>
 
-        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-          <button type="button" id="btnCancelQuickSchedule" class="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-medium">Hủy</button>
-          <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-xs">Xác nhận xếp lịch</button>
+        <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" id="btnCancelQuickSchedule" class="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 text-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-medium transition cursor-pointer">Hủy</button>
+          <button type="submit" class="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 text-center bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-xs transition active:scale-95 cursor-pointer">Xác nhận xếp lịch</button>
         </div>
       </form>
     </div>
@@ -3304,8 +3319,8 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=8.34"></script>
-  <script src="app.js?v=8.34"></script>
+  <script src="firebase-config.js?v=8.35"></script>
+  <script src="app.js?v=8.35"></script>
 
   <!-- Đăng ký Service Worker cho Progressive Web App (PWA) -->
   <script>

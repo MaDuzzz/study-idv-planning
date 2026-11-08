@@ -3601,74 +3601,77 @@ function renderAnnualPlanning(year) {
             </div>
           </div>
 
-          <!-- Parent Header Actions -->
-          <div class="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+          <!-- Parent Header Actions: Tối ưu chuẩn Mobile iPhone (12/17 Pro Max) & Desktop -->
+          <div class="flex items-center justify-between sm:justify-end gap-1 sm:gap-1.5 shrink-0 w-full sm:w-auto pt-2.5 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800/60">
             ${!isLocked ? `
               <button 
                 type="button" 
                 onclick="focusInlineQuickAdd('${p.id}')" 
                 title="Thêm nhanh subtask cho mục tiêu này" 
-                class="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800/60 transition cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95"
+                class="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800/60 transition cursor-pointer flex items-center gap-1 shadow-2xs active:scale-95"
               >
                 <i data-lucide="plus" class="w-3.5 h-3.5"></i>
                 <span>Thêm subtask</span>
               </button>
 
-              <button 
-                type="button" 
-                onclick="openBulkSubtaskModal('${p.id}', '${filterQuarter !== 'all' ? filterQuarter : 'Q1'}')" 
-                title="Nhập nhanh hàng loạt từ văn bản" 
-                class="p-1.5 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-xl transition cursor-pointer"
-              >
-                <i data-lucide="list-plus" class="w-4 h-4"></i>
-              </button>
+              <div class="flex items-center gap-0.5 sm:gap-1">
+                <button 
+                  type="button" 
+                  onclick="openBulkSubtaskModal('${p.id}', '${filterQuarter !== 'all' ? filterQuarter : 'Q1'}')" 
+                  title="Nhập nhanh hàng loạt từ văn bản" 
+                  class="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-xl transition cursor-pointer"
+                >
+                  <i data-lucide="list-plus" class="w-4 h-4"></i>
+                </button>
 
-              <button 
-                type="button" 
-                onclick="toggleParentTaskComplete('${p.id}')" 
-                title="Đánh dấu hoàn thành và khóa mục tiêu này" 
-                class="p-1.5 text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded-xl transition cursor-pointer"
-              >
-                <i data-lucide="check-circle" class="w-4 h-4"></i>
-              </button>
+                <button 
+                  type="button" 
+                  onclick="toggleParentTaskComplete('${p.id}')" 
+                  title="Đánh dấu hoàn thành và khóa mục tiêu này" 
+                  class="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded-xl transition cursor-pointer"
+                >
+                  <i data-lucide="check-circle" class="w-4 h-4"></i>
+                </button>
             ` : `
-              <button 
-                type="button" 
-                onclick="toggleParentTaskComplete('${p.id}')" 
-                title="Mở lại mục tiêu để tiếp tục theo dõi" 
-                class="px-2.5 py-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-xl transition cursor-pointer flex items-center gap-1"
-              >
-                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
-                <span>Mở lại</span>
-              </button>
+              <div class="flex items-center gap-1">
+                <button 
+                  type="button" 
+                  onclick="toggleParentTaskComplete('${p.id}')" 
+                  title="Mở lại mục tiêu để tiếp tục theo dõi" 
+                  class="px-2.5 py-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-xl transition cursor-pointer flex items-center gap-1"
+                >
+                  <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                  <span>Mở lại</span>
+                </button>
             `}
 
-            <button 
-              type="button" 
-              onclick="openEditParentTaskModal('${p.id}')" 
-              title="Sửa mục tiêu" 
-              class="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
-            >
-              <i data-lucide="edit-3" class="w-4 h-4"></i>
-            </button>
+                <button 
+                  type="button" 
+                  onclick="openEditParentTaskModal('${p.id}')" 
+                  title="Sửa mục tiêu" 
+                  class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                >
+                  <i data-lucide="edit-3" class="w-4 h-4"></i>
+                </button>
 
-            <button 
-              type="button" 
-              onclick="deleteParentTask('${p.id}')" 
-              title="Xóa mục tiêu" 
-              class="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition cursor-pointer"
-            >
-              <i data-lucide="trash-2" class="w-4 h-4"></i>
-            </button>
+                <button 
+                  type="button" 
+                  onclick="deleteParentTask('${p.id}')" 
+                  title="Xóa mục tiêu" 
+                  class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition cursor-pointer"
+                >
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
 
-            <button 
-              type="button" 
-              onclick="toggleAnnualParentCollapse('${p.id}')" 
-              title="${isCollapsed ? 'Mở rộng subtask' : 'Thu gọn subtask'}" 
-              class="p-1.5 text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
-            >
-              <i data-lucide="${isCollapsed ? 'chevron-down' : 'chevron-up'}" class="w-4 h-4"></i>
-            </button>
+                <button 
+                  type="button" 
+                  onclick="toggleAnnualParentCollapse('${p.id}')" 
+                  title="${isCollapsed ? 'Mở rộng subtask' : 'Thu gọn subtask'}" 
+                  class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                >
+                  <i data-lucide="${isCollapsed ? 'chevron-down' : 'chevron-up'}" class="w-4 h-4"></i>
+                </button>
+              </div>
           </div>
         </div>
 
@@ -3688,7 +3691,7 @@ function renderAnnualPlanning(year) {
                 <!-- Cành nối nhánh cây -->
                 <span class="absolute -left-3.5 sm:-left-5 top-1/2 -translate-y-1/2 w-3.5 sm:w-5 h-0.5 border-t-2 border-dashed pointer-events-none" style="border-color: ${pColor}40;"></span>
 
-                <form onsubmit="handleInlineQuickAddSubtask(event, '${p.id}', ${year})" class="flex flex-col md:flex-row items-stretch md:items-center gap-2 p-2 sm:p-2.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-850/60 hover:border-blue-400 dark:hover:border-blue-500 transition-colors">
+                <form onsubmit="handleInlineQuickAddSubtask(event, '${p.id}', ${year})" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2 sm:p-2.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-850/60 hover:border-blue-400 dark:hover:border-blue-500 transition-colors">
                   <div class="flex items-center gap-2 flex-1 min-w-0">
                     <i data-lucide="plus-circle" class="w-4 h-4 text-blue-500 shrink-0 ml-1"></i>
                     <input 
@@ -3701,26 +3704,28 @@ function renderAnnualPlanning(year) {
                     />
                   </div>
                   
-                  <div class="flex items-center gap-2 shrink-0 self-end md:self-auto flex-wrap">
+                  <div class="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 dark:border-slate-750">
                     <!-- Chọn Quý -->
                     <select id="inlineSubtaskQuarter_${p.id}" class="text-xs font-semibold px-2 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:outline-hidden cursor-pointer">
-                      <option value="Q1" ${filterQuarter === 'Q1' ? 'selected' : ''}>Quý 1 (T1-T3)</option>
-                      <option value="Q2" ${filterQuarter === 'Q2' ? 'selected' : ''}>Quý 2 (T4-T6)</option>
-                      <option value="Q3" ${filterQuarter === 'Q3' ? 'selected' : ''}>Quý 3 (T7-T9)</option>
-                      <option value="Q4" ${filterQuarter === 'Q4' ? 'selected' : ''}>Quý 4 (T10-T12)</option>
+                      <option value="Q1" ${filterQuarter === 'Q1' ? 'selected' : ''}>Quý 1</option>
+                      <option value="Q2" ${filterQuarter === 'Q2' ? 'selected' : ''}>Quý 2</option>
+                      <option value="Q3" ${filterQuarter === 'Q3' ? 'selected' : ''}>Quý 3</option>
+                      <option value="Q4" ${filterQuarter === 'Q4' ? 'selected' : ''}>Quý 4</option>
                       <option value="unassigned" ${filterQuarter === 'unassigned' ? 'selected' : ''}>Chưa phân quý</option>
                     </select>
                     
-                    <!-- Toggle Milestone -->
-                    <label class="flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 px-2 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 cursor-pointer select-none" title="Đánh dấu mốc quan trọng (Milestone)">
-                      <input type="checkbox" id="inlineSubtaskMilestone_${p.id}" class="rounded text-amber-500 focus:ring-0 cursor-pointer">
-                      <span>★ Milestone</span>
-                    </label>
-                    
-                    <button type="submit" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer">
-                      <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-                      <span>Thêm</span>
-                    </button>
+                    <div class="flex items-center gap-2">
+                      <!-- Toggle Milestone -->
+                      <label class="flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 px-2 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 cursor-pointer select-none" title="Đánh dấu mốc quan trọng (Milestone)">
+                        <input type="checkbox" id="inlineSubtaskMilestone_${p.id}" class="rounded text-amber-500 focus:ring-0 cursor-pointer">
+                        <span>★ Milestone</span>
+                      </label>
+                      
+                      <button type="submit" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                        <span>Thêm</span>
+                      </button>
+                    </div>
                   </div>
                 </form>
               </div>
@@ -3756,7 +3761,7 @@ function renderAnnualPlanning(year) {
           <!-- Form thêm nhanh nhiệm vụ độc lập -->
           <div class="relative group mt-3">
             <span class="absolute -left-3.5 sm:-left-5 top-1/2 -translate-y-1/2 w-3.5 sm:w-5 h-0.5 border-t-2 border-dashed border-slate-300 dark:border-slate-700 pointer-events-none"></span>
-            <form onsubmit="handleInlineQuickAddSubtask(event, null, ${year})" class="flex flex-col md:flex-row items-stretch md:items-center gap-2 p-2 sm:p-2.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-850/60 hover:border-blue-400 transition-colors">
+            <form onsubmit="handleInlineQuickAddSubtask(event, null, ${year})" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2 sm:p-2.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-850/60 hover:border-blue-400 transition-colors">
               <div class="flex items-center gap-2 flex-1 min-w-0">
                 <i data-lucide="plus-circle" class="w-4 h-4 text-slate-400 shrink-0 ml-1"></i>
                 <input 
@@ -3768,7 +3773,7 @@ function renderAnnualPlanning(year) {
                   autocomplete="off"
                 />
               </div>
-              <div class="flex items-center gap-2 shrink-0 self-end md:self-auto">
+              <div class="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 dark:border-slate-750">
                 <select id="inlineSubtaskQuarter_independent" class="text-xs font-semibold px-2 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:outline-hidden cursor-pointer">
                   <option value="Q1" ${filterQuarter === 'Q1' ? 'selected' : ''}>Quý 1</option>
                   <option value="Q2" ${filterQuarter === 'Q2' ? 'selected' : ''}>Quý 2</option>
@@ -3849,16 +3854,17 @@ function renderPlanningSubtaskRow(task, pColor) {
   return `
     <div class="relative group">
       <!-- Cành nối nhánh cây dạng Orphan / Tree -->
-      <span class="absolute -left-3.5 sm:-left-5 top-1/2 -translate-y-1/2 w-3.5 sm:w-5 h-0.5 pointer-events-none transition-colors" style="background-color: ${color}40;"></span>
+      <span class="absolute -left-3.5 sm:-left-5 top-4 sm:top-1/2 -translate-y-1/2 w-3.5 sm:w-5 h-0.5 pointer-events-none transition-colors" style="background-color: ${color}40;"></span>
 
-      <!-- Subtask Row Card -->
-      <div class="p-2.5 sm:p-3 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between gap-3 shadow-2xs hover:border-slate-300 dark:hover:border-slate-700 transition">
-        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+      <!-- Subtask Row Card: Tối ưu chuẩn Mobile iPhone (12/17 Pro Max) & Desktop -->
+      <div class="p-2.5 sm:p-3 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 shadow-2xs hover:border-slate-300 dark:hover:border-slate-700 transition">
+        <!-- Top (Mobile) / Left (Desktop): Checkbox + Title -->
+        <div class="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
           <button 
             type="button" 
             onclick="toggleTaskComplete('${task.id}')" 
             title="${isDone ? 'Đánh dấu chưa hoàn thành' : 'Đánh dấu hoàn thành'}"
-            class="w-5 h-5 rounded-md border flex items-center justify-center transition cursor-pointer shrink-0 ${
+            class="w-5 h-5 rounded-md border flex items-center justify-center transition cursor-pointer shrink-0 mt-0.5 sm:mt-0 ${
               isDone 
                 ? 'bg-emerald-500 border-emerald-500 text-white shadow-2xs' 
                 : 'border-slate-300 dark:border-slate-600 hover:border-blue-500 bg-white dark:bg-slate-800'
@@ -3867,41 +3873,46 @@ function renderPlanningSubtaskRow(task, pColor) {
             ${isDone ? '<i data-lucide="check" class="w-3.5 h-3.5 stroke-[3]"></i>' : ''}
           </button>
 
-          <span class="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 truncate ${isDone ? 'line-through text-slate-400 dark:text-slate-500' : ''}">
+          <span class="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 break-words leading-snug flex-1 ${isDone ? 'line-through text-slate-400 dark:text-slate-500' : ''}">
             ${escapeHtml(task.title)}
           </span>
         </div>
 
-        <div class="flex items-center gap-2 shrink-0">
-          ${timeBadgeHtml}
-          ${assignParentHtml}
+        <!-- Bottom (Mobile) / Right (Desktop): Badges & Actions -->
+        <div class="flex items-center justify-between sm:justify-end gap-1.5 sm:gap-2 shrink-0 pl-7 sm:pl-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800/60">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            ${timeBadgeHtml}
+            ${assignParentHtml}
+          </div>
           
-          <button 
-            type="button" 
-            onclick="openQuickScheduleModal('${task.id}')" 
-            title="Xếp vào ngày cụ thể trong lịch" 
-            class="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
-          >
-            <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
-          </button>
-          
-          <button 
-            type="button" 
-            onclick="openEditTaskModal('${task.id}')" 
-            title="Chỉnh sửa nhiệm vụ" 
-            class="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
-          >
-            <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
-          </button>
-          
-          <button 
-            type="button" 
-            onclick="deleteTask('${task.id}')" 
-            title="Xóa nhiệm vụ" 
-            class="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition cursor-pointer"
-          >
-            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-          </button>
+          <div class="flex items-center gap-0.5 sm:gap-1">
+            <button 
+              type="button" 
+              onclick="openQuickScheduleModal('${task.id}')" 
+              title="Xếp vào ngày cụ thể trong lịch" 
+              class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
+            >
+              <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+            </button>
+            
+            <button 
+              type="button" 
+              onclick="openEditTaskModal('${task.id}')" 
+              title="Chỉnh sửa nhiệm vụ" 
+              class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
+            >
+              <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+            </button>
+            
+            <button 
+              type="button" 
+              onclick="deleteTask('${task.id}')" 
+              title="Xóa nhiệm vụ" 
+              class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition cursor-pointer"
+            >
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
         </div>
       </div>
     </div>
