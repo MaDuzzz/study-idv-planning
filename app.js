@@ -488,12 +488,16 @@ async function toggleParentTaskComplete(parentTaskId) {
 
     parent.completed = true;
     parent.completedAt = new Date().toISOString();
+    if (!state.annualCollapsedParents) state.annualCollapsedParents = {};
+    state.annualCollapsedParents[parentTaskId] = true;
   } else {
     if (!confirm(`Bạn có muốn MỞ LẠI mục tiêu "${parent.title}" không?\n\nCác nhiệm vụ thuộc mục tiêu này sẽ được mở khóa để có thể chỉnh sửa, hoàn thành và tiếp tục gán thêm nhiệm vụ mới.`)) {
       return;
     }
     parent.completed = false;
     delete parent.completedAt;
+    if (!state.annualCollapsedParents) state.annualCollapsedParents = {};
+    state.annualCollapsedParents[parentTaskId] = false;
   }
 
   await saveSingleParentTask(parent);
@@ -3390,7 +3394,7 @@ function renderAnnualPlanning(year) {
   independentTasks.sort((a, b) => compareTasksChronological(a, b, year));
 
   // Kiểm tra nếu tất cả parents đang thu gọn
-  const allCollapsed = parentsForYear.length > 0 && parentsForYear.every(p => state.annualCollapsedParents[p.id]);
+  const allCollapsed = parentsForYear.length > 0 && parentsForYear.every(p => isAnnualParentCollapsed(p.id));
 
   let html = '';
 
@@ -3477,9 +3481,9 @@ function renderAnnualPlanning(year) {
 
   // 3. HIỂN THỊ TỪNG PARENT TASK THEO DẠNG CÂY (INDENTED HIERARCHY / ORPHAN TREE)
   parentsForYear.forEach(p => {
-    const isCollapsed = Boolean(state.annualCollapsedParents[p.id]);
-    const pColor = p.color || '#2563eb';
     const isLocked = Boolean(p.completed);
+    const isCollapsed = isAnnualParentCollapsed(p.id);
+    const pColor = p.color || '#2563eb';
 
     // Lọc subtasks của parent này trong năm và sắp xếp theo trình tự thời gian
     const allParentSubtasksInYear = tasksInYear.filter(t => t.parentId === p.id);
@@ -3903,8 +3907,20 @@ async function handleInlineQuickAddSubtask(e, parentId, year) {
   }, 60);
 }
 
+// Helper kiểm tra trạng thái thu gọn của Parent Task trong Planning Hub:
+// Mặc định: Nếu mục tiêu đã hoàn thành (completed) thì luôn ở chế độ thu gọn (collapsed)
+function isAnnualParentCollapsed(parentId) {
+  if (!parentId) return false;
+  if (state.annualCollapsedParents && state.annualCollapsedParents[parentId] !== undefined) {
+    return Boolean(state.annualCollapsedParents[parentId]);
+  }
+  const p = state.parentTasks ? state.parentTasks.find(item => item.id === parentId) : null;
+  return Boolean(p && p.completed);
+}
+
 function focusInlineQuickAdd(parentId) {
-  if (state.annualCollapsedParents && state.annualCollapsedParents[parentId]) {
+  if (isAnnualParentCollapsed(parentId)) {
+    if (!state.annualCollapsedParents) state.annualCollapsedParents = {};
     state.annualCollapsedParents[parentId] = false;
     renderAnnualPlanning(state.annualViewYear);
     if (window.lucide && typeof window.lucide.createIcons === 'function') {
@@ -3922,7 +3938,8 @@ function focusInlineQuickAdd(parentId) {
 
 function toggleAnnualParentCollapse(parentId) {
   if (!state.annualCollapsedParents) state.annualCollapsedParents = {};
-  state.annualCollapsedParents[parentId] = !state.annualCollapsedParents[parentId];
+  const currentCollapsed = isAnnualParentCollapsed(parentId);
+  state.annualCollapsedParents[parentId] = !currentCollapsed;
   renderAnnualPlanning(state.annualViewYear);
   if (window.lucide && typeof window.lucide.createIcons === 'function') {
     window.lucide.createIcons();
