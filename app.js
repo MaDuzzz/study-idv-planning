@@ -4926,7 +4926,7 @@ function renderRangeCalGrid() {
   for (let i = startDayOfWeek - 1; i >= 0; i--) {
     const dayNum = daysInPrevMonth - i;
     html += `
-      <div class="h-9 sm:h-10 flex items-center justify-center text-slate-300 dark:text-slate-700 text-xs font-normal select-none pointer-events-none">
+      <div class="h-9 w-full flex items-center justify-center text-slate-300 dark:text-slate-700 text-xs font-normal select-none pointer-events-none">
         ${dayNum}
       </div>
     `;
@@ -4950,43 +4950,43 @@ function renderRangeCalGrid() {
 
     if (isPast) {
       html += `
-        <div class="h-9 sm:h-10 flex items-center justify-center text-slate-300 dark:text-slate-700 text-xs select-none opacity-40 cursor-not-allowed">
+        <div class="h-9 w-full flex items-center justify-center text-slate-300 dark:text-slate-700 text-xs select-none opacity-40 cursor-not-allowed">
           ${day}
         </div>
       `;
     } else if (isExactStart || isExactEnd) {
       html += `
-        <button type="button" onclick="handleRangeCalDayClick('${dateStr}')" class="h-9 sm:h-10 w-full flex items-center justify-center font-bold text-xs bg-blue-600 text-white rounded-xl shadow-xs transition active:scale-95 cursor-pointer">
+        <button type="button" onclick="handleRangeCalDayClick('${dateStr}')" class="h-9 w-full flex items-center justify-center font-bold text-xs bg-blue-600 text-white rounded-xl shadow-xs transition active:scale-95 cursor-pointer">
           ${day}
         </button>
       `;
     } else if (inRange) {
       html += `
-        <button type="button" onclick="handleRangeCalDayClick('${dateStr}')" onmouseenter="handleRangeCalDayHover('${dateStr}')" class="h-9 sm:h-10 w-full flex items-center justify-center font-semibold text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 transition cursor-pointer">
+        <button type="button" onclick="handleRangeCalDayClick('${dateStr}')" onmouseenter="handleRangeCalDayHover('${dateStr}')" class="h-9 w-full flex items-center justify-center font-semibold text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 transition cursor-pointer">
           ${day}
         </button>
       `;
     } else if (isToday) {
       html += `
-        <button type="button" onclick="handleRangeCalDayClick('${dateStr}')" onmouseenter="handleRangeCalDayHover('${dateStr}')" class="h-9 sm:h-10 w-full flex items-center justify-center font-bold text-xs text-blue-600 dark:text-blue-400 border border-blue-400/80 dark:border-blue-500 rounded-xl hover:bg-blue-50 dark:hover:bg-slate-800 transition cursor-pointer">
+        <button type="button" onclick="handleRangeCalDayClick('${dateStr}')" onmouseenter="handleRangeCalDayHover('${dateStr}')" class="h-9 w-full flex items-center justify-center font-bold text-xs text-blue-600 dark:text-blue-400 border border-blue-400/80 dark:border-blue-500 rounded-xl hover:bg-blue-50 dark:hover:bg-slate-800 transition cursor-pointer">
           ${day}
         </button>
       `;
     } else {
       html += `
-        <button type="button" onclick="handleRangeCalDayClick('${dateStr}')" onmouseenter="handleRangeCalDayHover('${dateStr}')" class="h-9 sm:h-10 w-full flex items-center justify-center text-slate-700 dark:text-slate-200 text-xs rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+        <button type="button" onclick="handleRangeCalDayClick('${dateStr}')" onmouseenter="handleRangeCalDayHover('${dateStr}')" class="h-9 w-full flex items-center justify-center text-slate-700 dark:text-slate-200 text-xs rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
           ${day}
         </button>
       `;
     }
   }
 
-  // 3. Ngày của tháng sau
-  const totalCells = startDayOfWeek + daysInMonth;
-  const remaining = (7 - (totalCells % 7)) % 7;
+  // 3. Ngày của tháng sau: Luôn lấp đầy đúng 42 ô (6 hàng x 7 cột) để cố định chiều cao modal
+  const totalCellsSoFar = startDayOfWeek + daysInMonth;
+  const remaining = 42 - totalCellsSoFar;
   for (let i = 1; i <= remaining; i++) {
     html += `
-      <div class="h-9 sm:h-10 flex items-center justify-center text-slate-300 dark:text-slate-700 text-xs select-none pointer-events-none">
+      <div class="h-9 w-full flex items-center justify-center text-slate-300 dark:text-slate-700 text-xs select-none pointer-events-none">
         ${i}
       </div>
     `;
