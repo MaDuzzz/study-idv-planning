@@ -618,6 +618,19 @@
       display: none !important;
     }
 
+    /* Chống tràn thanh chọn Chuyên đề trên màn hình mobile */
+    #annualRoadmapCategoryFilter {
+      max-width: 100% !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+    }
+    @media (max-width: 640px) {
+      #annualRoadmapCategoryFilter {
+        max-width: 210px !important;
+      }
+    }
+
     .no-scrollbar::-webkit-scrollbar {
       display: none;
     }
@@ -1308,14 +1321,14 @@
                 <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Tiến độ 4 Quý (Q1 - Q4) và điểm rơi các kỳ thi, chứng chỉ, mốc trọng yếu</p>
               </div>
 
-              <!-- Lọc chuyên đề -->
-              <div class="flex items-center gap-2 self-start sm:self-auto">
+              <!-- Lọc chuyên đề: Tối ưu chống tràn màn hình mobile -->
+              <div class="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start min-w-0">
                 <span class="text-xs text-slate-500 dark:text-slate-400 font-medium shrink-0">Chuyên đề:</span>
-                <div class="relative group">
-                  <select id="annualRoadmapCategoryFilter" onchange="filterAnnualRoadmapCategory(this.value)" class="text-xs font-semibold pl-3 pr-7 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500 transition appearance-none cursor-pointer">
+                <div class="relative group flex-1 sm:flex-initial min-w-0 max-w-[calc(100vw-140px)] sm:max-w-xs">
+                  <select id="annualRoadmapCategoryFilter" onchange="filterAnnualRoadmapCategory(this.value)" class="w-full text-xs font-semibold pl-3 pr-8 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500 transition appearance-none cursor-pointer truncate">
                     <option value="all">Tất cả mục tiêu</option>
                   </select>
-                  <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400 dark:text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                  <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400 dark:text-slate-400 group-focus-within:text-blue-500 transition-colors">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="6 9 12 15 18 9"></polyline>
                     </svg>
@@ -1458,7 +1471,6 @@
                 <span>Thêm Mục tiêu lớn</span>
               </button>
             </div>
-          </div>
           </div>
 
           <!-- Parent Tasks Hierarchy & Subtasks Container (Orphan / Tree view) -->
@@ -3319,8 +3331,8 @@
   <div id="toastNotificationContainer" class="fixed top-5 right-5 z-[120] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-3"></div>
 
   <!-- Nạp module Firebase & Google Drive trước app.js -->
-  <script src="firebase-config.js?v=8.35"></script>
-  <script src="app.js?v=8.35"></script>
+  <script src="firebase-config.js?v=8.36"></script>
+  <script src="app.js?v=8.36"></script>
 
   <!-- Đăng ký Service Worker cho Progressive Web App (PWA) -->
   <script>
