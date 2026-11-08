@@ -771,6 +771,14 @@ function formatPrettyDate(dateStr) {
   }
 }
 
+function formatDateVN(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return '';
+  const parts = dateStr.trim().split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return dateStr;
+}
+window.formatDateVN = formatDateVN;
+
 function getDatesInRange(startDateStr, endDateStr) {
   if (!startDateStr) return [];
   if (!endDateStr || startDateStr === endDateStr) return [startDateStr];
@@ -3075,6 +3083,9 @@ function renderAnnualRoadmap(year, parentsInYear, tasksInYear) {
   });
 
   container.innerHTML = html;
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    window.lucide.createIcons();
+  }
 }
 
 // C. Cơ cấu Chuyên đề & Điểm nghẽn Replan
@@ -3271,6 +3282,9 @@ function renderYearHeatmap(year) {
 
   html += `</div>`;
   container.innerHTML = html;
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    window.lucide.createIcons();
+  }
 }
 
 // 6. RENDER CHẾ ĐỘ LẬP KẾ HOẠCH CHIẾN LƯỢC (ANNUAL PLANNING HUB) - DẠNG THỨ BẬC THEO TỪNG PARENT TASK (ORPHAN/TREE VIEW)
@@ -3291,16 +3305,9 @@ function renderAnnualPlanning(year) {
   const allParents = state.parentTasks || [];
   
   // Xác định các Parent Task hiển thị cho năm này:
-  // 1. Gán cụ thể cho năm này (p.targetYear === year)
-  // 2. Hoặc tạo trong năm này (!p.targetYear && getParentTaskYear(p) === year)
-  // 3. Hoặc có subtask thuộc năm này
-  // 4. Hoặc là mục tiêu đang hoạt động (chưa hoàn thành !p.completed)
+  // Đồng bộ hoàn toàn với View Toàn Trình (Annual Roadmap & Dashboard)
   const parentsForYear = allParents.filter(p => {
-    const hasTasks = tasksInYear.some(t => t.parentId === p.id);
-    const isTargetYear = p.targetYear && Number(p.targetYear) === year;
-    const isYearCreated = !p.targetYear && getParentTaskYear(p) === year;
-    const isOngoing = !p.completed;
-    return hasTasks || isTargetYear || isYearCreated || isOngoing;
+    return getParentTaskYear(p) === year || state.tasks.some(t => t.parentId === p.id && getTaskYear(t) === year);
   });
 
   const independentTasksAll = tasksInYear.filter(t => !t.parentId);
@@ -3388,6 +3395,9 @@ function renderAnnualPlanning(year) {
       </div>
     `;
     container.innerHTML = html;
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      window.lucide.createIcons();
+    }
     return;
   }
 
@@ -3638,6 +3648,9 @@ function renderAnnualPlanning(year) {
   }
 
   container.innerHTML = html;
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    window.lucide.createIcons();
+  }
 }
 
 // Helper render một dòng subtask trong Planning Hub với cành nối dạng Orphan / Tree
